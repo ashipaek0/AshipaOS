@@ -1,0 +1,4 @@
+# Generic x86_64 (UEFI) target stub. PROVISIONAL until Layer 1+ defines parameters.
+name: x86_64
+arch: x86_64
+status: PROVISIONAL

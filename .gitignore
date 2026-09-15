@@ -1,0 +1,25 @@
+# Build outputs — generated, never committed
+build/rootfs/
+build/work/
+build/output/
+
+# Built images and compressed artefacts
+*.img
+*.xz
+
+# Local evidence captures (curated evidence only is committed)
+/evidence/local/
+/evidence/**/*.log
+
+# Editor / OS junk
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/

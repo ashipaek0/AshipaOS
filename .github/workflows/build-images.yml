@@ -1,0 +1,22 @@
+name: build-images
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  static-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run static tests
+        run: |
+          for t in tests/static/*.sh; do
+            echo "=== $t ==="
+            bash "$t"
+          done
+  build:
+    needs: static-tests
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "DEFERRED: real image builds are owned by later layer tasks (Layer 1+ build pipeline). Layer 0 provides only the CI skeleton."

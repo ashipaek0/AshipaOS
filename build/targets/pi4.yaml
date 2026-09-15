@@ -1,0 +1,4 @@
+# Raspberry Pi 4 target stub. PROVISIONAL until Layer 1+ defines parameters.
+name: pi4
+arch: arm64
+status: PROVISIONAL

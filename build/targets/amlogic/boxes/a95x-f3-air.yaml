@@ -1,0 +1,73 @@
+# Initial hardware facts for the first supported Amlogic box.
+# Per build guide Task 0.5.1: all values UNKNOWN/PROVISIONAL until verified
+# on hardware with recorded evidence. NEVER invent values here.
+name: A95X F3 Air
+
+status:
+  device_tree: PROVISIONAL
+  wifi: PROVISIONAL
+  bluetooth: UNKNOWN
+  ir: PROVISIONAL
+  hardware_decode: PROVISIONAL
+
+soc:
+  value: S905X3
+  status: PROVISIONAL
+
+kernel_branch:
+  value: Amlogic-ne
+  status: PROVISIONAL
+
+device_tree:
+  value: null
+  status: UNKNOWN
+  evidence: []
+
+wifi:
+  driver: null
+  status: UNKNOWN
+  evidence: []
+
+bluetooth:
+  supported: null
+  status: UNKNOWN
+  evidence: []
+
+ram:
+  variants: []
+  status: UNKNOWN
+  evidence: []
+
+ir:
+  receiver: null
+  status: UNKNOWN
+  evidence: []
+
+cec:
+  status: UNKNOWN
+  evidence: []
+
+audio:
+  hdmi: UNKNOWN
+  analog: UNKNOWN
+  spdif: UNKNOWN
+  evidence: []
+
+power:
+  button: UNKNOWN
+  wake_ir: UNKNOWN
+  led: UNKNOWN
+  evidence: []
+
+storage:
+  boot_media: UNKNOWN
+  emmc_install: UNKNOWN
+  evidence: []
+
+boot:
+  serial_console:
+    status: UNKNOWN
+    evidence: []
+  recovery:
+    status: UNKNOWN
+    evidence: []

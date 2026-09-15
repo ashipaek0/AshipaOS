@@ -1,0 +1,4 @@
+# Raspberry Pi 5 target stub. PROVISIONAL until Layer 1+ defines parameters.
+name: pi5
+arch: arm64
+status: PROVISIONAL

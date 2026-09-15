@@ -1,0 +1,19 @@
+# Release channels/targets skeleton. Populated by later layer tasks.
+channels:
+  nightly:
+    targets: []
+  stable:
+    targets: []
+targets:
+  pi4:
+    channel: nightly
+    status: PROVISIONAL
+  pi5:
+    channel: nightly
+    status: PROVISIONAL
+  x86_64:
+    channel: nightly
+    status: PROVISIONAL
+  a95x-f3-air:
+    channel: nightly
+    status: PROVISIONAL
