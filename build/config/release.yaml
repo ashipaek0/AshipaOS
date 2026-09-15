@@ -5,12 +5,6 @@ channels:
   stable:
     targets: []
 targets:
-  pi4:
-    channel: nightly
-    status: PROVISIONAL
-  pi5:
-    channel: nightly
-    status: PROVISIONAL
   x86_64:
     channel: nightly
     status: PROVISIONAL
