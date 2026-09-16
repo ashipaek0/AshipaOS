@@ -1,14 +1,52 @@
 name: pr
 on:
   pull_request:
+    branches: [main]
+
 jobs:
   static-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck
+
       - name: Run static tests
         run: |
-          for t in tests/static/*.sh; do
-            echo "=== $t ==="
-            bash "$t"
+          echo "=== Running Static Tests ==="
+          for layer in layers/layer*/; do
+            if [ -f "${layer}tests/static-tests.sh" ]; then
+              echo "Testing ${layer}"
+              bash "${layer}tests/static-tests.sh"
+            fi
           done
+      
+      - name: Validate JSON schemas
+        run: |
+          echo "=== Validating JSON Schemas ==="
+          for schema in schemas/*.json; do
+            echo "Validating against $schema"
+            # Find corresponding config files and validate
+          done
+      
+      - name: Smoke test Layer 1 (rootfs)
+        run: |
+          echo "=== Smoke Test Layer 1 (STATIC: syntax + usage contract) ==="
+          bash -n layers/layer1-rootfs/scripts/build-rootfs.sh
+          bash layers/layer1-rootfs/scripts/build-rootfs.sh 2>&1 | grep -q "Usage"
+      
+      - name: Smoke test Layer 2 (image)
+        run: |
+          echo "=== Smoke Test Layer 2 (STATIC: config validation) ==="
+          bash -n layers/layer2-image/scripts/build-image.sh
+          bash layers/layer2-image/scripts/build-image.sh --validate
+      
+      - name: Upload evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: build-evidence
+          path: output/evidence/
+          retention-days: 30

@@ -1,0 +1,24 @@
+# Layer 3: First-Boot Initialization Configuration
+# Verification Class: BUILD, VM
+
+hostname: ashipaos
+
+users:
+  - name: ashipa
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: [sudo, systemd-journal]
+
+timezone: UTC
+locale: en_US.UTF-8
+
+network:
+  dhcp: true
+  wait_online: true
+
+ssh:
+  enable: true
+  permit_root_login: prohibit-password
+
+firstboot_mode: systemd-firstboot
+# Alternative: cloud-init
