@@ -1,0 +1,32 @@
+# Layer 4: Core System Services Configuration
+# Verification Class: BUILD, VM
+
+services:
+  enabled:
+    - ssh
+    - networking
+    - systemd-journald
+    - systemd-logind
+    - systemd-networkd
+    - systemd-resolved
+    - cron
+    - dbus
+    - getty@tty1
+    
+  disabled:
+    - bluetooth
+    - cups
+    - ModemManager
+
+default_target: multi-user.target
+
+presets:
+  policy: enable
+  override_file: /etc/systemd/presets/ashipaos.preset
+
+testing:
+  verify_with_systemd_analyze: true
+  required_services:
+    - ssh
+    - networking
+    - dbus

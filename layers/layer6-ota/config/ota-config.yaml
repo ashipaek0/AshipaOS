@@ -1,0 +1,9 @@
+# Layer 6: OTA Configuration
+ota:
+  enabled: true
+  slots: [a, b]
+  update_server: https://updates.ashipaos.com
+  rollback_timeout: 300
+security:
+  signature_required: true
+  algorithm: ed25519

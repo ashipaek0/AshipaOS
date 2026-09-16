@@ -35,8 +35,6 @@ except ImportError:
     have_jsonschema = False
 
 targets = [
-    os.path.join(root, "build/targets/pi4.yaml"),
-    os.path.join(root, "build/targets/pi5.yaml"),
     os.path.join(root, "build/targets/x86_64.yaml"),
 ]
 boxes = [os.path.join(root, "build/targets/amlogic/boxes/a95x-f3-air.yaml")]

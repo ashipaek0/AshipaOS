@@ -1,0 +1,220 @@
+#!/bin/bash
+# STATIC Test Suite for Layer 1 - Minimal Debian Root Filesystem
+# Verification Class: STATIC (no build required)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAYER1_DIR="$(dirname "$SCRIPT_DIR")"
+
+PASSED=0
+FAILED=0
+
+log_test() {
+    echo "[STATIC TEST] $1"
+}
+
+log_pass() {
+    echo "  ✓ PASS: $1"
+    PASSED=$((PASSED + 1))
+}
+
+log_fail() {
+    echo "  ✗ FAIL: $1"
+    FAILED=$((FAILED + 1))
+}
+
+# Test 1: Build script exists and is executable
+test_build_script_exists() {
+    log_test "Checking build script exists..."
+    
+    if [[ -f "$LAYER1_DIR/scripts/build-rootfs.sh" ]]; then
+        log_pass "build-rootfs.sh exists"
+    else
+        log_fail "build-rootfs.sh not found"
+        return
+    fi
+    
+    if [[ -x "$LAYER1_DIR/scripts/build-rootfs.sh" ]]; then
+        log_pass "build-rootfs.sh is executable"
+    else
+        log_fail "build-rootfs.sh is not executable"
+    fi
+}
+
+# Test 2: Build script uses proper shell standards
+test_shell_standards() {
+    log_test "Checking shell script standards..."
+    
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    
+    # Check for set -euo pipefail
+    if grep -q "set -euo pipefail" "$script"; then
+        log_pass "Script uses 'set -euo pipefail'"
+    else
+        log_fail "Script missing 'set -euo pipefail'"
+    fi
+    
+    # Check for proper error handling
+    if grep -q "error()" "$script"; then
+        log_pass "Script has error handling function"
+    else
+        log_fail "Script missing error handling function"
+    fi
+    
+    # Check for usage function
+    if grep -q "usage()" "$script"; then
+        log_pass "Script has usage function"
+    else
+        log_fail "Script missing usage function"
+    fi
+}
+
+# Test 3: Configuration file exists and is valid YAML
+test_config_exists() {
+    log_test "Checking configuration file..."
+    
+    local config="$LAYER1_DIR/config/rootfs-config.yaml"
+    
+    if [[ -f "$config" ]]; then
+        log_pass "rootfs-config.yaml exists"
+    else
+        log_fail "rootfs-config.yaml not found"
+        return
+    fi
+    
+    # Basic YAML structure checks
+    if grep -q "^debian:" "$config"; then
+        log_pass "Config has debian section"
+    else
+        log_fail "Config missing debian section"
+    fi
+    
+    if grep -q "^architectures:" "$config"; then
+        log_pass "Config has architectures section"
+    else
+        log_fail "Config missing architectures section"
+    fi
+    
+    if grep -q "^packages:" "$config"; then
+        log_pass "Config has packages section"
+    else
+        log_fail "Config missing packages section"
+    fi
+    
+    if grep -q "^verification:" "$config"; then
+        log_pass "Config has verification section"
+    else
+        log_fail "Config missing verification section"
+    fi
+}
+
+# Test 4: Evidence directory exists
+test_evidence_dir() {
+    log_test "Checking evidence directory..."
+    
+    if [[ -d "$LAYER1_DIR/evidence" ]]; then
+        log_pass "Evidence directory exists"
+    else
+        log_fail "Evidence directory not found"
+    fi
+}
+
+# Test 5: Script doesn't hardcode hardware-specific values
+test_no_hardware_hardcoding() {
+    log_test "Checking for hardware-specific hardcoding..."
+    
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    
+    # Should not contain specific board names (except a95x-f3-air which is a supported target)
+    if grep -qiE "(pi4|pi5|raspberry)" "$script"; then
+        log_fail "Script contains hardware-specific values"
+    else
+        log_pass "No hardware-specific hardcoding detected"
+    fi
+    
+    # Should use architecture parameter instead of hardcoded arch
+    if grep -q 'target_arch="\$1"' "$script" || grep -q '\${1:-}' "$script"; then
+        log_pass "Script accepts architecture as parameter"
+    else
+        log_fail "Script may have hardcoded architecture"
+    fi
+}
+
+# Test 6: Verification class is correctly specified
+test_verification_class() {
+    log_test "Checking verification class specification..."
+    
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    
+    if grep -q "Verification Class: BUILD" "$script"; then
+        log_pass "Verification class BUILD specified in comments"
+    else
+        log_fail "Verification class not specified"
+    fi
+    
+    local config="$LAYER1_DIR/config/rootfs-config.yaml"
+    if grep -q "class: BUILD" "$config"; then
+        log_pass "Verification class BUILD specified in config"
+    else
+        log_fail "Verification class not specified in config"
+    fi
+}
+
+# Test 7: Script generates evidence
+test_evidence_generation() {
+    log_test "Checking evidence generation capability..."
+    
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    
+    if grep -q "generate_evidence()" "$script"; then
+        log_pass "Script has evidence generation function"
+    else
+        log_fail "Script missing evidence generation function"
+    fi
+    
+    if grep -q "build-evidence-" "$script"; then
+        log_pass "Script generates timestamped evidence files"
+    else
+        log_fail "Script doesn't generate timestamped evidence"
+    fi
+}
+
+# Run all tests
+main() {
+    echo "========================================"
+    echo "Layer 1 Static Test Suite"
+    echo "========================================"
+    echo ""
+    
+    test_build_script_exists
+    echo ""
+    
+    test_shell_standards
+    echo ""
+    
+    test_config_exists
+    echo ""
+    
+    test_evidence_dir
+    echo ""
+    
+    test_no_hardware_hardcoding
+    echo ""
+    
+    test_verification_class
+    echo ""
+    
+    test_evidence_generation
+    echo ""
+    
+    echo "========================================"
+    echo "Test Results: $PASSED passed, $FAILED failed"
+    echo "========================================"
+    
+    if [[ $FAILED -gt 0 ]]; then
+        exit 1
+    fi
+}
+
+main "$@"
