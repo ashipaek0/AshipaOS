@@ -1,0 +1,43 @@
+# Layer 2: Bootable Disk Image Configuration
+# Verification Class: VM, HARDWARE
+
+image_size_mb: 4096
+filesystem_overhead_percent: 5
+
+partitions:
+  efi: 256
+  root: 3584
+
+filesystems:
+  efi:
+    type: vfat
+    fat_size: 32
+    label: EFI
+    mount_point: /boot/efi
+  root:
+    type: ext4
+    label: RootFS
+    mount_point: /
+    options: "defaults,noatime"
+
+bootloader:
+  type: uefi
+  arch_mapping:
+    arm64: BOOTAA64.EFI
+    amd64: BOOTX64.EFI
+    armhf: BOOTARM.EFI
+
+kernel:
+  source: external
+  # Kernel provided by target-specific build or package
+  install_path: /boot
+  dtb_path: /boot/dtbs
+
+testing:
+  vm_boot_timeout: 120
+  hardware_boot_timeout: 300
+  required_tests:
+    - qemu_boot_test
+    - partition_integrity
+    - filesystem_check
+    - fstab_validation

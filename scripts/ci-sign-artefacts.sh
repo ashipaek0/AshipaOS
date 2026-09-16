@@ -1,0 +1,55 @@
+#!/bin/bash
+# CI Script: Sign Artefacts with GPG
+# Usage: ci-sign-artefacts.sh <images_dir> <ota_dir>
+
+set -euo pipefail
+
+IMAGES_DIR="${1:-output/images}"
+OTA_DIR="${2:-output/ota}"
+
+echo "=== Signing Artefacts ==="
+
+# Check if GPG key is available
+if ! gpg --list-secret-keys | grep -q "AshipaOS Release"; then
+    echo "ERROR: GPG private key not found. Please configure GPG_PRIVATE_KEY secret."
+    exit 1
+fi
+
+# Sign disk images
+if [ -d "$IMAGES_DIR" ]; then
+    echo "Signing disk images in $IMAGES_DIR..."
+    for img in "$IMAGES_DIR"/*.img.gz; do
+        if [ -f "$img" ]; then
+            echo "  Signing: $(basename "$img")"
+            echo "${GPG_PASSPHRASE}" | gpg --batch --yes --passphrase-fd 0 \
+                --armor --detach-sign "$img"
+        fi
+    done
+else
+    echo "WARNING: Images directory not found: $IMAGES_DIR"
+fi
+
+# Sign OTA packages
+if [ -d "$OTA_DIR" ]; then
+    echo "Signing OTA packages in $OTA_DIR..."
+    for pkg in "$OTA_DIR"/*.pkg; do
+        if [ -f "$pkg" ]; then
+            echo "  Signing: $(basename "$pkg")"
+            echo "${GPG_PASSPHRASE}" | gpg --batch --yes --passphrase-fd 0 \
+                --armor --detach-sign "$pkg"
+        fi
+    done
+else
+    echo "WARNING: OTA directory not found: $OTA_DIR"
+fi
+
+# Sign SBOM
+if [ -f "output/sbom.json" ]; then
+    echo "Signing SBOM..."
+    echo "${GPG_PASSPHRASE}" | gpg --batch --yes --passphrase-fd 0 \
+        --armor --detach-sign output/sbom.json
+fi
+
+echo "=== Signing Complete ==="
+echo "Signed artefacts:"
+find "$IMAGES_DIR" "$OTA_DIR" output/ -name "*.sig" 2>/dev/null || true
