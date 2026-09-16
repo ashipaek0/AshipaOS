@@ -55,31 +55,31 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh build x86_64
+          bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
 
       - name: Build Layer 2 (Disk Image)
         run: |
-          bash layers/layer2-image/scripts/build-image.sh build x86_64
+          bash layers/layer2-image/scripts/build-image.sh output/rootfs-x86_64.tar.gz x86_64
 
       - name: Build Layer 3 (First-Boot Init)
         run: |
-          bash layers/layer3-init/scripts/build-init.sh build x86_64
+          bash layers/layer3-init/scripts/build-init.sh x86_64
 
       - name: Build Layer 4 (System Services)
         run: |
-          bash layers/layer4-services/scripts/build-services.sh build x86_64
+          bash layers/layer4-services/scripts/build-services.sh x86_64
 
       - name: Build Layer 5 (Settings Daemon)
         run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh build x86_64
+          bash layers/layer5-settingsd/scripts/build-settingsd.sh x86_64
 
       - name: Build Layer 6 (OTA Mechanism)
         run: |
-          bash layers/layer6-ota/scripts/build-ota.sh build x86_64
+          bash layers/layer6-ota/scripts/build-ota.sh x86_64
 
       - name: Build Layer 10 (Release Engineering)
         run: |
-          bash layers/layer10-release/scripts/build-10-release.sh build x86_64
+          bash layers/layer10-release/scripts/build-10-release.sh x86_64
 
       - name: Sign Artefacts
         run: |
@@ -119,43 +119,43 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh build a95x-f3-air
+          bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
 
       - name: Build Layer 2 (Disk Image)
         run: |
-          bash layers/layer2-image/scripts/build-image.sh build a95x-f3-air
+          bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
       - name: Build Layer 3 (First-Boot Init)
         run: |
-          bash layers/layer3-init/scripts/build-init.sh build a95x-f3-air
+          bash layers/layer3-init/scripts/build-init.sh a95x-f3-air
 
       - name: Build Layer 4 (System Services)
         run: |
-          bash layers/layer4-services/scripts/build-services.sh build a95x-f3-air
+          bash layers/layer4-services/scripts/build-services.sh a95x-f3-air
 
       - name: Build Layer 5 (Settings Daemon)
         run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh build a95x-f3-air
+          bash layers/layer5-settingsd/scripts/build-settingsd.sh a95x-f3-air
 
       - name: Build Layer 6 (OTA Mechanism)
         run: |
-          bash layers/layer6-ota/scripts/build-ota.sh build a95x-f3-air
+          bash layers/layer6-ota/scripts/build-ota.sh a95x-f3-air
 
       - name: Build Layer 7 (HAL)
         run: |
-          bash layers/layer7-hal/scripts/build-7-hal.sh build a95x-f3-air
+          bash layers/layer7-hal/scripts/build-7-hal.sh a95x-f3-air
 
       - name: Build Layer 8 (Media Framework)
         run: |
-          bash layers/layer8-media/scripts/build-8-media.sh build a95x-f3-air
+          bash layers/layer8-media/scripts/build-8-media.sh a95x-f3-air
 
       - name: Build Layer 9 (Input Stack)
         run: |
-          bash layers/layer9-input/scripts/build-9-input.sh build a95x-f3-air
+          bash layers/layer9-input/scripts/build-9-input.sh a95x-f3-air
 
       - name: Build Layer 10 (Release Engineering)
         run: |
-          bash layers/layer10-release/scripts/build-10-release.sh build a95x-f3-air
+          bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
 
       - name: Sign Artefacts
         run: |

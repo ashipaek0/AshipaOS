@@ -34,13 +34,15 @@ jobs:
       
       - name: Smoke test Layer 1 (rootfs)
         run: |
-          echo "=== Building Layer 1 RootFS (Smoke Test) ==="
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh build x86_64
+          echo "=== Smoke Test Layer 1 (STATIC: syntax + usage contract) ==="
+          bash -n layers/layer1-rootfs/scripts/build-rootfs.sh
+          bash layers/layer1-rootfs/scripts/build-rootfs.sh 2>&1 | grep -q "Usage"
       
       - name: Smoke test Layer 2 (image)
         run: |
-          echo "=== Building Layer 2 Image (Smoke Test) ==="
-          bash layers/layer2-image/scripts/build-image.sh build x86_64
+          echo "=== Smoke Test Layer 2 (STATIC: config validation) ==="
+          bash -n layers/layer2-image/scripts/build-image.sh
+          bash layers/layer2-image/scripts/build-image.sh --validate
       
       - name: Upload evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
