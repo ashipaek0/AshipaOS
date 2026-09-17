@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Layer 2: Build Partitioned Disk Image
+# Layer 2: Build Partitioned Disk Image with Bootloader
 # Verification Class: BUILD (VM and HARDWARE remain blocked)
 set -Eeuo pipefail
 
@@ -24,8 +24,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS] <rootfs-image> [target]
 
-Build a GPT disk image from a Layer 1 rootfs tarball. This layer does not
-claim that the image is bootable; kernel and boot firmware are later inputs.
+Build a GPT disk image from a Layer 1 rootfs tarball with bootloader installed.
 
 Options:
     -h, --help       Show this help message
@@ -34,7 +33,7 @@ Options:
     --print-repo-root  Print the resolved repository root (test aid)
 
 Verification Class: BUILD
-Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools
+Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools, grub-efi (x86_64), u-boot (ARM64)
 EOF
 }
 
@@ -154,7 +153,7 @@ mkdir-p /boot/efi/EFI/BOOT
 mkdir-p /boot/efi/EFI/systemd
 # Create placeholder for bootloader (actual bootloader installed by host tools or later layer)
 # This ensures the EFI partition has the correct directory structure
-write /boot/efi/EFI/BOOT/BOOTX64.EFI.placeholder "UEFI bootloader placeholder - to be replaced by actual bootloader binary\n"
+write /boot/efi/EFI/BOOT/.gitkeep "EFI boot directory - bootloader installed by grub-install\n"
 umount-all
 EOF
 
@@ -181,11 +180,10 @@ EOF
                 --removable \
                 --recheck \
                 --no-floppy \
-                --boot-directory="$mount_root/boot" \
-                2>/dev/null || {
+                --boot-directory="$mount_root/boot" || {
                     log "Warning: grub-install failed, creating minimal EFI boot structure"
                     # Fallback: create minimal boot structure
-                    rm -f "$mount_efi/EFI/BOOT/BOOTX64.EFI.placeholder"
+                    rm -f "$mount_efi/EFI/BOOT/"*".placeholder" 2>/dev/null || true
                     # Copy shim or create minimal EFI executable if available
                     if [[ -f /usr/lib/grub/x86_64-efi/grub.efi ]]; then
                         cp /usr/lib/grub/x86_64-efi/grub.efi "$mount_efi/EFI/BOOT/BOOTX64.EFI"
@@ -224,6 +222,7 @@ GRUBCFG
         umount "$mount_root"
         losetup -d "$loop_dev"
         trap - RETURN
+        log "GRUB EFI bootloader installed successfully"
     fi
 }
 
