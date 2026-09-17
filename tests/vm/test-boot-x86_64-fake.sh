@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for marker-triggered QEMU shutdown status handling.
+# Regression tests for buffered serial and marker-triggered QEMU shutdown.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -58,7 +58,16 @@ case "${FAKE_QEMU_MODE:?}" in
         fi
         while :; do sleep 1; done
         ;;
+    marker-after-shutdown)
+        trap 'printf "ASHIPAOS_BOOT_SUCCESS=1\\n"; exit 0' TERM
+        while :; do sleep 1; done
+        ;;
     nonzero)
+        sleep 1
+        exit 7
+        ;;
+    nonzero-marker)
+        printf 'ASHIPAOS_BOOT_SUCCESS=1\n'
         sleep 1
         exit 7
         ;;
@@ -96,6 +105,8 @@ run_case() {
 
 run_case positive 0 positive
 run_case positive-kill 0 positive-kill
+run_case marker-after-shutdown 0 marker-after-shutdown
 run_case nonzero 1 nonzero
+run_case nonzero-marker 1 nonzero-marker
 run_case timeout 1 timeout
 printf 'test-boot-x86_64-fake: PASS\n'

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Stage 2 VM gate: boot the freshly-built x86_64 Layer 2 image in UEFI QEMU.
+# QEMU's stdio serial backend may flush only when QEMU shuts down; the bounded
+# loop is therefore an observation window, not a guarantee of live polling.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +21,7 @@ usage() { printf 'Usage: %s <x86_64-image> [evidence-directory]\n' "$(basename "
 [[ "$SHUTDOWN_GRACE_SECONDS" =~ ^[1-9][0-9]*$ ]] || die 'ASHIPAOS_VM_SHUTDOWN_GRACE_SECONDS must be a positive integer'
 (( SHUTDOWN_GRACE_SECONDS <= 60 )) || die 'VM shutdown grace must be <= 60 seconds'
 command -v qemu-system-x86_64 >/dev/null || die 'qemu-system-x86_64 is required'
-command -v stdbuf >/dev/null || die 'stdbuf is required for live unbuffered QEMU serial capture'
+command -v stdbuf >/dev/null || die 'stdbuf is required for unbuffered QEMU serial capture'
 
 is_non_secure_code() {
     local name=${1##*/}
@@ -105,6 +107,7 @@ stdbuf -o0 -e0 qemu-system-x86_64 "${QEMU_ARGS[@]}" >"$SERIAL_LOG" 2>"$QEMU_LOG"
 QEMU_PID=$!
 QEMU_STATUS=0
 MARKER_OBSERVED=0
+OBSERVATION_TIMEOUT=0
 for ((second=0; second<TIMEOUT_SECONDS; second++)); do
     if grep -Eiq 'kernel panic|panic:|emergency mode|failed to start emergency' "$SERIAL_LOG" "$QEMU_LOG"; then
         QEMU_STATUS=1
@@ -125,16 +128,21 @@ for ((second=0; second<TIMEOUT_SECONDS; second++)); do
 done
 if kill -0 "$QEMU_PID" 2>/dev/null; then
     stop_qemu
+    OBSERVATION_TIMEOUT=1
     QEMU_STATUS=124
 fi
 set -e
 
+# Flush/close the QEMU stdio stream before making the final boot decision.
 cat "$QEMU_LOG" >> "$SERIAL_LOG" 2>/dev/null || true
 if grep -Eiq 'kernel panic|panic:|emergency mode|failed to start emergency' "$SERIAL_LOG"; then
     die 'panic or emergency-mode text detected'
 fi
-if (( QEMU_STATUS == 124 )); then
-    die "QEMU timed out after ${TIMEOUT_SECONDS}s"
+grep -Fxq 'ASHIPAOS_BOOT_SUCCESS=1' "$SERIAL_LOG" && MARKER_OBSERVED=1
+if (( OBSERVATION_TIMEOUT )); then
+    (( MARKER_OBSERVED )) || die "QEMU timed out after ${TIMEOUT_SECONDS}s without userspace boot marker"
+    printf '[boot-x86_64] PASS: marker observed after bounded shutdown\n'
+    exit 0
 fi
 if (( MARKER_OBSERVED )); then
     case "$QEMU_STATUS" in
