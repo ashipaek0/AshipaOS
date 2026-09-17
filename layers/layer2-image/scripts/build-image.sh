@@ -171,34 +171,31 @@ EOF
 
 install_x86_64_bootloader() {
     local image="$1"
-    log "Installing GRUB EFI bootloader for x86_64..."
-    local loop_dev mount_root mount_efi
-    loop_dev="$(losetup -f --show -P "$image")"
-    trap "umount '$mount_efi' 2>/dev/null || true; umount '$mount_root' 2>/dev/null || true; losetup -d '$loop_dev' 2>/dev/null || true" RETURN
-    
-    mount_root="$WORK_DIR/mnt-root"
-    mount_efi="$WORK_DIR/mnt-efi"
-    mkdir -p "$mount_root" "$mount_efi"
-    
-    # Install GRUB EFI bootloader using pure guestfish (no loop devices/root required)
-    log "Installing GRUB EFI bootloader for x86_64..."
-    
-    # 1. Upload GRUB EFI binary to EFI partition
-    if [[ -f /usr/lib/grub/x86_64-efi/grubx64.efi ]]; then
-        guestfish -a "$IMAGE" <<EOF
+    log "Installing GRUB EFI bootloader for x86_64 via guestfish..."
+
+    local grub_efi=""
+    for candidate in \
+        /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi \
+        /usr/lib/grub/x86_64-efi/grubx64.efi; do
+        if [[ -f "$candidate" ]]; then
+            grub_efi="$candidate"
+            break
+        fi
+    done
+    [[ -n "$grub_efi" ]] || error "GRUB EFI binary not found; install grub-efi-amd64-bin"
+
+    # GitHub-hosted runners do not permit host loop devices or privileged
+    # mounts. guestfish performs all image access through its appliance.
+    guestfish -a "$image" <<EOF
 run
 mount /dev/sda1 /
 mkdir-p /EFI/BOOT
-upload /usr/lib/grub/x86_64-efi/grubx64.efi /EFI/BOOT/BOOTX64.EFI
+upload $grub_efi /EFI/BOOT/BOOTX64.EFI
 write /EFI/BOOT/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /boot/vmlinuz root=LABEL=$ROOT_LABEL ro quiet\\n  initrd /boot/initrd.img\\n}\\n"
+umount-all
 EOF
-        log "✓ GRUB EFI installed successfully via guestfish"
-    else
-        log "Warning: GRUB EFI binary not found, image will need manual bootloader installation"
-    fi
-    losetup -d "$loop_dev"
-    trap - RETURN
-    log "GRUB EFI bootloader installed successfully"
+
+    log "GRUB EFI bootloader installed successfully via guestfish"
 }
 
 install_arm64_uboot() {
