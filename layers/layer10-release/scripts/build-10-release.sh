@@ -4,9 +4,9 @@
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
-REPO_ROOT="$(cd "$LAYER_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
 CONFIG_FILE="$LAYER_DIR/config/10-release-config.yaml"
-EVIDENCE_DIR="$LAYER_DIR/evidence"
+EVIDENCE_DIR="${ASHIPAOS_RELEASE_EVIDENCE_DIR:-$LAYER_DIR/evidence}"
 OUTPUT_DIR="${OUTPUT_DIR:-${GITHUB_WORKSPACE:-$REPO_ROOT}/output}"
 IMAGES_DIR="$OUTPUT_DIR/images"
 OTA_DIR="$OUTPUT_DIR/ota"
