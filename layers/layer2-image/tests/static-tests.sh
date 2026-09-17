@@ -204,6 +204,24 @@ test_no_metadata_fallback() {
     fi
 }
 
+# SF03: GitHub-hosted runners do not permit host loop devices or mounts.
+test_userspace_image_access() {
+    local file="$1"
+    if grep -qE '(^|[;&|[:space:]])(losetup|chroot)([[:space:]]|$)' "$file"; then
+        echo "FAIL"
+        return
+    fi
+    if ! grep -q 'guestfish -a "\$image"' "$file"; then
+        echo "FAIL"
+        return
+    fi
+    if grep -q 'guestfish -a "\$IMAGE"' "$file"; then
+        echo "FAIL"
+        return
+    fi
+    echo "PASS"
+}
+
 # SI01: Image size configurable
 test_image_size_config() {
     local config_file="$1"
@@ -255,6 +273,7 @@ if [[ -f "$BUILD_SCRIPT" ]]; then
     test_result "SP02: Filesystem creation logic" "$(test_filesystem_logic "$BUILD_SCRIPT")"
     test_result "SF01: fstab generation" "$(test_fstab_generation "$BUILD_SCRIPT")"
     test_result "SF02: No metadata-only fallback" "$(test_no_metadata_fallback "$BUILD_SCRIPT")"
+    test_result "SF03: Userspace image access only" "$(test_userspace_image_access "$BUILD_SCRIPT")"
 else
     echo "✗ Build script not found"
     ((FAILED++))
