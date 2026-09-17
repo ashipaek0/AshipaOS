@@ -44,8 +44,11 @@ for p in files:
         with open(vm_script) as f:
             vm = f.read()
         assert "TIMEOUT_SECONDS" in vm and "second<TIMEOUT_SECONDS" in vm, "VM gate must have a bounded timeout"
-        assert "-bios \"$OVMF\"" in vm and "find_ovmf" in vm, "VM gate must use robust OVMF UEFI boot"
-        assert "-serial \"file:$SERIAL_LOG\"" in vm, "VM gate must capture serial output"
+        assert "find_ovmf_code" in vm and "is_non_secure_code" in vm, "VM gate must use non-secure OVMF code selection"
+        assert "if=pflash,format=raw,readonly=on" in vm and "QEMU_FIRMWARE_ARGS" in vm, "VM gate must use readonly pflash UEFI code"
+        assert "OVMF_VARS" in vm and "cp --" in vm, "VM gate must copy matching VARS instead of mutating the template"
+        assert '-bios "$OVMF"' not in vm, "pflash OVMF code must not be passed as -bios"
+        assert "-serial" in vm and "SERIAL_LOG" in vm, "VM gate must capture serial output"
         assert "ASHIPAOS_BOOT_SUCCESS=1" in vm, "VM gate must require the deterministic boot marker"
         assert "kernel panic" in vm and "emergency mode" in vm, "VM gate must reject panic/emergency boots"
         assert "qemu-command.txt" in vm and "qemu-version.txt" in vm and "image.sha256" in vm, "VM evidence inputs missing"

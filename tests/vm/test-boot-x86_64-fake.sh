@@ -7,7 +7,9 @@ SCRIPT="$ROOT/tests/vm/boot-x86_64.sh"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/evidence"
-touch "$TMP/image.img" "$TMP/OVMF_CODE.fd"
+printf image > "$TMP/image.img"
+printf code > "$TMP/OVMF_CODE.fd"
+printf vars > "$TMP/OVMF_VARS.fd"
 
 cat > "$TMP/bin/qemu-system-x86_64" <<'FAKE_QEMU'
 #!/usr/bin/env bash
@@ -17,9 +19,16 @@ if [[ "${1:-}" == "--version" ]]; then
     exit 0
 fi
 serial=''
+have_code_pflash=0
+have_vars_pflash=0
 for arg in "$@"; do
     [[ "$arg" == file:* ]] && serial=${arg#file:}
+    [[ "$arg" == if=pflash,format=raw,readonly=on,file=* ]] && have_code_pflash=1
+    [[ "$arg" == if=pflash,format=raw,file=* ]] && have_vars_pflash=1
+    [[ "$arg" == -bios* ]] && { printf 'fake QEMU received forbidden -bios\n' >&2; exit 98; }
 done
+(( have_code_pflash == 1 )) || { printf 'fake QEMU did not receive readonly pflash code\n' >&2; exit 98; }
+(( have_vars_pflash == 1 )) || { printf 'fake QEMU did not receive writable pflash vars\n' >&2; exit 98; }
 : "${serial:?fake QEMU did not receive a serial log}"
 case "${FAKE_QEMU_MODE:?}" in
     positive|positive-kill)
@@ -46,7 +55,7 @@ chmod +x "$TMP/bin/qemu-system-x86_64"
 run_case() {
     local mode=$1 expected=$2 label=$3 status
     set +e
-    PATH="$TMP/bin:$PATH" OVMF_CODE="$TMP/OVMF_CODE.fd" \
+    PATH="$TMP/bin:$PATH" OVMF_CODE="$TMP/OVMF_CODE.fd" OVMF_VARS="$TMP/OVMF_VARS.fd" \
         FAKE_QEMU_MODE="$mode" ASHIPAOS_VM_TIMEOUT_SECONDS=2 \
         ASHIPAOS_VM_SHUTDOWN_GRACE_SECONDS=1 \
         bash "$SCRIPT" "$TMP/image.img" "$TMP/evidence/$label"
