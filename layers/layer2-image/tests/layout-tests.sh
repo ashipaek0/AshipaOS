@@ -11,6 +11,17 @@ command -v sfdisk >/dev/null || {
     exit 77
 }
 
+expected_repo_root="$(git -C "$LAYER_DIR" rev-parse --show-toplevel)"
+resolved_repo_root="$("$BUILD_SCRIPT" --print-repo-root)"
+[[ "$resolved_repo_root" == "$expected_repo_root" ]] || {
+    echo "Layer 2 resolved repository root incorrectly: $resolved_repo_root" >&2
+    exit 1
+}
+[[ "$(git -C "$resolved_repo_root" rev-parse HEAD)" =~ ^[0-9a-f]{40}$ ]] || {
+    echo "Layer 2 repository root cannot provide a full commit SHA" >&2
+    exit 1
+}
+
 image="$TMP_DIR/layout.img"
 "$BUILD_SCRIPT" --layout-only "$image"
 sfdisk --verify "$image" >/dev/null

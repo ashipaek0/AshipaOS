@@ -5,7 +5,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
-REPO_ROOT="$(cd "$LAYER_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
 CONFIG_FILE="${ASHIPAOS_IMAGE_CONFIG:-$LAYER_DIR/config/image-config.yaml}"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
 OUTPUT_DIR="${GITHUB_WORKSPACE:-$REPO_ROOT}/output/images"
@@ -31,6 +31,7 @@ Options:
     -h, --help       Show this help message
     --validate       Validate configuration only
     --layout-only F  Create and validate only the GPT layout in file F (test aid)
+    --print-repo-root  Print the resolved repository root (test aid)
 
 Verification Class: BUILD
 Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools
@@ -208,6 +209,7 @@ main() {
         -h|--help) usage; return 0 ;;
         --validate) mode=validate; shift ;;
         --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2 ;;
+        --print-repo-root) printf '%s\n' "$REPO_ROOT"; return 0 ;;
     esac
 
     parse_and_validate_config
