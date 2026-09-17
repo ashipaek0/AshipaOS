@@ -27,21 +27,28 @@ if [[ "${1:-}" == "--version" ]]; then
     printf 'QEMU emulator version 0.0-fake\n'
     exit 0
 fi
-serial=''
+serial_mode=''
 have_code_pflash=0
 have_vars_pflash=0
 for arg in "$@"; do
-    [[ "$arg" == file:* ]] && serial=${arg#file:}
+    if [[ "$arg" == -serial ]]; then
+        serial_mode=expecting
+    elif [[ "$serial_mode" == expecting && "$arg" == stdio ]]; then
+        serial_mode=stdio
+    elif [[ "$serial_mode" == expecting && "$arg" == file:* ]]; then
+        printf 'fake QEMU received forbidden -serial file backend\n' >&2
+        exit 98
+    fi
     [[ "$arg" == if=pflash,format=raw,readonly=on,file=* ]] && have_code_pflash=1
     [[ "$arg" == if=pflash,format=raw,file=* ]] && have_vars_pflash=1
     [[ "$arg" == -bios* ]] && { printf 'fake QEMU received forbidden -bios\n' >&2; exit 98; }
 done
 (( have_code_pflash == 1 )) || { printf 'fake QEMU did not receive readonly pflash code\n' >&2; exit 98; }
 (( have_vars_pflash == 1 )) || { printf 'fake QEMU did not receive writable pflash vars\n' >&2; exit 98; }
-: "${serial:?fake QEMU did not receive a serial log}"
+[[ "$serial_mode" == stdio ]] || { printf 'fake QEMU did not receive -serial stdio\n' >&2; exit 98; }
 case "${FAKE_QEMU_MODE:?}" in
     positive|positive-kill)
-        printf 'ASHIPAOS_BOOT_SUCCESS=1\n' >> "$serial"
+        printf 'ASHIPAOS_BOOT_SUCCESS=1\n'
         if [[ "$FAKE_QEMU_MODE" == positive-kill ]]; then
             trap ':' TERM
         fi
@@ -74,6 +81,11 @@ run_case() {
         printf 'fake-%s: FAIL (expected %s, got %s)\n' "$label" "$expected" "$status" >&2
         return 1
     fi
+    local command_file="$TMP/evidence/$label/qemu-command.txt"
+    grep -Fq -- '-serial stdio' "$command_file"
+    ! grep -Fq -- '-serial file:' "$command_file"
+    local expected_redirection="> $TMP/evidence/$label/serial.log 2> $TMP/evidence/$label/qemu.log"
+    grep -Fq -- "$expected_redirection" "$command_file"
     printf 'fake-%s: PASS (status %s)\n' "$label" "$status"
 }
 

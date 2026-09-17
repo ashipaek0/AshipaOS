@@ -76,12 +76,12 @@ QEMU_FIRMWARE_ARGS=(-drive "if=pflash,format=raw,readonly=on,file=$OVMF")
 [[ -n "$OVMF_VARS" ]] && QEMU_FIRMWARE_ARGS+=(-drive "if=pflash,format=raw,file=$OVMF_VARS")
 QEMU_ARGS=(-machine q35 -accel tcg -cpu max -m 1024 "${QEMU_FIRMWARE_ARGS[@]}" \
     -drive "format=raw,if=virtio,file=$IMAGE,readonly=on" \
-    -nographic -serial "file:$SERIAL_LOG" -monitor none -no-reboot)
+    -nographic -serial stdio -monitor none -no-reboot)
 
 sha256sum "$IMAGE" > "$SHA_FILE"
 qemu-system-x86_64 --version > "$VERSION_FILE" 2>&1 || true
 printf '%q ' qemu-system-x86_64 "${QEMU_ARGS[@]}" > "$COMMAND_FILE"
-printf '\n' >> "$COMMAND_FILE"
+printf '> %q 2> %q\n' "$SERIAL_LOG" "$QEMU_LOG" >> "$COMMAND_FILE"
 
 stop_qemu() {
     local second
@@ -100,7 +100,7 @@ stop_qemu() {
 
 set +e
 : > "$SERIAL_LOG"
-qemu-system-x86_64 "${QEMU_ARGS[@]}" >"$QEMU_LOG" 2>&1 &
+qemu-system-x86_64 "${QEMU_ARGS[@]}" >"$SERIAL_LOG" 2>"$QEMU_LOG" &
 QEMU_PID=$!
 QEMU_STATUS=0
 MARKER_OBSERVED=0
