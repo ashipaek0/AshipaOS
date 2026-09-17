@@ -44,7 +44,7 @@ Environment Variables:
   COMPONENTS        Debian components (default: main,contrib,non-free-firmware)
 
 Example:
-  $(basename "$0") arm64 /workspace/output/rootfs-arm64.tar.gz
+  $(basename "$0") arm64 output/rootfs-arm64.tar.gz
 EOF
     exit 1
 }

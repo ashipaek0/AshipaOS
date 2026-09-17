@@ -4,10 +4,20 @@
 
 set -euo pipefail
 
+# CRITICAL: Capture repository root at start before any directory changes
+REPO_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
 IMAGES_DIR="${1:-output/images}"
 OTA_DIR="${2:-output/ota}"
 
+# Convert to absolute paths relative to repo root if not already absolute
+[[ "$IMAGES_DIR" = /* ]] || IMAGES_DIR="$REPO_ROOT/$IMAGES_DIR"
+[[ "$OTA_DIR" = /* ]] || OTA_DIR="$REPO_ROOT/$OTA_DIR"
+
 echo "=== Signing Artefacts ==="
+echo "Repository root: $REPO_ROOT"
+echo "Images directory: $IMAGES_DIR"
+echo "OTA directory: $OTA_DIR"
 
 # Check if GPG key is available (skip in dev mode)
 if ! gpg --list-secret-keys 2>/dev/null | grep -q "AshipaOS Release"; then
@@ -33,8 +43,10 @@ if ! gpg --list-secret-keys 2>/dev/null | grep -q "AshipaOS Release"; then
         done
     fi
     
-    if [ -f "output/sbom.json" ]; then
-        echo "PLACEHOLDER_SIGNATURE" > "output/sbom.json.sig"
+    # Sign SBOM with explicit path
+    SBOM_FILE="$REPO_ROOT/output/sbom.json"
+    if [ -f "$SBOM_FILE" ]; then
+        echo "PLACEHOLDER_SIGNATURE" > "${SBOM_FILE}.sig"
         echo "  Created placeholder: sbom.json.sig"
     fi
     
@@ -72,13 +84,14 @@ else
     echo "WARNING: OTA directory not found: $OTA_DIR"
 fi
 
-# Sign SBOM
-if [ -f "output/sbom.json" ]; then
+# Sign SBOM with explicit absolute path
+SBOM_FILE="$REPO_ROOT/output/sbom.json"
+if [ -f "$SBOM_FILE" ]; then
     echo "Signing SBOM..."
     echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
-        --armor --detach-sign output/sbom.json
+        --armor --detach-sign "$SBOM_FILE"
 fi
 
 echo "=== Signing Complete ==="
 echo "Signed artefacts:"
-find "$IMAGES_DIR" "$OTA_DIR" output/ -name "*.sig" 2>/dev/null || true
+find "$IMAGES_DIR" "$OTA_DIR" "$REPO_ROOT/output/" -name "*.sig" 2>/dev/null || true

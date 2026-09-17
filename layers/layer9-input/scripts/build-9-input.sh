@@ -6,7 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$LAYER_DIR/config/9-input-config.yaml"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
-OUTPUT_DIR="${OUTPUT_DIR:-/workspace/output}"
+REPO_ROOT="$(cd "$LAYER_DIR/../../.." && pwd)"
+OUTPUT_DIR="${OUTPUT_DIR:-${GITHUB_WORKSPACE:-$REPO_ROOT}/output}"
 TARGET="${1:-x86_64}"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
