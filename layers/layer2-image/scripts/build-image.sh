@@ -20,6 +20,10 @@ ROOT_SIZE_MB=""
 EFI_LABEL=""
 ROOT_LABEL=""
 
+COREELEC_URL="https://github.com/CoreELEC/CoreELEC/releases/download/21.3-Omega/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz"
+COREELEC_IMG="/tmp/coreelec-generic.img"
+BOOT_BLOBS_DIR="$LAYER_DIR/files/a95x-f3-air"
+
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS] <rootfs-image> [target]
