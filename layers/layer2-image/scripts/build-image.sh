@@ -149,8 +149,82 @@ mkdir-p /boot/efi
 mount /dev/sda1 /boot/efi
 mkdir-p /etc
 write /etc/fstab "LABEL=$ROOT_LABEL / ext4 defaults,noatime 0 1\nLABEL=$EFI_LABEL /boot/efi vfat umask=0077 0 2\n"
+# Install UEFI bootloader structure for x86_64
+mkdir-p /boot/efi/EFI/BOOT
+mkdir-p /boot/efi/EFI/systemd
+# Create placeholder for bootloader (actual bootloader installed by host tools or later layer)
+# This ensures the EFI partition has the correct directory structure
+write /boot/efi/EFI/BOOT/BOOTX64.EFI.placeholder "UEFI bootloader placeholder - to be replaced by actual bootloader binary\n"
 umount-all
 EOF
+
+    # For x86_64, install actual GRUB EFI bootloader using host tools
+    if [[ "$TARGET" == "x86_64" ]]; then
+        log "Installing GRUB EFI bootloader..."
+        local loop_dev mount_root mount_efi
+        loop_dev="$(losetup -f --show -P "$image")"
+        trap "umount '$mount_efi' 2>/dev/null || true; umount '$mount_root' 2>/dev/null || true; losetup -d '$loop_dev' 2>/dev/null || true" RETURN
+        
+        mount_root="$WORK_DIR/mnt-root"
+        mount_efi="$WORK_DIR/mnt-efi"
+        mkdir -p "$mount_root" "$mount_efi"
+        
+        mount "${loop_dev}p2" "$mount_root"
+        mount "${loop_dev}p1" "$mount_efi"
+        
+        # Install GRUB EFI bootloader
+        if command -v grub-install >/dev/null; then
+            grub-install \
+                --target=x86_64-efi \
+                --efi-directory="$mount_efi" \
+                --bootloader-id=AshipaOS \
+                --removable \
+                --recheck \
+                --no-floppy \
+                --boot-directory="$mount_root/boot" \
+                2>/dev/null || {
+                    log "Warning: grub-install failed, creating minimal EFI boot structure"
+                    # Fallback: create minimal boot structure
+                    rm -f "$mount_efi/EFI/BOOT/BOOTX64.EFI.placeholder"
+                    # Copy shim or create minimal EFI executable if available
+                    if [[ -f /usr/lib/grub/x86_64-efi/grub.efi ]]; then
+                        cp /usr/lib/grub/x86_64-efi/grub.efi "$mount_efi/EFI/BOOT/BOOTX64.EFI"
+                    fi
+                }
+            
+            # Generate GRUB configuration
+            if command -v chroot >/dev/null && [[ -d "$mount_root/usr/bin" ]]; then
+                # Bind mount necessary filesystems for chroot
+                mount --bind /dev "$mount_root/dev" || true
+                mount --bind /proc "$mount_root/proc" || true
+                mount --bind /sys "$mount_root/sys" || true
+                
+                chroot "$mount_root" grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || {
+                    log "Warning: grub-mkconfig failed, creating basic config"
+                    cat > "$mount_root/boot/grub/grub.cfg" <<GRUBCFG
+set timeout=5
+menuentry "AshipaOS" {
+    set root=(hd0,gpt2)
+    linux /boot/vmlinuz root=LABEL=$ROOT_LABEL ro quiet
+    initrd /boot/initrd.img
+}
+GRUBCFG
+                }
+                
+                # Cleanup bind mounts
+                umount "$mount_root/dev" 2>/dev/null || true
+                umount "$mount_root/proc" 2>/dev/null || true
+                umount "$mount_root/sys" 2>/dev/null || true
+            fi
+        else
+            log "Warning: grub-install not available, image will need manual bootloader installation"
+        fi
+        
+        umount "$mount_efi"
+        umount "$mount_root"
+        losetup -d "$loop_dev"
+        trap - RETURN
+    fi
 }
 
 create_metadata() {

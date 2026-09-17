@@ -58,7 +58,10 @@ jobs:
             gpg \
             jq \
             shellcheck \
-            util-linux
+            util-linux \
+            grub-efi-amd64-bin \
+            grub-efi-amd64-signed \
+            efibootmgr
           
           # Register QEMU binaries for ARM64 emulation
           sudo update-binfmts --enable qemu-aarch64
