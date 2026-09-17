@@ -46,7 +46,21 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq sfdisk
+          sudo apt-get install -y \
+            debootstrap \
+            qemu-user-static \
+            qemu-system-arm \
+            binfmt-support \
+            libguestfs-tools \
+            gpg \
+            jq \
+            shellcheck \
+            sfdisk \
+            util-linux
+          
+          # Register QEMU binaries for ARM64 emulation
+          sudo update-binfmts --enable qemu-aarch64
+          
           # Configure libguestfs to use direct mode (no FUSE needed)
           export LIBGUESTFS_BACKEND=direct
 
@@ -115,10 +129,23 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq u-boot-tools sfdisk
-          # Enable ARM64 emulation via binfmt_misc
+          sudo apt-get install -y \
+            debootstrap \
+            qemu-user-static \
+            qemu-system-arm \
+            binfmt-support \
+            libguestfs-tools \
+            gpg \
+            jq \
+            shellcheck \
+            u-boot-tools \
+            sfdisk \
+            util-linux
+          
+          # Register QEMU binaries for ARM64 emulation
           sudo update-binfmts --enable qemu-aarch64
-          # Configure libguestfs to use direct mode
+          
+          # Configure libguestfs to use direct mode (no FUSE needed)
           export LIBGUESTFS_BACKEND=direct
 
       - name: Configure GPG
