@@ -222,7 +222,8 @@ EOF
 
 main() {
     [[ $# -eq 2 ]] || usage
-    local product_arch="$1" output_file="$2" debian_arch="${ARCH_MAP[$product_arch]:-}"
+    local product_arch="$1" output_file="$2"
+    local debian_arch="${ARCH_MAP[$product_arch]:-}"
     [[ -n "$debian_arch" ]] || error "Invalid architecture: $product_arch (valid: x86_64, amd64, arm64, armhf)"
     check_dependencies "$debian_arch"
     create_rootfs "$product_arch" "$output_file" "$debian_arch"
