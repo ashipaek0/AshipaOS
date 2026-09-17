@@ -219,7 +219,32 @@ test_evidence_generation() {
     fi
 }
 
-# Test 9: Safe argument and validation failures are non-zero
+# Test 9: x86_64 marker uses systemd-native serial output
+test_x86_64_boot_marker() {
+    log_test "Checking x86_64 boot marker service configuration..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    grep -q 'rootfs/usr/bin/printf' "$script" && log_pass "Marker validates Debian /usr/bin/printf" || log_fail "Marker command path validation missing"
+    grep -q 'ExecStart=/usr/bin/printf' "$script" && log_pass "Marker uses systemd-native printf" || log_fail "Marker must use /usr/bin/printf directly"
+    grep -q 'StandardOutput=tty' "$script" && log_pass "Marker uses systemd TTY output" || log_fail "Marker StandardOutput=tty missing"
+    grep -q 'TTYPath=/dev/ttyS0' "$script" && log_pass "Marker targets ttyS0" || log_fail "Marker TTYPath missing"
+    grep -q 'TTYReset=no' "$script" && log_pass "Marker preserves TTY settings" || log_fail "Marker TTYReset setting missing"
+    grep -q 'After=multi-user.target' "$script" && log_pass "Marker is ordered after multi-user.target" || log_fail "Marker ordering missing"
+    grep -q 'graphical.target.wants' "$script" && log_pass "Marker is enabled by graphical.target" || log_fail "Marker graphical target enablement missing"
+    if grep -q 'multi-user.target.wants' "$script"; then
+        log_fail "Marker must not be enabled by multi-user.target"
+    else
+        log_pass "Marker avoids the multi-user ordering cycle"
+    fi
+    grep -q 'WantedBy=graphical.target' "$script" && log_pass "Marker install target is graphical.target" || log_fail "Marker WantedBy target missing"
+    grep -q 'COREUTILS_PACKAGE="coreutils"' "$script" && log_pass "Rootfs explicitly installs coreutils" || log_fail "Rootfs coreutils package missing"
+    if grep -q 'ExecStart=/bin/sh' "$script" || grep -q '> /dev/ttyS0' "$script"; then
+        log_fail "Marker still relies on shell redirection"
+    else
+        log_pass "Marker has no shell redirection"
+    fi
+}
+
+# Test 10: Safe argument and validation failures are non-zero
  test_argument_validation() {
     log_test "Checking argument and validation failure paths..."
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
@@ -269,6 +294,9 @@ main() {
     echo ""
 
     test_kernel_initramfs_policy
+    echo ""
+
+    test_x86_64_boot_marker
     echo ""
 
     test_argument_validation

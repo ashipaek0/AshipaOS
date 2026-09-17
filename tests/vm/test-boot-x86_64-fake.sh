@@ -4,12 +4,25 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT/tests/vm/boot-x86_64.sh"
+MARKER_SCRIPT="$ROOT/layers/layer1-rootfs/scripts/build-rootfs.sh"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/evidence"
 printf image > "$TMP/image.img"
 printf code > "$TMP/OVMF_CODE.fd"
 printf vars > "$TMP/OVMF_VARS.fd"
+
+grep -q 'ExecStart=/usr/bin/printf' "$MARKER_SCRIPT"
+grep -q 'StandardOutput=tty' "$MARKER_SCRIPT"
+grep -q 'TTYPath=/dev/ttyS0' "$MARKER_SCRIPT"
+grep -q 'After=multi-user.target' "$MARKER_SCRIPT"
+grep -q 'graphical.target.wants' "$MARKER_SCRIPT"
+grep -q 'WantedBy=graphical.target' "$MARKER_SCRIPT"
+! grep -q 'multi-user.target.wants' "$MARKER_SCRIPT"
+grep -q 'rootfs/usr/bin/printf' "$MARKER_SCRIPT"
+! grep -q 'ExecStart=/bin/sh' "$MARKER_SCRIPT"
+! grep -q '> /dev/ttyS0' "$MARKER_SCRIPT"
+printf 'fake-marker-config: PASS\n'
 
 cat > "$TMP/bin/qemu-system-x86_64" <<'FAKE_QEMU'
 #!/usr/bin/env bash

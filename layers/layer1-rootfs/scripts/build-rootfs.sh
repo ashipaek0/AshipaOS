@@ -30,6 +30,7 @@ declare -A KERNEL_PACKAGES=(
     ["armhf"]="linux-image-armmp"
 )
 INITRAMFS_PACKAGE="initramfs-tools"
+COREUTILS_PACKAGE="coreutils"
 
 usage() {
     cat <<EOF
@@ -88,22 +89,31 @@ mount_rootfs_api() {
 
 install_x86_64_boot_marker() {
     local rootfs="$1"
-    # A real oneshot unit proves userspace reached multi-user.target.
-    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants"
+    # A real oneshot unit proves userspace reached graphical.target after
+    # multi-user.target, without creating an ordering cycle.
+    [[ -x "$rootfs/usr/bin/printf" ]] \
+        || error "Debian rootfs is missing required command: /usr/bin/printf"
+    mkdir -p "$rootfs/etc/systemd/system/graphical.target.wants"
     cat > "$rootfs/etc/systemd/system/ashipaos-boot-success.service" <<'EOF'
 [Unit]
 Description=AshipaOS userspace boot marker
+After=multi-user.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'printf "ASHIPAOS_BOOT_SUCCESS=1\\n" > /dev/ttyS0'
+ExecStart=/usr/bin/printf 'ASHIPAOS_BOOT_SUCCESS=1\n'
+StandardOutput=tty
+TTYPath=/dev/ttyS0
+TTYReset=no
+TTYVHangup=no
+TTYVTDisallocate=no
 RemainAfterExit=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 EOF
     ln -s ../ashipaos-boot-success.service \
-        "$rootfs/etc/systemd/system/multi-user.target.wants/ashipaos-boot-success.service"
+        "$rootfs/etc/systemd/system/graphical.target.wants/ashipaos-boot-success.service"
 }
 
 install_kernel_and_initramfs() {
@@ -122,7 +132,7 @@ install_kernel_and_initramfs() {
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
         apt-get -o DPkg::Options::=--force-confold update
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE"
+        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE"
 
     # Kernel postinst normally creates these. Explicitly finish generation so both
     # native and debootstrap --foreign builds have the same deterministic gate.

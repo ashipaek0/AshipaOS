@@ -65,7 +65,15 @@ for p in files:
         assert len(grub_initrd_lines) == 3 and all("initrd /initrd.img" in line for line in grub_initrd_lines), "x86_64 GRUB entries must use Debian's root-level /initrd.img"
         assert not any("linux /boot/vmlinuz " in line or "initrd /boot/initrd.img" in line for line in grub_linux_lines + grub_initrd_lines), "x86_64 GRUB entries must not use /boot kernel paths"
         assert "/boot/grub/grub.cfg" in layer2_script and "/root/boot/grub/grub.cfg" in layer2_script, "GRUB config must be written to canonical image paths"
-        assert "ashipaos-boot-success.service" in open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read(), "boot marker service missing"
+        marker = open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read()
+        assert "ashipaos-boot-success.service" in marker, "boot marker service missing"
+        assert "ExecStart=/usr/bin/printf" in marker, "boot marker must use Debian's printf directly"
+        assert "StandardOutput=tty" in marker and "TTYPath=/dev/ttyS0" in marker, "boot marker must use native tty output"
+        assert "After=multi-user.target" in marker, "boot marker ordering changed"
+        assert "graphical.target.wants" in marker and "WantedBy=graphical.target" in marker, "boot marker must be enabled by graphical.target"
+        assert "multi-user.target.wants" not in marker, "boot marker must not use cyclic multi-user.target.wants enablement"
+        assert "rootfs/usr/bin/printf" in marker and 'COREUTILS_PACKAGE="coreutils"' in marker, "Debian printf prerequisite must be explicit"
+        assert "ExecStart=/bin/sh" not in marker and "> /dev/ttyS0" not in marker, "boot marker must not use shell redirection"
 
 
 print("test-workflow-files: PASS")
