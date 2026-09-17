@@ -30,5 +30,9 @@ for p in files:
         assert "jobs:" in text, "missing jobs: %s" % p
         print("sanity-ok (pyyaml unavailable, SKIP parse): %s" % os.path.relpath(p, root))
 
+    if os.path.basename(p) == "build-images.yml":
+        assert text.count("linux-image-generic") >= 2, "each image job must provide a supermin kernel"
+        assert text.count("libguestfs-test-tool") >= 2, "each image job must preflight libguestfs"
+
 print("test-workflow-files: PASS")
 PYEOF

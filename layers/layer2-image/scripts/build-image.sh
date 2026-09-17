@@ -1,345 +1,252 @@
-#!/bin/bash
-# Layer 2: Build Bootable Disk Image with Kernel and Bootloader
-# Verification Class: VM (qemu boot test), HARDWARE (physical boot)
-set -euo pipefail
+#!/usr/bin/env bash
+# Layer 2: Build Partitioned Disk Image
+# Verification Class: BUILD (VM and HARDWARE remain blocked)
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
-CONFIG_FILE="$LAYER_DIR/config/image-config.yaml"
+REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
+CONFIG_FILE="${ASHIPAOS_IMAGE_CONFIG:-$LAYER_DIR/config/image-config.yaml}"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
-# Use GITHUB_WORKSPACE or current directory for output (writable in GitHub Actions)
-REPO_ROOT="$(cd "$LAYER_DIR/../../.." && pwd)"
+OUTPUT_DIR="${GITHUB_WORKSPACE:-$REPO_ROOT}/output/images"
+WORK_DIR=""
+PARTIAL_IMAGE=""
 
-# Initialize arguments BEFORE using them in derived variables
-ROOTFS_IMAGE="${1:-}"
-TARGET="${2:-x86_64}"
-USE_GUESTFS="${USE_GUESTFS:-true}"
-
-WORK_DIR="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}/ashipaos-image-${TARGET}"
-OUTPUT_DIR="${GITHUB_WORKSPACE:-${REPO_ROOT}}/output/images"
-
-# Ensure work directory exists and is writable
-mkdir -p "$WORK_DIR"
-trap 'rm -rf -- "${WORK_DIR}"' EXIT
+ROOTFS_IMAGE=""
+TARGET="x86_64"
+IMAGE_SIZE_MB=""
+EFI_SIZE_MB=""
+ROOT_SIZE_MB=""
+EFI_LABEL=""
+ROOT_LABEL=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <rootfs-image> <target>
+Usage: $(basename "$0") [OPTIONS] <rootfs-image> [target]
 
-Build a bootable disk image from Layer 1 rootfs.
-
-Arguments:
-    rootfs-image    Path to Layer 1 rootfs tarball or directory
-    target          Target device (x86_64, a95x-f3-air)
+Build a GPT disk image from a Layer 1 rootfs tarball. This layer does not
+claim that the image is bootable; kernel and boot firmware are later inputs.
 
 Options:
-    -h, --help      Show this help message
-    --validate      Validate configuration only
-    --size SIZE     Override image size in MB (default: from config)
-    --guestfs       Use libguestfs (no loop devices required) [DEFAULT]
-    --loop          Use traditional loop device method (requires sudo)
+    -h, --help       Show this help message
+    --validate       Validate configuration only
+    --layout-only F  Create and validate only the GPT layout in file F (test aid)
+    --print-repo-root  Print the resolved repository root (test aid)
 
-Verification Class: VM, HARDWARE
-Dependencies: Layer 1 (rootfs), libguestfs-tools OR qemu-utils, parted, kpartx
+Verification Class: BUILD
+Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools
 EOF
-    exit 0
 }
 
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+log() { printf '[%(%Y-%m-%d %H:%M:%S)T] %s\n' -1 "$*"; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
 
 cleanup() {
-    if [[ -n "${WORK_DIR:-}" && -d "$WORK_DIR" ]]; then
-        log "Cleaning up work directory: $WORK_DIR"
-        rm -rf "$WORK_DIR"
+    local status="$1"
+    [[ -n "$WORK_DIR" && -d "$WORK_DIR" ]] && rm -rf -- "$WORK_DIR"
+    if (( status != 0 )) && [[ -n "$PARTIAL_IMAGE" ]]; then
+        rm -f -- "$PARTIAL_IMAGE" "$PARTIAL_IMAGE.meta.json"
     fi
 }
+trap 'cleanup $?' EXIT
+trap 'exit 130' INT TERM
 
-# Cleanup is already set by trap above, but keep function for compatibility
-# trap cleanup EXIT
-
-validate_config() {
-    log "Validating image configuration..."
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        error "Configuration file not found: $CONFIG_FILE"
-    fi
-    
-    if ! grep -q "image_size_mb:" "$CONFIG_FILE"; then
-        error "Missing 'image_size_mb' in configuration"
-    fi
-    if ! grep -q "partitions:" "$CONFIG_FILE"; then
-        error "Missing 'partitions' section in configuration"
-    fi
-    
-    log "Configuration validation passed"
+yaml_scalar() {
+    local key="$1"
+    awk -v key="$key" '$1 == key ":" {print $2; exit}' "$CONFIG_FILE"
 }
 
-parse_config() {
-    IMAGE_SIZE_MB=$(grep "image_size_mb:" "$CONFIG_FILE" | awk '{print $2}')
-    EFI_SIZE_MB=$(grep -A5 "partitions:" "$CONFIG_FILE" | grep "efi:" | awk '{print $2}' | head -1)
-    ROOT_SIZE_MB=$(grep -A5 "partitions:" "$CONFIG_FILE" | grep "root:" | awk '{print $2}' | head -1)
-    
-    : "${IMAGE_SIZE_MB:=4096}"
-    : "${EFI_SIZE_MB:=256}"
-    : "${ROOT_SIZE_MB:=3584}"
-    
-    log "Image configuration: total=${IMAGE_SIZE_MB}MB, efi=${EFI_SIZE_MB}MB, root=${ROOT_SIZE_MB}MB"
+filesystem_label() {
+    local filesystem="$1"
+    awk -v wanted="$filesystem" '
+        /^filesystems:/ { in_filesystems=1; next }
+        in_filesystems && /^[^ ]/ { in_filesystems=0 }
+        in_filesystems && $1 == wanted ":" { in_wanted=1; next }
+        in_wanted && /^  [a-zA-Z0-9_-]+:/ { in_wanted=0 }
+        in_wanted && $1 == "label:" { print $2; exit }
+    ' "$CONFIG_FILE"
 }
 
-create_disk_image_guestfs() {
-    local img_path="$1"
-    local rootfs_tar="$2"
-    
-    log "Creating disk image using libguestfs: ${img_path} (${IMAGE_SIZE_MB}MB)"
-    
-    # Create sparse image file
-    dd if=/dev/zero of="$img_path" bs=1M count=0 seek="$IMAGE_SIZE_MB"
-    
-    # Create partition table and partitions using sfdisk (no loop device needed)
-    # Equivalent to: parted --script mklabel gpt mkpart ESP fat32 1MiB 257MiB set 1 esp on mkpart root ext4 257MiB 100%
-    log "Creating GPT partition table (equivalent to parted mklabel gpt)"
-    cat > "$WORK_DIR/partitions.sfdisk" <<EOF
+require_uint() {
+    local name="$1" value="$2"
+    [[ "$value" =~ ^[1-9][0-9]*$ ]] || error "$name must be a positive integer (got: ${value:-empty})"
+}
+
+parse_and_validate_config() {
+    [[ -f "$CONFIG_FILE" ]] || error "Configuration file not found: $CONFIG_FILE"
+
+    IMAGE_SIZE_MB="$(yaml_scalar image_size_mb)"
+    EFI_SIZE_MB="$(awk '/^partitions:/ {p=1; next} p && $1 == "efi:" {print $2; exit}' "$CONFIG_FILE")"
+    ROOT_SIZE_MB="$(awk '/^partitions:/ {p=1; next} p && $1 == "root:" {print $2; exit}' "$CONFIG_FILE")"
+    EFI_LABEL="$(filesystem_label efi)"
+    ROOT_LABEL="$(filesystem_label root)"
+
+    require_uint image_size_mb "$IMAGE_SIZE_MB"
+    require_uint partitions.efi "$EFI_SIZE_MB"
+    require_uint partitions.root "$ROOT_SIZE_MB"
+    (( EFI_SIZE_MB >= 32 )) || error "EFI partition must be at least 32 MiB"
+    (( ROOT_SIZE_MB >= 64 )) || error "root partition must be at least 64 MiB"
+    [[ "$EFI_LABEL" =~ ^[A-Za-z0-9_-]{1,11}$ ]] || error "EFI label must be 1-11 safe characters"
+    [[ "$ROOT_LABEL" =~ ^[A-Za-z0-9_-]{1,16}$ ]] || error "root label must be 1-16 safe characters"
+
+    local total_sectors=$((IMAGE_SIZE_MB * 2048))
+    local root_end=$((2048 + EFI_SIZE_MB * 2048 + ROOT_SIZE_MB * 2048 - 1))
+    (( total_sectors > 4096 )) || error "image is too small for a GPT disk"
+    (( root_end <= total_sectors - 34 )) ||
+        error "partition sizes exceed image_size_mb (GPT backup table needs 33 trailing sectors)"
+
+    log "Image configuration: total=${IMAGE_SIZE_MB}MiB, efi=${EFI_SIZE_MB}MiB, root=${ROOT_SIZE_MB}MiB"
+}
+
+write_sfdisk_spec() {
+    local destination="$1"
+    local efi_sectors=$((EFI_SIZE_MB * 2048))
+    local root_start=$((2048 + efi_sectors))
+    local root_sectors=$((ROOT_SIZE_MB * 2048))
+
+    cat >"$destination" <<EOF
 label: gpt
-unit: MiB
+unit: sectors
 first-lba: 2048
 sector-size: 512
 
-1 : size=${EFI_SIZE_MB}, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=EFI
-$((1 + EFI_SIZE_MB)) : size=${ROOT_SIZE_MB}, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=Root
+start=2048, size=$efi_sectors, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI"
+start=$root_start, size=$root_sectors, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Root"
 EOF
-    
-    sfdisk "$img_path" < "$WORK_DIR/partitions.sfdisk"
-    
-    # Calculate byte offsets for partitions
-    local sector_size=512
-    local efi_start=$((2048 * sector_size))
-    local efi_size_bytes=$((EFI_SIZE_MB * 1024 * 1024))
-    local root_start=$(((1 + EFI_SIZE_MB) * 1024 * 1024))
-    
-    # Format partitions using guestfish (libguestfs shell)
-    # Equivalent to: mkfs.vfat for EFI and mkfs.ext4 for root
-    log "Formatting partitions with guestfish (mkfs.vfat and mkfs.ext4)"
-    
-    guestfish <<GUESTFISH_EOF
-add-drive:$img_path
-run
-part-set-name /dev/sda 1 EFI
-part-set-name /dev/sda 2 Root
-mkfs vfat /dev/sda1
-mkfs ext4 /dev/sda2
-GUESTFISH_EOF
-    
-    # Mount and extract rootfs using guestfish
-    log "Extracting rootfs into disk image"
-    
-    # First, extract rootfs to temp directory
-    local rootfs_dir="$WORK_DIR/rootfs_extract"
-    mkdir -p "$rootfs_dir"
-    tar -xzf "$rootfs_tar" -C "$rootfs_dir"
-    
-    # Use guestfish to upload rootfs contents
-    guestfish <<GUESTFISH_EOF
-add-drive:$img_path
-run
-mount /dev/sda2 /
-mkdir /boot
-mkdir /boot/efi
-mount /dev/sda1 /boot/efi
-GUESTFISH_EOF
-    
-    # Upload files using guestfish find and upload
-    log "Uploading root filesystem files"
-    cd "$rootfs_dir"
-    find . -type f | while read -r file; do
-        local dest_file="$file"
-        [[ "$dest_file" == ./ ]] && dest_file="/" || dest_file="${file#./}"
-        local dir_part
-        dir_part=$(dirname "$dest_file")
-        
-        # Create directory structure if needed
-        if [[ "$dir_part" != "." ]]; then
-            guestfish <<GUESTFISH_EOF
-add-drive:$img_path
-run
-mount /dev/sda2 /
-exists $dir_part || mkdir_p $dir_part
-GUESTFISH_EOF
-        fi
-        
-        # Upload file
-        guestfish <<GUESTFISH_EOF
-add-drive:$img_path
-run
-mount /dev/sda2 /
-upload -b '$file' '$dest_file'
-GUESTFISH_EOF
-    done
-    
-    # Create EFI boot directory
-    log "Creating EFI boot structure"
-    guestfish <<GUESTFISH_EOF
-add-drive:$img_path
-run
-mount /dev/sda1 /
-mkdir_p /EFI/BOOT
-write /EFI/BOOT/BOOTX64.EFI.placeholder "GRUB EFI bootloader placeholder\n"
-umount_all
-GUESTFISH_EOF
-    
-    # Generate fstab file inside the image (required for SF01 test)
-    # This creates /etc/fstab with entries for EFI and root partitions
-    log "Generating /etc/fstab for boot configuration"
-    guestfish <<GUESTFISH_EOF
-add-drive:$img_path
-run
-mount /dev/sda2 /
-write /etc/fstab "LABEL=rootfs  /      ext4  defaults,noatime  0 1\nLABEL=EFI     /boot/efi  vfat  umask=0077        0 2\n"
-umount_all
-GUESTFISH_EOF
-    
-    log "Disk image created successfully with libguestfs"
 }
 
-create_image_metadata() {
-    local img_file="$1"
-    local rootfs_source="$2"
-    
-    log "Creating disk image metadata file: $img_file.meta.json"
-    
-    # Calculate rootfs size
-    local rootfs_size=0
-    if [[ -f "$rootfs_source" ]]; then
-        rootfs_size=$(stat -c%s "$rootfs_source" 2>/dev/null || echo "0")
-    elif [[ -d "$rootfs_source" ]]; then
-        rootfs_size=$(du -sb "$rootfs_source" 2>/dev/null | cut -f1 || echo "0")
-    fi
-    
-    cat > "$img_file.meta.json" <<EOF
+create_partition_layout() {
+    local image="$1"
+    command -v sfdisk >/dev/null || error "sfdisk is required (install the util-linux/fdisk package)"
+    truncate -s "${IMAGE_SIZE_MB}M" "$image"
+    write_sfdisk_spec "$WORK_DIR/partitions.sfdisk"
+    sfdisk --wipe always "$image" <"$WORK_DIR/partitions.sfdisk" >/dev/null
+    sfdisk --verify "$image" >/dev/null
+}
+
+populate_image() {
+    local image="$1" rootfs_tar="$2"
+    case "$TARGET" in
+        x86_64|a95x-f3-air) ;;
+        *) error "unsupported Layer 2 target: $TARGET" ;;
+    esac
+    command -v guestfish >/dev/null || error "guestfish is required for a full Layer 2 build; metadata-only output is forbidden"
+    [[ -f "$rootfs_tar" ]] || error "Layer 1 rootfs tarball not found: $rootfs_tar"
+    tar -tzf "$rootfs_tar" >/dev/null || error "Layer 1 rootfs is not a readable gzip tar archive: $rootfs_tar"
+
+    # A single appliance session preserves mounts and imports directories, links,
+    # ownership and modes in one operation. Per-file upload loses that metadata.
+    guestfish <<EOF
+add-drive "$image"
+run
+mkfs vfat /dev/sda1
+set-label /dev/sda1 $EFI_LABEL
+mkfs ext4 /dev/sda2
+set-label /dev/sda2 $ROOT_LABEL
+mount /dev/sda2 /
+tar-in "$rootfs_tar" / compress:gzip
+mkdir-p /boot/efi
+mount /dev/sda1 /boot/efi
+mkdir-p /etc
+write /etc/fstab "LABEL=$ROOT_LABEL / ext4 defaults,noatime 0 1\nLABEL=$EFI_LABEL /boot/efi vfat umask=0077 0 2\n"
+umount-all
+EOF
+}
+
+create_metadata() {
+    local image="$1" rootfs="$2"
+    cat >"$image.meta.json" <<EOF
 {
-    "image_type": "disk_image",
-    "target": "$TARGET",
-    "total_size_mb": $IMAGE_SIZE_MB,
-    "partitions": {
-        "efi": {"size_mb": $EFI_SIZE_MB, "type": "vfat", "mount": "/boot/efi"},
-        "root": {"size_mb": $ROOT_SIZE_MB, "type": "ext4", "mount": "/"}
-    },
-    "partition_table": "gpt",
-    "bootloader": "uefi",
-    "rootfs_source": "$rootfs_source",
-    "rootfs_size_bytes": $rootfs_size,
-    "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "build_host": "$(hostname)"
+  "image_type": "disk_image",
+  "target": "$TARGET",
+  "total_size_mb": $IMAGE_SIZE_MB,
+  "partitions": {
+    "efi": {"size_mb": $EFI_SIZE_MB, "type": "vfat", "label": "$EFI_LABEL", "mount": "/boot/efi"},
+    "root": {"size_mb": $ROOT_SIZE_MB, "type": "ext4", "label": "$ROOT_LABEL", "mount": "/"}
+  },
+  "partition_table": "gpt",
+  "bootloader": "not_configured",
+  "rootfs_source": "$rootfs",
+  "rootfs_size_bytes": $(stat -c%s "$rootfs"),
+  "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
-    log "Image metadata created"
 }
 
 generate_evidence() {
-    local img_file="$1"
-    local build_mode="$2"
-    local timestamp
-    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    
+    local image="$1"
+    local runner=human run_id=local job_id=local commit_sha
+    [[ "${GITHUB_ACTIONS:-false}" == true ]] && runner=github-actions
+    run_id="${GITHUB_RUN_ID:-$run_id}"
+    job_id="${GITHUB_JOB:-$job_id}"
+    commit_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
     mkdir -p "$EVIDENCE_DIR"
-    
-    local meta_size=0
-    meta_size=$(stat -c%s "$img_file.meta.json" 2>/dev/null || echo "0")
-    
-    cat > "$EVIDENCE_DIR/build-evidence.json" <<EOF
+    cat >"$EVIDENCE_DIR/build-evidence.json" <<EOF
 {
-    "layer": 2,
-    "verification_class": ["VM", "HARDWARE"],
-    "timestamp": "$timestamp",
-    "build_host": "$(hostname)",
-    "target": "$TARGET",
-    "build_mode": "$build_mode",
-    "artefacts": {
-        "image_meta": "$img_file.meta.json",
-        "meta_size_bytes": $meta_size
-    },
-    "configuration": {
-        "total_size_mb": $IMAGE_SIZE_MB,
-        "efi_size_mb": $EFI_SIZE_MB,
-        "root_size_mb": $ROOT_SIZE_MB
-    },
-    "dependencies": {
-        "layer1_rootfs": "$ROOTFS_IMAGE"
-    },
-    "build_parameters": {
-        "partition_table": "gpt",
-        "efi_filesystem": "vfat",
-        "root_filesystem": "ext4"
-    },
-    "tests_required": [
-        "qemu_boot_test",
-        "partition_integrity",
-        "filesystem_check"
-    ]
+  "layer": 2,
+  "task_id": "layer2-partitioned-disk-image",
+  "verification_class": "BUILD",
+  "runner": "$runner",
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "target": "$TARGET",
+  "result": "PASS",
+  "evidence_path": "$image",
+  "commit_sha": "$commit_sha",
+  "ci_run_id": "$run_id",
+  "ci_job_id": "$job_id",
+  "build_mode": "full_image_guestfs",
+  "artefacts": {"image": "$image", "image_meta": "$image.meta.json"},
+  "dependencies": {"layer1_rootfs": "$ROOTFS_IMAGE"},
+  "blocked_gates": ["VM", "HARDWARE"],
+  "boot_status": "not_configured"
 }
 EOF
-    
-    log "Evidence generated: $EVIDENCE_DIR/build-evidence.json"
 }
 
 main() {
-    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        usage
+    local mode=build layout_path=""
+    case "${1:-}" in
+        -h|--help) usage; return 0 ;;
+        --validate) mode=validate; shift ;;
+        --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2 ;;
+        --print-repo-root) printf '%s\n' "$REPO_ROOT"; return 0 ;;
+    esac
+
+    parse_and_validate_config
+    [[ "$mode" == validate ]] && return 0
+
+    local temp_parent="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}"
+    mkdir -p "$temp_parent"
+    WORK_DIR="$(mktemp -d "$temp_parent/ashipaos-image.XXXXXX")"
+    if [[ "$mode" == layout ]]; then
+        PARTIAL_IMAGE="$layout_path"
+        create_partition_layout "$layout_path"
+        PARTIAL_IMAGE=""
+        return 0
     fi
-    
-    if [[ "${1:-}" == "--validate" ]]; then
-        validate_config
-        echo "Configuration valid"
-        exit 0
-    fi
-    
-    # Check for --loop flag to use traditional loop device method
-    local use_loop=false
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --loop)
-                use_loop=true
-                shift
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
-    
-    if [[ -z "$ROOTFS_IMAGE" || -z "$TARGET" ]]; then
-        error "Missing required arguments. Use --help for usage."
-    fi
-    
-    log "Starting Layer 2 build: target=$TARGET"
-    
-    validate_config
-    parse_config
-    
-    local img_name="ashipaos-${TARGET}-$(date +%Y%m%d).img"
-    local img_path="$OUTPUT_DIR/$img_name"
+
+    [[ $# -ge 1 && $# -le 2 ]] || error "expected <rootfs-image> [target]; use --help for usage"
+    ROOTFS_IMAGE="$1"
+    TARGET="${2:-x86_64}"
+    [[ -f "$ROOTFS_IMAGE" ]] || error "Layer 1 rootfs tarball not found: $ROOTFS_IMAGE"
+    tar -tzf "$ROOTFS_IMAGE" >/dev/null || error "Layer 1 rootfs is not a readable gzip tar archive: $ROOTFS_IMAGE"
     mkdir -p "$OUTPUT_DIR"
-    
-    # Use libguestfs by default (works without loop devices)
-    if [[ "$use_loop" != "true" ]]; then
-        # Check if guestfish is available
-        if command -v guestfish &>/dev/null; then
-            log "Using libguestfs method (no loop devices required)"
-            create_disk_image_guestfs "$img_path" "$ROOTFS_IMAGE"
-            create_image_metadata "$img_path" "$ROOTFS_IMAGE"
-            generate_evidence "$img_path" "full_image_guestfs"
-            log "Layer 2 build complete: $img_path"
-            echo "$img_path"
-        else
-            log "WARNING: guestfish not found, falling back to metadata-only mode"
-            create_image_metadata "$img_path" "$ROOTFS_IMAGE"
-            generate_evidence "$img_path" "metadata_only"
-            log "Layer 2 build complete (metadata mode): $img_path.meta.json"
-            echo "$img_path.meta.json"
-        fi
-    else
-        # Traditional loop device method (requires sudo/privileges)
-        error "Loop device method not yet implemented in this version. Use libguestfs (default) instead."
-    fi
+    local final_image temp_image
+    final_image="$OUTPUT_DIR/ashipaos-${TARGET}-$(date +%Y%m%d).img"
+    temp_image="$WORK_DIR/$(basename "$final_image").partial"
+    [[ ! -e "$final_image" && ! -e "$final_image.meta.json" ]] ||
+        error "refusing to overwrite existing Layer 2 output: $final_image"
+    PARTIAL_IMAGE="$temp_image"
+
+    create_partition_layout "$temp_image"
+    populate_image "$temp_image" "$ROOTFS_IMAGE"
+    mv -- "$temp_image" "$final_image"
+    PARTIAL_IMAGE="$final_image"
+    create_metadata "$final_image" "$ROOTFS_IMAGE"
+    generate_evidence "$final_image"
+    PARTIAL_IMAGE=""
+    log "Layer 2 build complete: $final_image"
+    echo "$final_image"
 }
 
 main "$@"
