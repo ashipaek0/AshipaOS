@@ -86,6 +86,26 @@ mount_rootfs_api() {
     mount --make-rslave "$rootfs/dev"
 }
 
+install_x86_64_boot_marker() {
+    local rootfs="$1"
+    # A real oneshot unit proves userspace reached multi-user.target.
+    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants"
+    cat > "$rootfs/etc/systemd/system/ashipaos-boot-success.service" <<'EOF'
+[Unit]
+Description=AshipaOS userspace boot marker
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'printf "ASHIPAOS_BOOT_SUCCESS=1\\n" > /dev/ttyS0'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    ln -s ../ashipaos-boot-success.service \
+        "$rootfs/etc/systemd/system/multi-user.target.wants/ashipaos-boot-success.service"
+}
+
 install_kernel_and_initramfs() {
     local rootfs="$1"
     local debian_arch="$2"
@@ -166,6 +186,9 @@ create_rootfs() {
     fi
 
     install_kernel_and_initramfs "$rootfs" "$debian_arch"
+    if [[ "$product_arch" == "x86_64" ]]; then
+        install_x86_64_boot_marker "$rootfs"
+    fi
     minimize_rootfs "$rootfs"
     validate_kernel_initramfs "$rootfs" "$debian_arch" "${KERNEL_PACKAGES[$debian_arch]}"
     mkdir -p "$(dirname "$output_file")"
