@@ -55,7 +55,7 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
 
       - name: Build Layer 2 (Disk Image)
         run: |
@@ -119,7 +119,7 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
+          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
 
       - name: Build Layer 2 (Disk Image)
         run: |
