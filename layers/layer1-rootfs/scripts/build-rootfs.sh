@@ -89,28 +89,16 @@ mount_rootfs_api() {
 
 install_x86_64_boot_marker() {
     local rootfs="$1"
-    # A real oneshot unit marks userspace startup in the multi-user transaction
-    # without creating an ordering cycle. Keep this x86_64-only marker deterministic.
-    [[ -x "$rootfs/usr/bin/printf" ]] \
-        || error "Debian rootfs is missing required command: /usr/bin/printf"
-    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants"
-    cat > "$rootfs/etc/systemd/system/ashipaos-boot-success.service" <<'EOF'
-[Unit]
-Description=AshipaOS userspace boot marker
-Before=multi-user.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/printf 'ASHIPAOS_BOOT_SUCCESS=1\n'
-StandardOutput=journal+console
-StandardError=journal+console
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    ln -s ../ashipaos-boot-success.service \
-        "$rootfs/etc/systemd/system/multi-user.target.wants/ashipaos-boot-success.service"
+    # /etc/issue is read by the systemd-managed serial getty immediately before
+    # it prints the login prompt. This is therefore emitted by getty after the
+    # serial console has started, rather than by an unrelated boot service.
+    local issue="$rootfs/etc/issue"
+    mkdir -p "$(dirname "$issue")"
+    touch "$issue"
+    if [[ -s "$issue" ]] && [[ "$(tail -c 1 "$issue" | wc -l)" -eq 0 ]]; then
+        printf '\n' >> "$issue"
+    fi
+    printf 'ASHIPAOS_BOOT_SUCCESS=1\n' >> "$issue"
 }
 
 install_kernel_and_initramfs() {

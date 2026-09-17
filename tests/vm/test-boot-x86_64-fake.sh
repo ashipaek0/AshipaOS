@@ -12,19 +12,10 @@ printf image > "$TMP/image.img"
 printf code > "$TMP/OVMF_CODE.fd"
 printf vars > "$TMP/OVMF_VARS.fd"
 
-grep -q 'ExecStart=/usr/bin/printf' "$MARKER_SCRIPT"
-grep -q 'StandardOutput=journal+console' "$MARKER_SCRIPT"
-grep -q 'StandardError=journal+console' "$MARKER_SCRIPT"
-! grep -qE '^(TTYPath|TTYReset|TTYVHangup|TTYVTDisallocate)=' "$MARKER_SCRIPT"
-grep -q 'Before=multi-user.target' "$MARKER_SCRIPT"
-! grep -q 'After=multi-user.target' "$MARKER_SCRIPT"
-grep -q 'multi-user.target.wants' "$MARKER_SCRIPT"
-grep -q 'WantedBy=multi-user.target' "$MARKER_SCRIPT"
-! grep -q 'graphical.target.wants' "$MARKER_SCRIPT"
-! grep -q 'WantedBy=graphical.target' "$MARKER_SCRIPT"
-grep -q 'rootfs/usr/bin/printf' "$MARKER_SCRIPT"
-! grep -q 'ExecStart=/bin/sh' "$MARKER_SCRIPT"
-! grep -q '> /dev/ttyS0' "$MARKER_SCRIPT"
+grep -q 'local issue="\$rootfs/etc/issue"' "$MARKER_SCRIPT"
+grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$MARKER_SCRIPT"
+grep -q 'if \[\[ "\$product_arch" == "x86_64" \]\]' "$MARKER_SCRIPT"
+! grep -q 'ashipaos-boot-success.service' "$MARKER_SCRIPT"
 printf 'fake-marker-config: PASS\n'
 
 cat > "$TMP/bin/qemu-system-x86_64" <<'FAKE_QEMU'

@@ -66,15 +66,11 @@ for p in files:
         assert not any("linux /boot/vmlinuz " in line or "initrd /boot/initrd.img" in line for line in grub_linux_lines + grub_initrd_lines), "x86_64 GRUB entries must not use /boot kernel paths"
         assert "/boot/grub/grub.cfg" in layer2_script and "/root/boot/grub/grub.cfg" in layer2_script, "GRUB config must be written to canonical image paths"
         marker = open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read()
-        assert "ashipaos-boot-success.service" in marker, "boot marker service missing"
-        assert "ExecStart=/usr/bin/printf" in marker, "boot marker must use Debian's printf directly"
-        assert "StandardOutput=journal+console" in marker and "StandardError=journal+console" in marker, "boot marker must use journal+console output"
-        assert not any(f"{key}=" in marker for key in ("TTYPath", "TTYReset", "TTYVHangup", "TTYVTDisallocate")), "boot marker must not use direct TTY configuration"
-        assert "Before=multi-user.target" in marker and "After=multi-user.target" not in marker, "boot marker must use non-cyclic ordering"
-        assert "multi-user.target.wants" in marker and "WantedBy=multi-user.target" in marker, "boot marker must be enabled by multi-user.target"
-        assert "graphical.target.wants" not in marker and "WantedBy=graphical.target" not in marker, "boot marker must not use graphical.target enablement"
-        assert "rootfs/usr/bin/printf" in marker and 'COREUTILS_PACKAGE="coreutils"' in marker, "Debian printf prerequisite must be explicit"
-        assert "ExecStart=/bin/sh" not in marker and "> /dev/ttyS0" not in marker, "boot marker must not use shell redirection"
+        assert 'local issue="$rootfs/etc/issue"' in marker, "boot marker must write rootfs /etc/issue"
+        assert "printf 'ASHIPAOS_BOOT_SUCCESS=1\\n' >> \"$issue\"" in marker, "boot marker must append the exact banner line"
+        assert 'if [[ "$product_arch" == "x86_64" ]]' in marker, "boot marker must be x86_64-only"
+        assert "ashipaos-boot-success.service" not in marker, "boot marker must not depend on a separate service"
+        assert "multi-user.target.wants" not in marker, "boot marker must not use target service wiring"
 
 
 print("test-workflow-files: PASS")

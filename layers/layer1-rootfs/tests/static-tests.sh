@@ -219,33 +219,18 @@ test_evidence_generation() {
     fi
 }
 
-# Test 9: x86_64 marker uses systemd-native serial output
+# Test 9: x86_64 marker is emitted by the systemd-managed getty banner
 test_x86_64_boot_marker() {
-    log_test "Checking x86_64 boot marker service configuration..."
+    log_test "Checking x86_64 serial login banner configuration..."
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
-    grep -q 'rootfs/usr/bin/printf' "$script" && log_pass "Marker validates Debian /usr/bin/printf" || log_fail "Marker command path validation missing"
-    grep -q 'ExecStart=/usr/bin/printf' "$script" && log_pass "Marker uses systemd-native printf" || log_fail "Marker must use /usr/bin/printf directly"
-    grep -q 'StandardOutput=journal+console' "$script" && log_pass "Marker uses journal+console stdout" || log_fail "Marker StandardOutput=journal+console missing"
-    grep -q 'StandardError=journal+console' "$script" && log_pass "Marker uses journal+console stderr" || log_fail "Marker StandardError=journal+console missing"
-    if grep -qE '^(TTYPath|TTYReset|TTYVHangup|TTYVTDisallocate)=' "$script"; then
-        log_fail "Marker must not use direct TTY configuration"
+    grep -q 'install_x86_64_boot_marker' "$script" && log_pass "x86_64 banner installer exists" || log_fail "x86_64 banner installer missing"
+    grep -q 'local issue="\$rootfs/etc/issue"' "$script" && log_pass "Banner writes rootfs /etc/issue" || log_fail "Banner path is not rootfs /etc/issue"
+    grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$script" && log_pass "Banner appends exact success marker" || log_fail "Exact success marker append missing"
+    grep -q 'if \[\[ "\$product_arch" == "x86_64" \]\]' "$script" && log_pass "Banner installation is x86_64-only" || log_fail "x86_64-only installation guard missing"
+    if grep -q 'ashipaos-boot-success.service\|multi-user.target.wants' "$script"; then
+        log_fail "Marker must not depend on a separate systemd service"
     else
-        log_pass "Marker has no direct TTY configuration"
-    fi
-    grep -q 'Before=multi-user.target' "$script" && ! grep -q 'After=multi-user.target' "$script" \
-        && log_pass "Marker uses non-cyclic multi-user ordering" || log_fail "Marker ordering must use Before=multi-user.target only"
-    grep -q 'multi-user.target.wants' "$script" && grep -q 'WantedBy=multi-user.target' "$script" \
-        && log_pass "Marker is enabled by multi-user.target" || log_fail "Marker multi-user target enablement missing"
-    if grep -q 'graphical.target.wants' "$script" || grep -q 'WantedBy=graphical.target' "$script"; then
-        log_fail "Marker must not be enabled by graphical.target"
-    else
-        log_pass "Marker rejects graphical target enablement"
-    fi
-    grep -q 'COREUTILS_PACKAGE="coreutils"' "$script" && log_pass "Rootfs explicitly installs coreutils" || log_fail "Rootfs coreutils package missing"
-    if grep -q 'ExecStart=/bin/sh' "$script" || grep -q '> /dev/ttyS0' "$script"; then
-        log_fail "Marker still relies on shell redirection"
-    else
-        log_pass "Marker has no shell redirection"
+        log_pass "Marker has no separate service dependency"
     fi
 }
 
