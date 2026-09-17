@@ -226,7 +226,18 @@ test_x86_64_boot_marker() {
     grep -q 'install_x86_64_boot_marker' "$script" && log_pass "x86_64 banner installer exists" || log_fail "x86_64 banner installer missing"
     grep -q 'local issue="\$rootfs/etc/issue"' "$script" && log_pass "Banner writes rootfs /etc/issue" || log_fail "Banner path is not rootfs /etc/issue"
     grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$script" && log_pass "Banner appends exact success marker" || log_fail "Exact success marker append missing"
-    grep -q 'if \[\[ "\$product_arch" == "x86_64" \]\]' "$script" && log_pass "Banner installation is x86_64-only" || log_fail "x86_64-only installation guard missing"
+    local marker_guard
+    marker_guard=$(grep 'if \[\[ "\$product_arch"' "$script" || true)
+    if [[ "$marker_guard" == *'"x86_64"'* && "$marker_guard" == *'"amd64"'* ]]; then
+        log_pass "Banner installation enables x86_64 and amd64 aliases"
+    else
+        log_fail "x86_64/amd64 installation guard missing"
+    fi
+    if [[ "$marker_guard" != *'"arm64"'* && "$marker_guard" != *'"armhf"'* ]]; then
+        log_pass "Banner installation excludes ARM aliases"
+    else
+        log_fail "ARM alias unexpectedly enables banner installation"
+    fi
     if grep -q 'ashipaos-boot-success.service\|multi-user.target.wants' "$script"; then
         log_fail "Marker must not depend on a separate systemd service"
     else

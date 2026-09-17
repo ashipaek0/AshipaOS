@@ -14,7 +14,9 @@ printf vars > "$TMP/OVMF_VARS.fd"
 
 grep -q 'local issue="\$rootfs/etc/issue"' "$MARKER_SCRIPT"
 grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$MARKER_SCRIPT"
-grep -q 'if \[\[ "\$product_arch" == "x86_64" \]\]' "$MARKER_SCRIPT"
+marker_guard=$(grep 'if \[\[ "\$product_arch"' "$MARKER_SCRIPT")
+[[ "$marker_guard" == *'"x86_64"'* && "$marker_guard" == *'"amd64"'* ]]
+[[ "$marker_guard" != *'"arm64"'* && "$marker_guard" != *'"armhf"'* ]]
 ! grep -q 'ashipaos-boot-success.service' "$MARKER_SCRIPT"
 printf 'fake-marker-config: PASS\n'
 

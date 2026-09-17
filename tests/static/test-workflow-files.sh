@@ -68,7 +68,9 @@ for p in files:
         marker = open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read()
         assert 'local issue="$rootfs/etc/issue"' in marker, "boot marker must write rootfs /etc/issue"
         assert "printf 'ASHIPAOS_BOOT_SUCCESS=1\\n' >> \"$issue\"" in marker, "boot marker must append the exact banner line"
-        assert 'if [[ "$product_arch" == "x86_64" ]]' in marker, "boot marker must be x86_64-only"
+        assert 'if [[ "$product_arch" == "x86_64" || "$product_arch" == "amd64" ]]' in marker, "boot marker must enable x86_64 and amd64 aliases"
+        marker_guard = next(line for line in marker.splitlines() if 'if [[ "$product_arch"' in line)
+        assert '"arm64"' not in marker_guard and '"armhf"' not in marker_guard, "boot marker must remain disabled for ARM aliases"
         assert "ashipaos-boot-success.service" not in marker, "boot marker must not depend on a separate service"
         assert "multi-user.target.wants" not in marker, "boot marker must not use target service wiring"
 

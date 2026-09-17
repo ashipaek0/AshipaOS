@@ -181,7 +181,7 @@ create_rootfs() {
     fi
 
     install_kernel_and_initramfs "$rootfs" "$debian_arch"
-    if [[ "$product_arch" == "x86_64" ]]; then
+    if [[ "$product_arch" == "x86_64" || "$product_arch" == "amd64" ]]; then
         install_x86_64_boot_marker "$rootfs"
     fi
     minimize_rootfs "$rootfs"
