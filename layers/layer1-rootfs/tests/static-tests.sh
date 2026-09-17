@@ -49,8 +49,8 @@ test_shell_standards() {
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
     
     # Check for set -euo pipefail
-    if grep -q "set -euo pipefail" "$script"; then
-        log_pass "Script uses 'set -euo pipefail'"
+    if grep -qE "set -E?euo pipefail" "$script"; then
+        log_pass "Script uses 'set -Eeuo pipefail'"
     else
         log_fail "Script missing 'set -euo pipefail'"
     fi
@@ -184,6 +184,49 @@ test_evidence_generation() {
     fi
 }
 
+# Test 8: Target kernel/initramfs policy and validation are explicit
+ test_kernel_initramfs_policy() {
+    log_test "Checking target kernel/initramfs policy..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    local config="$LAYER1_DIR/config/rootfs-config.yaml"
+
+    grep -q '^kernel:' "$config" && log_pass "Config declares kernel policy" || log_fail "Config missing kernel policy"
+    grep -q '^initramfs:' "$config" && log_pass "Config declares initramfs policy" || log_fail "Config missing initramfs policy"
+    grep -q 'x86_64: amd64' "$config" && log_pass "Config maps x86_64 to amd64" || log_fail "Config missing x86_64 mapping"
+    grep -q '\["x86_64"\]="amd64"' "$script" && log_pass "Script maps x86_64 to amd64" || log_fail "Script missing x86_64 mapping"
+    grep -q 'linux-image-amd64' "$script" && log_pass "amd64 kernel package is declared" || log_fail "amd64 kernel package missing"
+    grep -q 'initramfs-tools' "$script" && log_pass "initramfs tooling is declared" || log_fail "initramfs tooling missing"
+    grep -q 'validate_kernel_initramfs' "$script" && log_pass "Kernel/initramfs validation is enforced" || log_fail "Kernel/initramfs validation missing"
+    grep -q 'dpkg-query' "$script" && log_pass "Package metadata is recorded/checked" || log_fail "Package metadata handling missing"
+    grep -q 'sha256sum' "$script" && log_pass "File hashes are recorded" || log_fail "File metadata hashing missing"
+    if grep -qE '(/boot|boot/).*cp |cp .*(/boot|boot/)' "$script"; then
+        log_fail "Script appears to copy a host boot file"
+    else
+        log_pass "No host /boot copy path detected"
+    fi
+}
+
+# Test 9: Safe argument and validation failures are non-zero
+ test_argument_validation() {
+    log_test "Checking argument and validation failure paths..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    if bash "$script" >/dev/null 2>&1; then
+        log_fail "Missing arguments unexpectedly succeeded"
+    else
+        log_pass "Missing arguments fail non-zero"
+    fi
+    if bash "$script" invalid-arch /tmp/layer1-static-test.tar.gz >/dev/null 2>&1; then
+        log_fail "Invalid architecture unexpectedly succeeded"
+    else
+        log_pass "Invalid architecture fails non-zero"
+    fi
+    if bash -n "$script"; then
+        log_pass "Build script passes bash syntax validation"
+    else
+        log_fail "Build script has bash syntax errors"
+    fi
+}
+
 # Run all tests
 main() {
     echo "========================================"
@@ -211,7 +254,13 @@ main() {
     
     test_evidence_generation
     echo ""
-    
+
+    test_kernel_initramfs_policy
+    echo ""
+
+    test_argument_validation
+    echo ""
+
     echo "========================================"
     echo "Test Results: $PASSED passed, $FAILED failed"
     echo "========================================"

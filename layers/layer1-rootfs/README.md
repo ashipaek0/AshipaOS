@@ -1,76 +1,75 @@
 # Layer 1: Minimal Debian Root Filesystem
 
-## Overview
-This layer provides a minimal Debian root filesystem builder for multiple architectures (arm64, amd64, armhf).
+Layer 1 creates a reproducible Debian rootfs for `x86_64`/`amd64`, `arm64`,
+and `armhf`. The kernel and initramfs are Debian packages installed inside
+the target rootfs; host `/boot` is never read or copied.
 
-## Verification Class
-**BUILD** - Requires debootstrap and potentially qemu-user-static for cross-architecture builds.
+## Verification class
 
-## Directory Structure
-```
-layer1-rootfs/
-├── scripts/
-│   └── build-rootfs.sh      # Main build script
-├── config/
-│   └── rootfs-config.yaml   # Configuration file
-├── tests/
-│   └── static-tests.sh      # Static verification tests
-└── evidence/                 # Build evidence storage
-```
+**BUILD** — requires debootstrap, package-mirror access, and (for a cross-arch
+build) qemu-user-static. Static tests do not claim that a rootfs boots.
 
 ## Usage
 
-### Building a Root Filesystem
 ```bash
-# Basic usage
 ./scripts/build-rootfs.sh <target_arch> <output_file>
-
-# Examples
-./scripts/build-rootfs.sh arm64 /workspace/output/rootfs-arm64.tar.gz
-./scripts/build-rootfs.sh amd64 /workspace/output/rootfs-amd64.tar.gz
-./scripts/build-rootfs.sh armhf /workspace/output/rootfs-armhf.tar.gz
+./scripts/build-rootfs.sh x86_64 output/rootfs-x86_64.tar.gz
+./scripts/build-rootfs.sh amd64 output/rootfs-amd64.tar.gz
+./scripts/build-rootfs.sh arm64 output/rootfs-arm64.tar.gz
+./scripts/build-rootfs.sh armhf output/rootfs-armhf.tar.gz
 ```
 
-### Environment Variables
-- `DEBIAN_SUITE`: Debian suite (default: bookworm)
-- `DEBIAN_MIRROR`: Debian mirror URL (default: http://deb.debian.org/debian)
-- `COMPONENTS`: Debian components (default: main,contrib,non-free-firmware)
+`x86_64` is explicitly mapped to Debian `amd64`. ARM architectures remain
+configured for rootfs builds, but this Layer 1 change does **not** claim ARM VM
+support or physical hardware support.
 
-### Running Static Tests
+## Kernel/initramfs policy
+
+`config/rootfs-config.yaml` is the policy source for supported architectures.
+The builder installs the target kernel package and `initramfs-tools` with apt
+inside the target rootfs. For both native and debootstrap `--foreign` builds it
+then runs `update-initramfs -u -k all` in the target chroot. The build fails
+non-zero unless all of these are true:
+
+- `/boot/vmlinuz` is non-empty and resolves to a non-empty versioned
+  `/boot/vmlinuz-*` file;
+- `/boot/initrd.img` is non-empty and resolves to a non-empty versioned
+  `/boot/initrd.img-*` file;
+- the configured kernel and initramfs packages are installed and have resolved
+  versions.
+
+Layer 1 evidence records the mapped architecture, package names and versions,
+resolved file paths, sizes, SHA-256 hashes, and output tarball metadata.
+
+## Requirements
+
+- bash 4+
+- debootstrap
+- mount (the build mounts target `/proc`, `/sys`, and `/dev` only while
+  installing packages)
+- qemu-user-static for cross-architecture builds
+- network access to the declared Debian mirror
+
+## Static tests
+
 ```bash
 ./tests/static-tests.sh
 ```
 
-## Requirements
-- debootstrap
-- qemu-user-static (for cross-architecture builds only)
-- bash 4.0+
+The static suite covers shell syntax, explicit `x86_64 → amd64` mapping,
+package/initramfs policy, evidence metadata hooks, no host `/boot` copy path,
+and non-zero missing-argument/invalid-architecture paths. It does not run
+Debian debootstrap, install packages, or boot a VM.
 
-## Configuration
-Edit `config/rootfs-config.yaml` to customize:
-- Debian suite and mirror
-- Package lists
-- Exclusion patterns
-- Size limits
-- Verification requirements
+## Explicit non-goals for Stage 1
 
-## Evidence Generation
-The build script automatically generates JSON evidence files in the `evidence/` directory containing:
-- Build parameters
-- Artefact information
-- Builder environment details
-- Timestamp
-
-## Invariants
-1. No hardware-specific values hardcoded in build scripts
-2. Architecture passed as parameter
-3. Verification class BUILD properly documented
-4. Evidence generated for every build
-5. Shell standards compliance (set -euo pipefail)
+- No QEMU VM workflow or boot claim.
+- No ARM VM or physical-hardware support claim.
+- No host-kernel or host-`/boot` fallback.
+- No mutable, undeclared kernel download or copied workstation artefact.
+- No image partitioning, bootloader integration, or Layer 2 userspace work.
 
 ## Outputs
-- Root filesystem tarball (`.tar.gz`)
-- Build evidence JSON file
 
-## Next Steps
-After building the rootfs, proceed to Layer 2 for kernel integration.
+- Root filesystem tarball (`.tar.gz`)
+- JSON build evidence under `evidence/`
