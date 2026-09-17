@@ -180,54 +180,22 @@ install_x86_64_bootloader() {
     mount_efi="$WORK_DIR/mnt-efi"
     mkdir -p "$mount_root" "$mount_efi"
     
-    mount "${loop_dev}p2" "$mount_root"
-    mount "${loop_dev}p1" "$mount_efi"
+    # Install GRUB EFI bootloader using pure guestfish (no loop devices/root required)
+    log "Installing GRUB EFI bootloader for x86_64..."
     
-    # Install GRUB EFI bootloader
-    if command -v grub-install >/dev/null; then
-        grub-install \
-            --target=x86_64-efi \
-            --efi-directory="$mount_efi" \
-            --bootloader-id=AshipaOS \
-            --removable \
-            --recheck \
-            --no-floppy \
-            --boot-directory="$mount_root/boot" || {
-                log "Warning: grub-install failed, creating minimal EFI boot structure"
-                rm -f "$mount_efi/EFI/BOOT/"*".placeholder" 2>/dev/null || true
-                if [[ -f /usr/lib/grub/x86_64-efi/grub.efi ]]; then
-                    cp /usr/lib/grub/x86_64-efi/grub.efi "$mount_efi/EFI/BOOT/BOOTX64.EFI"
-                fi
-            }
-        
-        # Generate GRUB configuration
-        if command -v chroot >/dev/null && [[ -d "$mount_root/usr/bin" ]]; then
-            mount --bind /dev "$mount_root/dev" || true
-            mount --bind /proc "$mount_root/proc" || true
-            mount --bind /sys "$mount_root/sys" || true
-            
-            chroot "$mount_root" grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || {
-                log "Warning: grub-mkconfig failed, creating basic config"
-                cat > "$mount_root/boot/grub/grub.cfg" <<GRUBCFG
-set timeout=5
-menuentry "AshipaOS" {
-    set root=(hd0,gpt2)
-    linux /boot/vmlinuz root=LABEL=$ROOT_LABEL ro quiet
-    initrd /boot/initrd.img
-}
-GRUBCFG
-            }
-            
-            umount "$mount_root/dev" 2>/dev/null || true
-            umount "$mount_root/proc" 2>/dev/null || true
-            umount "$mount_root/sys" 2>/dev/null || true
-        fi
+    # 1. Upload GRUB EFI binary to EFI partition
+    if [[ -f /usr/lib/grub/x86_64-efi/grubx64.efi ]]; then
+        guestfish -a "$IMAGE" <<EOF
+run
+mount /dev/sda1 /
+mkdir-p /EFI/BOOT
+upload /usr/lib/grub/x86_64-efi/grubx64.efi /EFI/BOOT/BOOTX64.EFI
+write /EFI/BOOT/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /boot/vmlinuz root=LABEL=$ROOT_LABEL ro quiet\\n  initrd /boot/initrd.img\\n}\\n"
+EOF
+        log "✓ GRUB EFI installed successfully via guestfish"
     else
-        log "Warning: grub-install not available, image will need manual bootloader installation"
+        log "Warning: GRUB EFI binary not found, image will need manual bootloader installation"
     fi
-    
-    umount "$mount_efi"
-    umount "$mount_root"
     losetup -d "$loop_dev"
     trap - RETURN
     log "GRUB EFI bootloader installed successfully"
