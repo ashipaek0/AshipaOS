@@ -232,14 +232,15 @@ test_x86_64_boot_marker() {
     else
         log_pass "Marker has no direct TTY configuration"
     fi
-    grep -q 'After=multi-user.target' "$script" && log_pass "Marker is ordered after multi-user.target" || log_fail "Marker ordering missing"
-    grep -q 'graphical.target.wants' "$script" && log_pass "Marker is enabled by graphical.target" || log_fail "Marker graphical target enablement missing"
-    if grep -q 'multi-user.target.wants' "$script"; then
-        log_fail "Marker must not be enabled by multi-user.target"
+    grep -q 'Before=multi-user.target' "$script" && ! grep -q 'After=multi-user.target' "$script" \
+        && log_pass "Marker uses non-cyclic multi-user ordering" || log_fail "Marker ordering must use Before=multi-user.target only"
+    grep -q 'multi-user.target.wants' "$script" && grep -q 'WantedBy=multi-user.target' "$script" \
+        && log_pass "Marker is enabled by multi-user.target" || log_fail "Marker multi-user target enablement missing"
+    if grep -q 'graphical.target.wants' "$script" || grep -q 'WantedBy=graphical.target' "$script"; then
+        log_fail "Marker must not be enabled by graphical.target"
     else
-        log_pass "Marker avoids the multi-user ordering cycle"
+        log_pass "Marker rejects graphical target enablement"
     fi
-    grep -q 'WantedBy=graphical.target' "$script" && log_pass "Marker install target is graphical.target" || log_fail "Marker WantedBy target missing"
     grep -q 'COREUTILS_PACKAGE="coreutils"' "$script" && log_pass "Rootfs explicitly installs coreutils" || log_fail "Rootfs coreutils package missing"
     if grep -q 'ExecStart=/bin/sh' "$script" || grep -q '> /dev/ttyS0' "$script"; then
         log_fail "Marker still relies on shell redirection"

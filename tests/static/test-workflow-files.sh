@@ -70,9 +70,9 @@ for p in files:
         assert "ExecStart=/usr/bin/printf" in marker, "boot marker must use Debian's printf directly"
         assert "StandardOutput=journal+console" in marker and "StandardError=journal+console" in marker, "boot marker must use journal+console output"
         assert not any(f"{key}=" in marker for key in ("TTYPath", "TTYReset", "TTYVHangup", "TTYVTDisallocate")), "boot marker must not use direct TTY configuration"
-        assert "After=multi-user.target" in marker, "boot marker ordering changed"
-        assert "graphical.target.wants" in marker and "WantedBy=graphical.target" in marker, "boot marker must be enabled by graphical.target"
-        assert "multi-user.target.wants" not in marker, "boot marker must not use cyclic multi-user.target.wants enablement"
+        assert "Before=multi-user.target" in marker and "After=multi-user.target" not in marker, "boot marker must use non-cyclic ordering"
+        assert "multi-user.target.wants" in marker and "WantedBy=multi-user.target" in marker, "boot marker must be enabled by multi-user.target"
+        assert "graphical.target.wants" not in marker and "WantedBy=graphical.target" not in marker, "boot marker must not use graphical.target enablement"
         assert "rootfs/usr/bin/printf" in marker and 'COREUTILS_PACKAGE="coreutils"' in marker, "Debian printf prerequisite must be explicit"
         assert "ExecStart=/bin/sh" not in marker and "> /dev/ttyS0" not in marker, "boot marker must not use shell redirection"
 
