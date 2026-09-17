@@ -225,9 +225,13 @@ test_x86_64_boot_marker() {
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
     grep -q 'rootfs/usr/bin/printf' "$script" && log_pass "Marker validates Debian /usr/bin/printf" || log_fail "Marker command path validation missing"
     grep -q 'ExecStart=/usr/bin/printf' "$script" && log_pass "Marker uses systemd-native printf" || log_fail "Marker must use /usr/bin/printf directly"
-    grep -q 'StandardOutput=tty' "$script" && log_pass "Marker uses systemd TTY output" || log_fail "Marker StandardOutput=tty missing"
-    grep -q 'TTYPath=/dev/ttyS0' "$script" && log_pass "Marker targets ttyS0" || log_fail "Marker TTYPath missing"
-    grep -q 'TTYReset=no' "$script" && log_pass "Marker preserves TTY settings" || log_fail "Marker TTYReset setting missing"
+    grep -q 'StandardOutput=journal+console' "$script" && log_pass "Marker uses journal+console stdout" || log_fail "Marker StandardOutput=journal+console missing"
+    grep -q 'StandardError=journal+console' "$script" && log_pass "Marker uses journal+console stderr" || log_fail "Marker StandardError=journal+console missing"
+    if grep -qE '^(TTYPath|TTYReset|TTYVHangup|TTYVTDisallocate)=' "$script"; then
+        log_fail "Marker must not use direct TTY configuration"
+    else
+        log_pass "Marker has no direct TTY configuration"
+    fi
     grep -q 'After=multi-user.target' "$script" && log_pass "Marker is ordered after multi-user.target" || log_fail "Marker ordering missing"
     grep -q 'graphical.target.wants' "$script" && log_pass "Marker is enabled by graphical.target" || log_fail "Marker graphical target enablement missing"
     if grep -q 'multi-user.target.wants' "$script"; then

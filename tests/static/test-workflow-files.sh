@@ -68,7 +68,8 @@ for p in files:
         marker = open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read()
         assert "ashipaos-boot-success.service" in marker, "boot marker service missing"
         assert "ExecStart=/usr/bin/printf" in marker, "boot marker must use Debian's printf directly"
-        assert "StandardOutput=tty" in marker and "TTYPath=/dev/ttyS0" in marker, "boot marker must use native tty output"
+        assert "StandardOutput=journal+console" in marker and "StandardError=journal+console" in marker, "boot marker must use journal+console output"
+        assert not any(f"{key}=" in marker for key in ("TTYPath", "TTYReset", "TTYVHangup", "TTYVTDisallocate")), "boot marker must not use direct TTY configuration"
         assert "After=multi-user.target" in marker, "boot marker ordering changed"
         assert "graphical.target.wants" in marker and "WantedBy=graphical.target" in marker, "boot marker must be enabled by graphical.target"
         assert "multi-user.target.wants" not in marker, "boot marker must not use cyclic multi-user.target.wants enablement"

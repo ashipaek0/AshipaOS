@@ -102,11 +102,8 @@ After=multi-user.target
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/printf 'ASHIPAOS_BOOT_SUCCESS=1\n'
-StandardOutput=tty
-TTYPath=/dev/ttyS0
-TTYReset=no
-TTYVHangup=no
-TTYVTDisallocate=no
+StandardOutput=journal+console
+StandardError=journal+console
 RemainAfterExit=yes
 
 [Install]
