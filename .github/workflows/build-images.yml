@@ -20,7 +20,7 @@ jobs:
   static-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       
       - name: Install dependencies
         run: |
@@ -43,7 +43,7 @@ jobs:
     # Note: Uses libguestfs for disk image creation - no privileged mode needed
     if: github.event.inputs.target == 'x86_64' || github.event_name == 'push'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       
       - name: Install dependencies
         run: |
@@ -132,7 +132,7 @@ jobs:
             "$GITHUB_WORKSPACE/output/sbom.json"
 
       - name: Upload Images
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: ashipaos-x86_64-${{ github.run_id }}
           path: |
@@ -153,7 +153,7 @@ jobs:
     # Note: Uses libguestfs + QEMU emulation for ARM64 - no privileged mode needed
     if: github.event.inputs.target == 'a95x-f3-air' || github.event_name == 'push'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       
       - name: Install dependencies
         run: |
@@ -254,7 +254,7 @@ jobs:
             "$GITHUB_WORKSPACE/output/sbom.json"
 
       - name: Upload Images
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: ashipaos-a95x-f3-air-${{ github.run_id }}
           path: |
@@ -276,10 +276,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       
       - name: Download all artefacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           pattern: ashipaos-*
           merge-multiple: true
