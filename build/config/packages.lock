@@ -1,3 +1,18 @@
-# Pinned versioned build inputs. Empty in Layer 0; populated by later
-# layer tasks. Every release input must be pinned or explicitly recorded.
-packages: []
+# Package names are resolved exclusively from the immutable Debian snapshot
+# in the target configuration. configure-rootfs.sh records the exact resolved
+# name/version/architecture set inside every build and release manifest.
+packages:
+  - ca-certificates
+  - cage
+  - connman
+  - curl
+  - dbus
+  - grub-efi-amd64-bin
+  - initramfs-tools
+  - linux-image-amd64
+  - mpv
+  - nftables
+  - openssh-server
+  - python3
+  - systemd-sysv
+  - systemd-timesyncd

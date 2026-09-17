@@ -1,0 +1,190 @@
+name: release-build
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Development prerelease version
+        required: true
+        default: 0.0.1-dev
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  main-guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Require the current main commit
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          git fetch --no-tags origin main
+          test "$GITHUB_SHA" = "$(git rev-parse origin/main)"
+
+  x86_64:
+    needs: main-guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: test "$RELEASE_VERSION" = 0.0.1-dev
+      - name: Install build and VM dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          debootstrap dosfstools e2fsprogs grub-efi-amd64-bin jq ovmf parted
+          python3-jsonschema python3-yaml qemu-system-x86 ripgrep rsync zstd
+      - name: Build and verify x86_64 development release
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: sudo build/scripts/build-release.sh x86_64 "$RELEASE_VERSION"
+      - name: Record x86_64 build evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          mkdir -p evidence/ci
+          jq -n --arg task 'release.0.0.1-dev-x86_64' --arg class BUILD \
+            --arg runner github-actions --arg target x86_64 --arg result "$RESULT" \
+            --arg evidence 'build/output and GitHub Actions job log' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/release-x86_64.json
+      - name: Record x86_64 VM evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          jq -n --arg task 'release.0.0.1-dev-x86_64-vm' --arg class VM \
+            --arg runner github-actions --arg target x86_64 --arg result "$RESULT" \
+            --arg evidence 'QEMU boot output in GitHub Actions job log' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/release-x86_64-vm.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: release-x86_64
+          path: |
+            build/output/ashipaos-x86_64.img.zst
+            build/output/ashipaos-x86_64.img.zst.sha256
+            build/output/ashipaos-x86_64.manifest.json
+            build/output/ashipaos-x86_64.packages.lock
+            evidence/ci/release-x86_64.json
+            evidence/ci/release-x86_64-vm.json
+          if-no-files-found: error
+
+  amlogic:
+    needs: main-guard
+    runs-on: [self-hosted, linux, x64, ashipaos-builder]
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: test "$RELEASE_VERSION" = 0.0.1-dev
+      - name: Install CoreELEC host dependencies
+        run: |
+          mapfile -t packages < <(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' build/config/coreelec-host-packages.txt)
+          sudo apt-get update
+          sudo apt-get install --yes "${packages[@]}"
+      - name: Preflight dedicated Amlogic builder
+        run: build/scripts/preflight-amlogic-builder.sh
+      - name: Build Amlogic development baseline
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          build/scripts/build-amlogic.sh "$RELEASE_VERSION"
+          tests/build/test-amlogic-image.sh
+      - name: Record Amlogic build evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          mkdir -p evidence/ci
+          jq -n --arg task 'release.0.0.1-dev-amlogic-baseline' --arg class BUILD \
+            --arg runner github-actions --arg target a95x-f3-air --arg result "$RESULT" \
+            --arg evidence 'build/output/amlogic and GitHub Actions job log; HARDWARE remains blocked' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/release-amlogic.json
+      - name: Record blocked Amlogic hardware evidence
+        if: always()
+        run: |
+          jq -n --arg task 'release.0.0.1-dev-amlogic-hardware' --arg class HARDWARE \
+            --arg runner blocked --arg target a95x-f3-air --arg result blocked \
+            --arg evidence 'No hardware-lab evidence is available' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/release-amlogic-hardware.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: release-amlogic-a95x-f3-air
+          path: |
+            build/output/amlogic/*.img.gz
+            build/output/amlogic/SHA256SUMS
+            build/output/amlogic/ashipaos-a95x-f3-air.manifest.json
+            evidence/ci/release-amlogic.json
+            evidence/ci/release-amlogic-hardware.json
+          if-no-files-found: error
+
+  publish:
+    needs: [x86_64, amlogic]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          tag="v${RELEASE_VERSION}"
+          mapfile -t assets < <(find release-assets -maxdepth 1 -type f -print | sort)
+          test "${#assets[@]}" -gt 0
+          tag_exists=false
+          if git fetch --no-tags origin "refs/tags/${tag}:refs/tags/${tag}" 2>/dev/null; then
+            tag_exists=true
+            tag_commit="$(git rev-list -n 1 "$tag")"
+            if [ "$tag_commit" != "$GITHUB_SHA" ]; then
+              echo "Refusing to replace ${tag}: it targets ${tag_commit}, not ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$tag_exists" != true ]; then
+              echo "Refusing to modify release ${tag}: its tag could not be verified" >&2
+              exit 1
+            fi
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            if [ "$tag_exists" = true ]; then
+              echo "Publishing against existing verified tag ${tag} at ${GITHUB_SHA}"
+            fi
+            gh release create "$tag" "${assets[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "AshipaOS ${RELEASE_VERSION}" \
+              --notes-file docs/release-notes-0.0.1-dev.md \
+              --prerelease
+          fi

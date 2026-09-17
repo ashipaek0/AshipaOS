@@ -5,48 +5,54 @@ on:
 
 jobs:
   static-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      
-      - name: Install dependencies
+      - name: Install static-test dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          jq python3-jsonschema python3-yaml ripgrep shellcheck
+      - name: Require schema validators
+        run: python3 -c 'import jsonschema, yaml'
+      - name: Run layer static checks
         run: |
-          sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck
-
-      - name: Run static tests
-        run: |
-          echo "=== Running Static Tests ==="
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
-              echo "Testing ${layer}"
+              echo "=== ${layer} ==="
               bash "${layer}tests/static-tests.sh"
             fi
           done
-      
-      - name: Validate JSON schemas
+      - name: Run repository static checks
         run: |
-          echo "=== Validating JSON Schemas ==="
-          for schema in schemas/*.json; do
-            echo "Validating against $schema"
-            # Find corresponding config files and validate
+          for test in tests/static/*.sh; do
+            echo "=== ${test} ==="
+            bash "$test"
           done
-      
-      - name: Smoke test Layer 1 (rootfs)
+      - name: Smoke test existing layer build interfaces
         run: |
-          echo "=== Smoke Test Layer 1 (STATIC: syntax + usage contract) ==="
           bash -n layers/layer1-rootfs/scripts/build-rootfs.sh
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh 2>&1 | grep -q "Usage"
-      
-      - name: Smoke test Layer 2 (image)
-        run: |
-          echo "=== Smoke Test Layer 2 (STATIC: config validation) ==="
+          bash layers/layer1-rootfs/scripts/build-rootfs.sh 2>&1 | grep -q 'Usage'
           bash -n layers/layer2-image/scripts/build-image.sh
           bash layers/layer2-image/scripts/build-image.sh --validate
-      
-      - name: Upload evidence
+      - name: Upload existing layer evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: build-evidence
+          name: build-evidence-${{ github.run_id }}
           path: output/evidence/
           retention-days: 30
+          if-no-files-found: warn
+
+  rootfs-build:
+    needs: static-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install build and VM dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          debootstrap dosfstools e2fsprogs grub-efi-amd64-bin ovmf parted
+          python3-jsonschema python3-yaml qemu-system-x86 ripgrep rsync zstd
+      - name: Build and verify x86_64 development release
+        run: sudo build/scripts/build-release.sh x86_64 0.0.1-dev

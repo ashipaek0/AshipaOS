@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+mkdir -p /storage/.ashipaos
+chmod 0755 /storage/.ashipaos
+cat >/storage/.ashipaos/release <<EOF
+version=0.0.1-dev
+track=coreelec-baseline
+hardware_verification=blocked
+EOF

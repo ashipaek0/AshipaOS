@@ -1,0 +1,12 @@
+[Unit]
+Description=Verify AshipaOS persistent storage
+RequiresMountsFor=/storage
+Before=ashipaos-display.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/ashipaos/verify-storage.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

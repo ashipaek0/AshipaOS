@@ -3,6 +3,9 @@ build/rootfs/
 build/work/
 build/output/
 
+# Pinned upstream source checkouts (recreated from source-controlled metadata)
+/amlogic-coreelec-fork/source/
+
 # Built images and compressed artefacts
 *.img
 *.xz

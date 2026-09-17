@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target device (x86_64, a95x-f3-air)'
+        description: 'Target device'
         required: true
         default: 'x86_64'
         type: choice
@@ -16,185 +16,143 @@ on:
 
 jobs:
   static-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      
-      - name: Install dependencies
+      - name: Install static-test dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          jq python3-jsonschema python3-yaml ripgrep shellcheck
+      - name: Require schema validators
+        run: python3 -c 'import jsonschema, yaml'
+      - name: Run layer and repository static tests
         run: |
-          sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck
-
-      - name: Run static tests
-        run: |
-          echo "=== Running Static Tests ==="
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
-              echo "Testing ${layer}"
+              echo "=== ${layer} ==="
               bash "${layer}tests/static-tests.sh"
             fi
           done
+          for test in tests/static/*.sh; do
+            echo "=== ${test} ==="
+            bash "$test"
+          done
+      - name: Record static evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          mkdir -p evidence/ci
+          jq -n \
+            --arg task 'layer0.static-validation' \
+            --arg class STATIC \
+            --arg runner github-actions \
+            --arg target all \
+            --arg result "$RESULT" \
+            --arg evidence 'GitHub Actions job log' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" \
+            --arg run "$GITHUB_RUN_ID" \
+            --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/static.json
+      - name: Upload static evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: build-images-static-evidence-${{ github.run_id }}
+          path: evidence/ci/static.json
+          if-no-files-found: error
 
   build-x86_64:
     needs: static-tests
-    runs-on: ubuntu-latest
-    if: github.event.inputs.target == 'x86_64' || github.event_name == 'push'
+    if: github.event_name == 'push' || inputs.target == 'x86_64'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      
-      - name: Install dependencies
+      - name: Install build and VM dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          debootstrap dosfstools e2fsprogs grub-efi-amd64-bin jq ovmf parted
+          python3-jsonschema python3-yaml qemu-system-x86 ripgrep rsync zstd
+      - name: Build and verify x86_64 development release
+        run: sudo build/scripts/build-release.sh x86_64 0.0.1-dev
+      - name: Record build evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq
-
-      - name: Configure GPG
+          mkdir -p evidence/ci
+          jq -n \
+            --arg task 'layer1-2.x86_64-development-image' \
+            --arg class BUILD \
+            --arg runner github-actions \
+            --arg target x86_64 \
+            --arg result "$RESULT" \
+            --arg evidence 'build/output and GitHub Actions job log' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" \
+            --arg run "$GITHUB_RUN_ID" \
+            --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/x86_64-build.json
+      - name: Record VM evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}" >> $GITHUB_ENV
-
-      - name: Build Layer 1 (RootFS)
-        run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
-
-      - name: Build Layer 2 (Disk Image)
-        run: |
-          bash layers/layer2-image/scripts/build-image.sh output/rootfs-x86_64.tar.gz x86_64
-
-      - name: Build Layer 3 (First-Boot Init)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh x86_64
-
-      - name: Build Layer 4 (System Services)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh x86_64
-
-      - name: Build Layer 5 (Settings Daemon)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh x86_64
-
-      - name: Build Layer 6 (OTA Mechanism)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh x86_64
-
-      - name: Build Layer 10 (Release Engineering)
-        run: |
-          bash layers/layer10-release/scripts/build-10-release.sh x86_64
-
-      - name: Sign Artefacts
-        run: |
-          bash scripts/ci-sign-artefacts.sh output/images/ output/ota/
-
-      - name: Generate SBOM
-        run: |
-          bash scripts/ci-generate-sbom.sh output/sbom.json
-
-      - name: Upload Images
+          jq -n \
+            --arg task 'layer1-2.x86_64-vm-boot' \
+            --arg class VM \
+            --arg runner github-actions \
+            --arg target x86_64 \
+            --arg result "$RESULT" \
+            --arg evidence 'QEMU boot output in GitHub Actions job log' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" \
+            --arg run "$GITHUB_RUN_ID" \
+            --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/x86_64-vm.json
+      - name: Upload development image and evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ashipaos-x86_64-${{ github.ref_name }}
+          name: ashipaos-x86_64-${{ github.sha }}
           path: |
-            output/images/*.img.gz
-            output/ota/*.pkg
-            output/sbom.json
-          retention-days: 90
+            build/output/ashipaos-x86_64.img.zst
+            build/output/ashipaos-x86_64.img.zst.sha256
+            build/output/ashipaos-x86_64.manifest.json
+            build/output/ashipaos-x86_64.packages.lock
+            evidence/ci/x86_64-build.json
+            evidence/ci/x86_64-vm.json
+          if-no-files-found: error
 
-  build-a95x-f3-air:
+  amlogic-hardware-gate:
     needs: static-tests
-    runs-on: ubuntu-latest
-    if: github.event.inputs.target == 'a95x-f3-air' || github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'a95x-f3-air'
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      
-      - name: Install dependencies
+      - name: Record blocked hardware verification
         run: |
-          sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq u-boot-tools
-
-      - name: Configure GPG
-        run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}" >> $GITHUB_ENV
-
-      - name: Build Layer 1 (RootFS)
-        run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
-
-      - name: Build Layer 2 (Disk Image)
-        run: |
-          bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Build Layer 3 (First-Boot Init)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh a95x-f3-air
-
-      - name: Build Layer 4 (System Services)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh a95x-f3-air
-
-      - name: Build Layer 5 (Settings Daemon)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh a95x-f3-air
-
-      - name: Build Layer 6 (OTA Mechanism)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh a95x-f3-air
-
-      - name: Build Layer 7 (HAL)
-        run: |
-          bash layers/layer7-hal/scripts/build-7-hal.sh a95x-f3-air
-
-      - name: Build Layer 8 (Media Framework)
-        run: |
-          bash layers/layer8-media/scripts/build-8-media.sh a95x-f3-air
-
-      - name: Build Layer 9 (Input Stack)
-        run: |
-          bash layers/layer9-input/scripts/build-9-input.sh a95x-f3-air
-
-      - name: Build Layer 10 (Release Engineering)
-        run: |
-          bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
-
-      - name: Sign Artefacts
-        run: |
-          bash scripts/ci-sign-artefacts.sh output/images/ output/ota/
-
-      - name: Generate SBOM
-        run: |
-          bash scripts/ci-generate-sbom.sh output/sbom.json
-
-      - name: Upload Images
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          mkdir -p evidence/ci
+          jq -n \
+            --arg task 'amlogic.a95x-f3-air-hardware-validation' \
+            --arg class HARDWARE \
+            --arg runner blocked \
+            --arg target a95x-f3-air \
+            --arg result blocked \
+            --arg evidence 'No hardware-lab evidence is available' \
+            --arg timestamp "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "$GITHUB_SHA" \
+            --arg run "$GITHUB_RUN_ID" \
+            --arg job "$GITHUB_JOB" \
+            '{task:$task,class:$class,runner:$runner,target:$target,result:$result,evidence:$evidence,timestamp:$timestamp,commit:$commit,run:$run,job:$job}' \
+            > evidence/ci/a95x-f3-air-hardware.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ashipaos-a95x-f3-air-${{ github.ref_name }}
-          path: |
-            output/images/*.img.gz
-            output/ota/*.pkg
-            output/sbom.json
-          retention-days: 90
-
-  create-release:
-    needs: [build-x86_64, build-a95x-f3-air]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      
-      - name: Download all artefacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          pattern: ashipaos-*
-          merge-multiple: true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            *.img.gz
-            *.pkg
-            sbom.json
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
+          name: a95x-f3-air-blocked-evidence-${{ github.run_id }}
+          path: evidence/ci/a95x-f3-air-hardware.json
+          if-no-files-found: error

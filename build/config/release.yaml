@@ -1,7 +1,9 @@
-# Release channels/targets skeleton. Populated by later layer tasks.
+# Development release channels and targets. Stable remains intentionally empty.
 channels:
   nightly:
-    targets: []
+    targets:
+      - x86_64
+      - a95x-f3-air
   stable:
     targets: []
 targets:

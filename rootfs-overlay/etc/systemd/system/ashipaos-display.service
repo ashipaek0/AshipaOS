@@ -1,0 +1,24 @@
+[Unit]
+Description=AshipaOS display application
+After=ashipaos-storage.service connman.service
+Requires=ashipaos-storage.service
+ConditionFileIsExecutable=/storage/app/current/bin/ashipaos
+
+[Service]
+User=ashipaos
+Group=ashipaos
+SupplementaryGroups=audio input render video
+RuntimeDirectory=ashipaos
+RuntimeDirectoryMode=0700
+Environment=XDG_RUNTIME_DIR=/run/ashipaos
+ExecStart=/usr/bin/cage -- /usr/lib/ashipaos/launch-app.sh
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/storage /run/ashipaos
+
+[Install]
+WantedBy=graphical.target

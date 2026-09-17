@@ -1,0 +1,12 @@
+[Unit]
+Description=AshipaOS development baseline initialization
+After=storage.mount
+RequiresMountsFor=/storage
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/ashipaos/initialize-dev-release
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

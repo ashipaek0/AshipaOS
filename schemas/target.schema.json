@@ -7,7 +7,44 @@
   "properties": {
     "name": { "type": "string" },
     "arch": { "type": "string", "enum": ["arm64", "x86_64"] },
-    "status": { "type": "string", "enum": ["PROVISIONAL", "CONFIRMED"] }
+    "status": { "type": "string", "enum": ["PROVISIONAL", "CONFIRMED"] },
+    "rootfs": {
+      "type": "object",
+      "required": ["architecture", "suite", "variant", "mirror", "snapshot"],
+      "properties": {
+        "architecture": { "type": "string", "enum": ["amd64", "arm64"] },
+        "suite": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "variant": { "const": "minbase" },
+        "mirror": { "type": "string", "pattern": "^https://snapshot\\.debian\\.org/archive/debian/[0-9]{8}T[0-9]{6}Z$" },
+        "snapshot": { "type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$" }
+      },
+      "additionalProperties": false
+    },
+    "boot_bundle": {
+      "type": "object",
+      "required": ["kernel", "initramfs", "bootloader", "cmdline"],
+      "properties": {
+        "kernel": { "type": "object" },
+        "initramfs": { "type": "object" },
+        "device_tree": { "type": "object" },
+        "bootloader": { "type": "object" },
+        "cmdline": { "type": "object" },
+        "firmware": { "type": "object" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["table", "size_mib", "esp_size_mib", "root_label", "storage_label", "storage_size_mib"],
+      "properties": {
+        "table": { "const": "gpt" },
+        "size_mib": { "type": "integer", "minimum": 1024 },
+        "esp_size_mib": { "type": "integer", "minimum": 64 },
+        "root_label": { "type": "string", "minLength": 1 },
+        "storage_label": { "type": "string", "minLength": 1 },
+        "storage_size_mib": { "type": "integer", "minimum": 256 }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": true
 }

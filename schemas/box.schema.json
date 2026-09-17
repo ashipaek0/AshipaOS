@@ -3,7 +3,7 @@
   "title": "AshipaOS Amlogic box hardware facts",
   "description": "Hardware-facts schema for build/targets/amlogic/boxes/*.yaml (Layer 0, per guide Task 0.5.1).",
   "type": "object",
-  "required": ["name", "status", "soc", "kernel_branch"],
+  "required": ["name", "status", "soc", "kernel_branch", "coreelec"],
   "properties": {
     "name": { "type": "string" },
     "status": {
@@ -32,6 +32,18 @@
         "value": { "type": ["string", "null"] },
         "status": { "type": "string" }
       }
+    },
+    "coreelec": {
+      "type": "object",
+      "required": ["repository", "ref", "commit", "project", "device"],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^https://" },
+        "ref": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "project": { "const": "Amlogic-ce" },
+        "device": { "enum": ["Amlogic-ng", "Amlogic-ne"] }
+      },
+      "additionalProperties": false
     },
     "device_tree": { "type": "object" },
     "wifi": { "type": "object" },

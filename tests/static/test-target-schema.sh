@@ -2,7 +2,7 @@
 # Layer 0 STATIC: target/box YAML stubs must satisfy their JSON schemas.
 # Uses `jsonschema` if installed; else a stdlib structural check with
 # PyYAML if present; else verifies schemas parse and stubs exist (SKIP).
-# Never fails for missing optional dependencies.
+# CI requires both dependencies so canonical validation cannot silently degrade.
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 - "$ROOT" <<'PYEOF'
@@ -34,6 +34,10 @@ try:
 except ImportError:
     have_jsonschema = False
 
+if os.environ.get("CI") and not (have_yaml and have_jsonschema):
+    print("CI requires PyYAML and jsonschema for target validation", file=sys.stderr)
+    sys.exit(1)
+
 targets = [
     os.path.join(root, "build/targets/pi4.yaml"),
     os.path.join(root, "build/targets/pi5.yaml"),
@@ -59,7 +63,7 @@ elif have_yaml:
     for p in boxes:
         with open(p) as f:
             d = yaml.safe_load(f)
-        assert isinstance(d, dict) and all(k in d for k in ("name", "status", "soc", "kernel_branch")), p
+        assert isinstance(d, dict) and all(k in d for k in ("name", "status", "soc", "kernel_branch", "coreelec")), p
         print("structural-ok: %s" % os.path.relpath(p, root))
 else:
     for p in targets + boxes:

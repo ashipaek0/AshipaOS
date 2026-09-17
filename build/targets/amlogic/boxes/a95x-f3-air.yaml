@@ -15,8 +15,19 @@ soc:
   status: PROVISIONAL
 
 kernel_branch:
-  value: Amlogic-ne
+  # Amlogic-ng is the selected compatibility candidate for this S905X3 box.
+  # It remains PROVISIONAL until the Generic image and a DTB boot on hardware.
+  value: Amlogic-ng
   status: PROVISIONAL
+
+# Pinned upstream input for the Amlogic build track. The ref is a stable
+# release tag and commit is the exact object currently advertised by that tag.
+coreelec:
+  repository: https://github.com/CoreELEC/CoreELEC.git
+  ref: 21.3-Omega
+  commit: fc61125e8900ab0c2593a29b615980ed0cd5b939
+  project: Amlogic-ce
+  device: Amlogic-ng
 
 device_tree:
   value: null

@@ -2,3 +2,36 @@
 name: x86_64
 arch: x86_64
 status: PROVISIONAL
+
+# Root filesystem inputs are explicit and independent of the build host.
+rootfs:
+  architecture: amd64
+  suite: bookworm
+  variant: minbase
+  mirror: https://snapshot.debian.org/archive/debian/20250906T000000Z
+  snapshot: 20250906T000000Z
+
+boot_bundle:
+  kernel:
+    source: debian-snapshot-package
+    package: linux-image-amd64
+  initramfs:
+    required: true
+  device_tree:
+    source: none
+  bootloader:
+    owner: image-assembler
+    type: grub-efi-amd64
+  cmdline:
+    owner: target-definition
+    value: root=LABEL=ashipaos-root rw quiet console=tty0 console=ttyS0,115200n8
+  firmware:
+    source: debian-snapshot-packages
+
+image:
+  table: gpt
+  size_mib: 3328
+  esp_size_mib: 256
+  root_label: ashipaos-root
+  storage_label: ashipaos-storage
+  storage_size_mib: 512
