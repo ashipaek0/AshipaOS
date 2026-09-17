@@ -1,12 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Layer 10-release: Build Script - Final Release Packaging
 # Verification Class: BUILD, HARDWARE
-set -euo pipefail
+set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
 CONFIG_FILE="$LAYER_DIR/config/10-release-config.yaml"
-EVIDENCE_DIR="$LAYER_DIR/evidence"
-OUTPUT_DIR="${OUTPUT_DIR:-/workspace/output}"
+EVIDENCE_DIR="${ASHIPAOS_RELEASE_EVIDENCE_DIR:-$LAYER_DIR/evidence}"
+OUTPUT_DIR="${OUTPUT_DIR:-${GITHUB_WORKSPACE:-$REPO_ROOT}/output}"
 IMAGES_DIR="$OUTPUT_DIR/images"
 OTA_DIR="$OUTPUT_DIR/ota"
 TARGET="${1:-x86_64}"
@@ -26,7 +27,10 @@ package_release() {
     
     # Find and compress disk images from Layer 2
     local img_found=false
-    for img in "$OUTPUT_DIR"/*.img; do
+    local image_checksums="$IMAGES_DIR/SHA256SUMS-$target"
+    local ota_checksums="$OTA_DIR/SHA256SUMS-$target"
+    rm -f "$image_checksums" "$ota_checksums"
+    for img in "$IMAGES_DIR"/ashipaos-"$target"-*.img; do
         if [[ -f "$img" ]]; then
             img_found=true
             local basename_img
@@ -39,7 +43,7 @@ package_release() {
             # Calculate SHA256
             local sha256
             sha256=$(sha256sum "$compressed_img" | awk '{print $1}')
-            echo "$sha256  $(basename "$compressed_img")" >> "$IMAGES_DIR/SHA256SUMS"
+            echo "$sha256  $(basename "$compressed_img")" >> "$image_checksums"
             
             # Create OTA package from the image
             local ota_pkg="$OTA_DIR/${basename_img}-${version}.pkg"
@@ -62,24 +66,13 @@ EOF
             
             local ota_sha256
             ota_sha256=$(sha256sum "$ota_pkg" | awk '{print $1}')
-            echo "$ota_sha256  $(basename "$ota_pkg")" >> "$OTA_DIR/SHA256SUMS"
+            echo "$ota_sha256  $(basename "$ota_pkg")" >> "$ota_checksums"
             
             log "Created OTA package with SHA256: $ota_sha256"
         fi
     done
     
-    if [[ "$img_found" == "false" ]]; then
-        log "WARNING: No .img files found in $OUTPUT_DIR"
-        # Create placeholder for testing
-        log "Creating placeholder artefacts for testing"
-        local placeholder_img="$IMAGES_DIR/ashipaos-${target}-${version}.img.gz"
-        echo "PLACEHOLDER IMAGE - Build system test" | gzip > "$placeholder_img"
-        echo "placeholder  ashipaos-${target}-${version}.img.gz" >> "$IMAGES_DIR/SHA256SUMS"
-        
-        local placeholder_ota="$OTA_DIR/ashipaos-${target}-${version}.pkg"
-        tar -czf "$placeholder_ota" -C "$IMAGES_DIR" "$(basename "$placeholder_img")"
-        echo "placeholder  ashipaos-${target}-${version}.pkg" >> "$OTA_DIR/SHA256SUMS"
-    fi
+    [[ "$img_found" == true ]] || error "No Layer 2 .img files found in $IMAGES_DIR"
     
     log "Release packaging complete"
     log "Images directory: $IMAGES_DIR"
@@ -89,9 +82,14 @@ EOF
 }
 
 generate_evidence() { 
+    local runner=human run_id=local job_id=local commit_sha
+    [[ "${GITHUB_ACTIONS:-false}" == true ]] && runner=github-actions
+    run_id="${GITHUB_RUN_ID:-$run_id}"
+    job_id="${GITHUB_JOB:-$job_id}"
+    commit_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
     mkdir -p "$EVIDENCE_DIR"
     cat > "$EVIDENCE_DIR/build-evidence.json" << EOFEOL
-{"layer":10,"verification_class":["BUILD","HARDWARE"],"timestamp":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","target":"$TARGET","artefacts":{"images_dir":"$IMAGES_DIR","ota_dir":"$OTA_DIR"}}
+{"layer":10,"task_id":"layer10-release-packaging","verification_class":"BUILD","runner":"$runner","timestamp":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","target":"$TARGET","result":"PASS","evidence_path":"$EVIDENCE_DIR/build-evidence.json","commit_sha":"$commit_sha","ci_run_id":"$run_id","ci_job_id":"$job_id","artefacts":{"images_dir":"$IMAGES_DIR","ota_dir":"$OTA_DIR"},"blocked_gates":["VM","HARDWARE"]}
 EOFEOL
 }
 

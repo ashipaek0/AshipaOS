@@ -1,5 +1,5 @@
 #!/bin/bash
-# Static tests for Layer 2: Bootable Disk Image
+# Static tests for Layer 2: Partitioned Disk Image
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ test_result() {
 # SC01: Shell script has shebang
 test_shebang() {
     local file="$1"
-    if head -1 "$file" | grep -q '^#!/bin/bash'; then
+    if head -1 "$file" | grep -q '^#!/usr/bin/env bash$'; then
         echo "PASS"
     else
         echo "FAIL"
@@ -32,7 +32,7 @@ test_shebang() {
 # SC02: Shell script uses set -euo pipefail
 test_shell_strict() {
     local file="$1"
-    if grep -q 'set -euo pipefail' "$file"; then
+    if grep -q 'set -Eeuo pipefail' "$file"; then
         echo "PASS"
     else
         echo "FAIL"
@@ -105,7 +105,7 @@ test_hardware_from_config() {
 # SV01: Verification class documented
 test_verification_class() {
     local file="$1"
-    if grep -qE 'Verification Class:.*VM|Verification Class:.*HARDWARE' "$file"; then
+    if grep -q 'Verification Class: BUILD' "$file"; then
         echo "PASS"
     else
         echo "FAIL"
@@ -144,7 +144,10 @@ test_evidence_generation() {
 # SE03: Evidence includes required fields
 test_evidence_fields() {
     local file="$1"
-    if grep -q '"layer":' "$file" && grep -q '"verification_class":' "$file" && grep -q '"artefacts":' "$file"; then
+    if grep -q '"task_id":' "$file" && grep -q '"verification_class":' "$file" && \
+       grep -q '"runner":' "$file" && grep -q '"result":' "$file" && \
+       grep -q '"commit_sha":' "$file" && grep -q '"ci_run_id":' "$file" && \
+       grep -q '"ci_job_id":' "$file" && grep -q '"evidence_path":' "$file"; then
         echo "PASS"
     else
         echo "FAIL"
@@ -164,7 +167,7 @@ test_layer1_dependency() {
 # SP01: Partition creation logic exists
 test_partition_logic() {
     local file="$1"
-    if grep -q 'parted' "$file" && grep -q 'mklabel gpt' "$file"; then
+    if grep -q 'unit: sectors' "$file" && grep -q 'sfdisk --verify' "$file"; then
         echo "PASS"
     else
         echo "FAIL"
@@ -174,7 +177,7 @@ test_partition_logic() {
 # SP02: Filesystem creation logic exists
 test_filesystem_logic() {
     local file="$1"
-    if grep -q 'mkfs.vfat' "$file" && grep -q 'mkfs.ext4' "$file"; then
+    if grep -qE '^mkfs vfat /dev/sda1$' "$file" && grep -qE '^mkfs ext4 /dev/sda2$' "$file"; then
         echo "PASS"
     else
         echo "FAIL"
@@ -185,6 +188,16 @@ test_filesystem_logic() {
 test_fstab_generation() {
     local file="$1"
     if grep -q 'fstab' "$file"; then
+        echo "PASS"
+    else
+        echo "FAIL"
+    fi
+}
+
+# SF02: full builds must not silently produce metadata without an image
+test_no_metadata_fallback() {
+    local file="$1"
+    if grep -q 'metadata-only output is forbidden' "$file" && ! grep -q 'build_mode.*metadata_only' "$file"; then
         echo "PASS"
     else
         echo "FAIL"
@@ -241,6 +254,7 @@ if [[ -f "$BUILD_SCRIPT" ]]; then
     test_result "SP01: Partition creation logic" "$(test_partition_logic "$BUILD_SCRIPT")"
     test_result "SP02: Filesystem creation logic" "$(test_filesystem_logic "$BUILD_SCRIPT")"
     test_result "SF01: fstab generation" "$(test_fstab_generation "$BUILD_SCRIPT")"
+    test_result "SF02: No metadata-only fallback" "$(test_no_metadata_fallback "$BUILD_SCRIPT")"
 else
     echo "✗ Build script not found"
     ((FAILED++))

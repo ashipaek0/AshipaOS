@@ -1,5 +1,5 @@
-# Layer 2: Bootable Disk Image Configuration
-# Verification Class: VM, HARDWARE
+# Layer 2: Partitioned Disk Image Configuration
+# Verification Class: BUILD; VM and HARDWARE are blocked until boot inputs exist
 
 image_size_mb: 4096
 filesystem_overhead_percent: 5
@@ -37,7 +37,6 @@ testing:
   vm_boot_timeout: 120
   hardware_boot_timeout: 300
   required_tests:
-    - qemu_boot_test
     - partition_integrity
     - filesystem_check
     - fstab_validation
