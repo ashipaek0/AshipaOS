@@ -7,11 +7,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$LAYER_DIR/config/image-config.yaml"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
-WORK_DIR="${WORK_DIR:-/tmp/layer2-work}"
-OUTPUT_DIR="${OUTPUT_DIR:-/workspace/output}"
+# Use GITHUB_WORKSPACE or current directory for output (writable in GitHub Actions)
+REPO_ROOT="$(cd "$LAYER_DIR/../../.." && pwd)"
+WORK_DIR="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}/ashipaos-image-${TARGET}"
+OUTPUT_DIR="${GITHUB_WORKSPACE:-${REPO_ROOT}}/output/images"
 ROOTFS_IMAGE="${1:-}"
 TARGET="${2:-x86_64}"
 USE_GUESTFS="${USE_GUESTFS:-true}"
+
+# Ensure work directory exists and is writable
+mkdir -p "$WORK_DIR"
+trap 'rm -rf -- "${WORK_DIR}"' EXIT
 
 usage() {
     cat <<EOF
@@ -46,7 +52,8 @@ cleanup() {
     fi
 }
 
-trap cleanup EXIT
+# Cleanup is already set by trap above, but keep function for compatibility
+# trap cleanup EXIT
 
 validate_config() {
     log "Validating image configuration..."
