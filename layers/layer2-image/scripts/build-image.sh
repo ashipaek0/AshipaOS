@@ -9,11 +9,14 @@ CONFIG_FILE="$LAYER_DIR/config/image-config.yaml"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
 # Use GITHUB_WORKSPACE or current directory for output (writable in GitHub Actions)
 REPO_ROOT="$(cd "$LAYER_DIR/../../.." && pwd)"
-WORK_DIR="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}/ashipaos-image-${TARGET}"
-OUTPUT_DIR="${GITHUB_WORKSPACE:-${REPO_ROOT}}/output/images"
+
+# Initialize arguments BEFORE using them in derived variables
 ROOTFS_IMAGE="${1:-}"
 TARGET="${2:-x86_64}"
 USE_GUESTFS="${USE_GUESTFS:-true}"
+
+WORK_DIR="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}/ashipaos-image-${TARGET}"
+OUTPUT_DIR="${GITHUB_WORKSPACE:-${REPO_ROOT}}/output/images"
 
 # Ensure work directory exists and is writable
 mkdir -p "$WORK_DIR"
