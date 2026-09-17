@@ -31,9 +31,9 @@ inside the target rootfs. For both native and debootstrap `--foreign` builds it
 then runs `update-initramfs -u -k all` in the target chroot. The build fails
 non-zero unless all of these are true:
 
-- `/boot/vmlinuz` is non-empty and resolves to a non-empty versioned
+- `/vmlinuz` is a non-empty root-level symlink and resolves to a non-empty versioned
   `/boot/vmlinuz-*` file;
-- `/boot/initrd.img` is non-empty and resolves to a non-empty versioned
+- `/initrd.img` is a non-empty root-level symlink and resolves to a non-empty versioned
   `/boot/initrd.img-*` file;
 - the configured kernel and initramfs packages are installed and have resolved
   versions.

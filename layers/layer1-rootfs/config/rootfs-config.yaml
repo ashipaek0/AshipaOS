@@ -79,8 +79,9 @@ kernel:
     armhf:
       - linux-image-armmp
   required_files:
-    - /boot/vmlinuz
-    - /boot/initrd.img
+    # Debian exposes these root-level symlinks to versioned files under /boot.
+    - /vmlinuz
+    - /initrd.img
 
 initramfs:
   packages:

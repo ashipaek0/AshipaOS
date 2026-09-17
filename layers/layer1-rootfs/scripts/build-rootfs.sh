@@ -118,12 +118,14 @@ validate_kernel_initramfs() {
     local rootfs="$1"
     local debian_arch="$2"
     local kernel_package="$3"
-    local vmlinuz="$rootfs/boot/vmlinuz"
-    local initrd="$rootfs/boot/initrd.img"
+    # Debian's package-managed entry points are root-level symlinks. Do not
+    # substitute host /boot files or require non-existent /boot aliases.
+    local vmlinuz="$rootfs/vmlinuz"
+    local initrd="$rootfs/initrd.img"
     local vmlinuz_target initrd_target
 
-    [[ -s "$vmlinuz" ]] || error "Missing or empty $vmlinuz"
-    [[ -s "$initrd" ]] || error "Missing or empty $initrd"
+    [[ -L "$vmlinuz" && -s "$vmlinuz" ]] || error "Missing, non-symlink, or empty $vmlinuz"
+    [[ -L "$initrd" && -s "$initrd" ]] || error "Missing, non-symlink, or empty $initrd"
     vmlinuz_target=$(readlink -f "$vmlinuz")
     initrd_target=$(readlink -f "$initrd")
     [[ "$vmlinuz_target" == "$rootfs/boot/vmlinuz-"* && -s "$vmlinuz_target" ]] \
@@ -212,7 +214,7 @@ generate_evidence() {
   "timestamp": "$(date -Iseconds)",
   "parameters": {"target_arch": "$(json_escape "$product_arch")", "debian_arch": "$(json_escape "$debian_arch")", "debian_suite": "$(json_escape "$DEBIAN_SUITE")", "debian_mirror": "$(json_escape "$DEBIAN_MIRROR")"},
   "packages": {"kernel": {"name": "$(json_escape "$kernel_package")", "version": "$(json_escape "$kernel_version")"}, "initramfs": {"name": "$(json_escape "$INITRAMFS_PACKAGE")", "version": "$(json_escape "$initramfs_version")"}},
-  "files": {"vmlinuz": {$(file_metadata_json "$rootfs_metadata" /boot/vmlinuz)}, "initrd": {$(file_metadata_json "$rootfs_metadata" /boot/initrd.img)}},
+  "files": {"vmlinuz": {$(file_metadata_json "$rootfs_metadata" /vmlinuz)}, "initrd": {$(file_metadata_json "$rootfs_metadata" /initrd.img)}},
   "artefacts": {"rootfs_tarball": "$(json_escape "$output_file")", "rootfs_size": $(du -b "$output_file" | cut -f1)},
   "builder": {"architecture": "$(dpkg --print-architecture)", "debootstrap_version": "$(dpkg-query -W -f='${Version}' debootstrap 2>/dev/null || printf unknown)"}
 }

@@ -199,6 +199,19 @@ test_evidence_generation() {
     grep -q 'validate_kernel_initramfs' "$script" && log_pass "Kernel/initramfs validation is enforced" || log_fail "Kernel/initramfs validation missing"
     grep -q 'dpkg-query' "$script" && log_pass "Package metadata is recorded/checked" || log_fail "Package metadata handling missing"
     grep -q 'sha256sum' "$script" && log_pass "File hashes are recorded" || log_fail "File metadata hashing missing"
+    grep -q 'local vmlinuz="\$rootfs/vmlinuz"' "$script" && log_pass "Validator checks root-level /vmlinuz" || log_fail "Validator does not check root-level /vmlinuz"
+    grep -q 'local initrd="\$rootfs/initrd.img"' "$script" && log_pass "Validator checks root-level /initrd.img" || log_fail "Validator does not check root-level /initrd.img"
+    grep -q 'file_metadata_json "\$rootfs_metadata" /vmlinuz' "$script" && log_pass "Evidence records root-level /vmlinuz" || log_fail "Evidence path for kernel is incorrect"
+    grep -q 'file_metadata_json "\$rootfs_metadata" /initrd.img' "$script" && log_pass "Evidence records root-level /initrd.img" || log_fail "Evidence path for initramfs is incorrect"
+    grep -q '\-L "\$vmlinuz"' "$script" && log_pass "Validator requires /vmlinuz symlink" || log_fail "Validator does not require /vmlinuz symlink"
+    grep -q '\-L "\$initrd"' "$script" && log_pass "Validator requires /initrd.img symlink" || log_fail "Validator does not require /initrd.img symlink"
+    grep -q '^    - /vmlinuz$' "$config" && log_pass "Config requires root-level /vmlinuz" || log_fail "Config has wrong kernel entry point"
+    grep -q '^    - /initrd.img$' "$config" && log_pass "Config requires root-level /initrd.img" || log_fail "Config has wrong initramfs entry point"
+    if grep -qE '/boot/(vmlinuz|initrd\.img)([^-]|$)' "$script"; then
+        log_fail "Script requires a non-versioned /boot kernel/initramfs alias"
+    else
+        log_pass "Script only resolves versioned files under /boot"
+    fi
     if grep -qE '(/boot|boot/).*cp |cp .*(/boot|boot/)' "$script"; then
         log_fail "Script appears to copy a host boot file"
     else
