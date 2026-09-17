@@ -101,6 +101,12 @@ stop_qemu() {
     wait "$QEMU_PID" 2>/dev/null
 }
 
+marker_present() {
+    # Serial consoles commonly emit CRLF; compare the exact marker line after
+    # removing only carriage returns.
+    tr -d '\r' < "$SERIAL_LOG" | grep -Fxq 'ASHIPAOS_BOOT_SUCCESS=1'
+}
+
 set +e
 : > "$SERIAL_LOG"
 stdbuf -o0 -e0 qemu-system-x86_64 "${QEMU_ARGS[@]}" >"$SERIAL_LOG" 2>"$QEMU_LOG" &
@@ -113,7 +119,7 @@ for ((second=0; second<TIMEOUT_SECONDS; second++)); do
         QEMU_STATUS=1
         break
     fi
-    if grep -Fxq 'ASHIPAOS_BOOT_SUCCESS=1' "$SERIAL_LOG"; then
+    if marker_present; then
         MARKER_OBSERVED=1
         stop_qemu
         QEMU_STATUS=$?
@@ -138,7 +144,7 @@ cat "$QEMU_LOG" >> "$SERIAL_LOG" 2>/dev/null || true
 if grep -Eiq 'kernel panic|panic:|emergency mode|failed to start emergency' "$SERIAL_LOG"; then
     die 'panic or emergency-mode text detected'
 fi
-grep -Fxq 'ASHIPAOS_BOOT_SUCCESS=1' "$SERIAL_LOG" && MARKER_OBSERVED=1
+marker_present && MARKER_OBSERVED=1
 if (( OBSERVATION_TIMEOUT )); then
     (( MARKER_OBSERVED )) || die "QEMU timed out after ${TIMEOUT_SECONDS}s without userspace boot marker"
     printf '[boot-x86_64] PASS: marker observed after bounded shutdown\n'
@@ -152,5 +158,5 @@ if (( MARKER_OBSERVED )); then
 else
     (( QEMU_STATUS == 0 )) || die "QEMU exited with status $QEMU_STATUS"
 fi
-grep -Fxq 'ASHIPAOS_BOOT_SUCCESS=1' "$SERIAL_LOG" || die 'userspace boot marker not observed'
+marker_present || die 'userspace boot marker not observed'
 printf '[boot-x86_64] PASS: userspace boot marker observed\n'

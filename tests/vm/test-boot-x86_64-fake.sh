@@ -58,8 +58,16 @@ case "${FAKE_QEMU_MODE:?}" in
         fi
         while :; do sleep 1; done
         ;;
+    positive-crlf)
+        printf 'ASHIPAOS_BOOT_SUCCESS=1\r\n'
+        while :; do sleep 1; done
+        ;;
     marker-after-shutdown)
         trap 'printf "ASHIPAOS_BOOT_SUCCESS=1\\n"; exit 0' TERM
+        while :; do sleep 1; done
+        ;;
+    marker-after-shutdown-crlf)
+        trap 'printf "ASHIPAOS_BOOT_SUCCESS=1\\r\\n"; exit 0' TERM
         while :; do sleep 1; done
         ;;
     nonzero)
@@ -105,7 +113,9 @@ run_case() {
 
 run_case positive 0 positive
 run_case positive-kill 0 positive-kill
+run_case positive-crlf 0 positive-crlf
 run_case marker-after-shutdown 0 marker-after-shutdown
+run_case marker-after-shutdown-crlf 0 marker-after-shutdown-crlf
 run_case nonzero 1 nonzero
 run_case nonzero-marker 1 nonzero-marker
 run_case timeout 1 timeout

@@ -59,6 +59,7 @@ for p in files:
         assert "qemu-command.txt" in vm and "qemu-version.txt" in vm and "image.sha256" in vm, "VM evidence inputs missing"
         assert "SHUTDOWN_GRACE_SECONDS" in vm and "kill -KILL" in vm, "VM cleanup must have bounded graceful shutdown and force fallback"
         assert "MARKER_OBSERVED=0" in vm and "MARKER_OBSERVED=1" in vm, "VM gate must track marker-triggered shutdown explicitly"
+        assert "marker_present()" in vm and "tr -d '\\r'" in vm and "grep -Fxq 'ASHIPAOS_BOOT_SUCCESS=1'" in vm, "VM gate must match the exact marker after CR normalization"
         assert "OBSERVATION_TIMEOUT=0" in vm and "marker observed after bounded shutdown" in vm, "VM gate must inspect buffered serial after timeout shutdown"
         assert "0|137|143" in vm, "VM gate must accept only normal or expected marker shutdown statuses"
         assert "QEMU_STATUS == 0" in vm, "VM gate must reject nonzero QEMU exit without marker"
