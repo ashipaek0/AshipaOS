@@ -157,49 +157,54 @@ write /boot/efi/EFI/BOOT/.gitkeep "EFI boot directory - bootloader installed by 
 umount-all
 EOF
 
-    # For x86_64, install actual GRUB EFI bootloader using host tools
+    # Install target-specific bootloader
     if [[ "$TARGET" == "x86_64" ]]; then
-        log "Installing GRUB EFI bootloader..."
-        local loop_dev mount_root mount_efi
-        loop_dev="$(losetup -f --show -P "$image")"
-        trap "umount '$mount_efi' 2>/dev/null || true; umount '$mount_root' 2>/dev/null || true; losetup -d '$loop_dev' 2>/dev/null || true" RETURN
+        install_x86_64_bootloader "$image"
+    elif [[ "$TARGET" == "a95x-f3-air" ]]; then
+        install_arm64_uboot "$image"
+    fi
+}
+
+install_x86_64_bootloader() {
+    local image="$1"
+    log "Installing GRUB EFI bootloader for x86_64..."
+    local loop_dev mount_root mount_efi
+    loop_dev="$(losetup -f --show -P "$image")"
+    trap "umount '$mount_efi' 2>/dev/null || true; umount '$mount_root' 2>/dev/null || true; losetup -d '$loop_dev' 2>/dev/null || true" RETURN
+    
+    mount_root="$WORK_DIR/mnt-root"
+    mount_efi="$WORK_DIR/mnt-efi"
+    mkdir -p "$mount_root" "$mount_efi"
+    
+    mount "${loop_dev}p2" "$mount_root"
+    mount "${loop_dev}p1" "$mount_efi"
+    
+    # Install GRUB EFI bootloader
+    if command -v grub-install >/dev/null; then
+        grub-install \
+            --target=x86_64-efi \
+            --efi-directory="$mount_efi" \
+            --bootloader-id=AshipaOS \
+            --removable \
+            --recheck \
+            --no-floppy \
+            --boot-directory="$mount_root/boot" || {
+                log "Warning: grub-install failed, creating minimal EFI boot structure"
+                rm -f "$mount_efi/EFI/BOOT/"*".placeholder" 2>/dev/null || true
+                if [[ -f /usr/lib/grub/x86_64-efi/grub.efi ]]; then
+                    cp /usr/lib/grub/x86_64-efi/grub.efi "$mount_efi/EFI/BOOT/BOOTX64.EFI"
+                fi
+            }
         
-        mount_root="$WORK_DIR/mnt-root"
-        mount_efi="$WORK_DIR/mnt-efi"
-        mkdir -p "$mount_root" "$mount_efi"
-        
-        mount "${loop_dev}p2" "$mount_root"
-        mount "${loop_dev}p1" "$mount_efi"
-        
-        # Install GRUB EFI bootloader
-        if command -v grub-install >/dev/null; then
-            grub-install \
-                --target=x86_64-efi \
-                --efi-directory="$mount_efi" \
-                --bootloader-id=AshipaOS \
-                --removable \
-                --recheck \
-                --no-floppy \
-                --boot-directory="$mount_root/boot" || {
-                    log "Warning: grub-install failed, creating minimal EFI boot structure"
-                    # Fallback: create minimal boot structure
-                    rm -f "$mount_efi/EFI/BOOT/"*".placeholder" 2>/dev/null || true
-                    # Copy shim or create minimal EFI executable if available
-                    if [[ -f /usr/lib/grub/x86_64-efi/grub.efi ]]; then
-                        cp /usr/lib/grub/x86_64-efi/grub.efi "$mount_efi/EFI/BOOT/BOOTX64.EFI"
-                    fi
-                }
+        # Generate GRUB configuration
+        if command -v chroot >/dev/null && [[ -d "$mount_root/usr/bin" ]]; then
+            mount --bind /dev "$mount_root/dev" || true
+            mount --bind /proc "$mount_root/proc" || true
+            mount --bind /sys "$mount_root/sys" || true
             
-            # Generate GRUB configuration
-            if command -v chroot >/dev/null && [[ -d "$mount_root/usr/bin" ]]; then
-                # Bind mount necessary filesystems for chroot
-                mount --bind /dev "$mount_root/dev" || true
-                mount --bind /proc "$mount_root/proc" || true
-                mount --bind /sys "$mount_root/sys" || true
-                
-                chroot "$mount_root" grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || {
-                    log "Warning: grub-mkconfig failed, creating basic config"
-                    cat > "$mount_root/boot/grub/grub.cfg" <<GRUBCFG
+            chroot "$mount_root" grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || {
+                log "Warning: grub-mkconfig failed, creating basic config"
+                cat > "$mount_root/boot/grub/grub.cfg" <<GRUBCFG
 set timeout=5
 menuentry "AshipaOS" {
     set root=(hd0,gpt2)
@@ -207,23 +212,83 @@ menuentry "AshipaOS" {
     initrd /boot/initrd.img
 }
 GRUBCFG
-                }
-                
-                # Cleanup bind mounts
-                umount "$mount_root/dev" 2>/dev/null || true
-                umount "$mount_root/proc" 2>/dev/null || true
-                umount "$mount_root/sys" 2>/dev/null || true
-            fi
-        else
-            log "Warning: grub-install not available, image will need manual bootloader installation"
+            }
+            
+            umount "$mount_root/dev" 2>/dev/null || true
+            umount "$mount_root/proc" 2>/dev/null || true
+            umount "$mount_root/sys" 2>/dev/null || true
         fi
-        
-        umount "$mount_efi"
-        umount "$mount_root"
-        losetup -d "$loop_dev"
-        trap - RETURN
-        log "GRUB EFI bootloader installed successfully"
+    else
+        log "Warning: grub-install not available, image will need manual bootloader installation"
     fi
+    
+    umount "$mount_efi"
+    umount "$mount_root"
+    losetup -d "$loop_dev"
+    trap - RETURN
+    log "GRUB EFI bootloader installed successfully"
+}
+
+install_arm64_uboot() {
+    local image="$1"
+    log "Installing U-Boot bootloader for A95X F3 Air (ARM64)..."
+    
+    local uboot_dir="$LAYER_DIR/files/u-boot/a95x-f3-air"
+    local required_files=("u-boot.bin" "bl301.bin" "bl31.img")
+    
+    # Check for required U-Boot files
+    local missing_files=()
+    for file in "${required_files[@]}"; do
+        if [[ ! -f "$uboot_dir/$file" ]]; then
+            missing_files+=("$file")
+        fi
+    done
+    
+    if [[ ${#missing_files[@]} -gt 0 ]]; then
+        log "WARNING: Missing U-Boot files for A95X F3 Air:"
+        for file in "${missing_files[@]}"; do
+            log "  - $uboot_dir/$file"
+        done
+        log "Please obtain U-Boot binaries and place them in $uboot_dir/"
+        log "See $uboot_dir/README.md for instructions"
+        log "Creating image without U-Boot (will not boot on hardware)"
+        
+        # Create marker file to indicate missing bootloader
+        guestfish -a "$image" -m /dev/sda1 <<EOF
+mkdir-p /uboot-missing
+write /uboot-missing/README.txt "U-Boot binaries missing. See layer2/files/u-boot/a95x-f3-air/README.md\n"
+EOF
+        return 0
+    fi
+    
+    # Create composite U-Boot image for Amlogic S905X3
+    local uboot_img="$WORK_DIR/u-boot.img"
+    log "Creating composite U-Boot image..."
+    
+    # Concatenate U-Boot components in the correct order for S905X3
+    # Order: bl301.bin + bl31.img + u-boot.bin (with padding)
+    {
+        dd if="$uboot_dir/bl301.bin" bs=1K conv=sync 2>/dev/null
+        dd if="$uboot_dir/bl31.img" bs=1K conv=sync 2>/dev/null
+        dd if="$uboot_dir/u-boot.bin" bs=1K conv=sync 2>/dev/null
+    } > "$uboot_img"
+    
+    # Write U-Boot to raw image sectors (before partition table at sector 2048)
+    # Amlogic devices expect U-Boot at specific offsets
+    log "Writing U-Boot to raw image sectors..."
+    dd if="$uboot_img" of="$image" bs=512 seek=1 conv=notrunc 2>/dev/null
+    
+    # Verify U-Boot was written
+    local written_size=$(stat -c%s "$uboot_img")
+    log "U-Boot written: $written_size bytes at offset 512"
+    
+    # Create boot script in EFI partition for UEFI-like boot on ARM
+    guestfish -a "$image" -m /dev/sda1:/boot/efi <<EOF
+mkdir-p /EFI/BOOT
+write /EFI/BOOT/boot.scr.uimg "# U-Boot boot script for AshipaOS\n"
+EOF
+    
+    log "U-Boot bootloader installed successfully for A95X F3 Air"
 }
 
 create_metadata() {

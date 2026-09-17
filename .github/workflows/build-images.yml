@@ -172,7 +172,9 @@ jobs:
             jq \
             shellcheck \
             u-boot-tools \
-            util-linux
+            u-boot \
+            util-linux \
+            device-tree-compiler
           
           # Register QEMU binaries for ARM64 emulation
           sudo update-binfmts --enable qemu-aarch64
