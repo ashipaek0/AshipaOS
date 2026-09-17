@@ -1,0 +1,74 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-09-17T08:41:46Z",
+    "tools": [
+      {
+        "vendor": "AshipaOS",
+        "name": "build-system",
+        "version": "0.1.0"
+      }
+    ],
+    "component": {
+      "type": "operating-system",
+      "name": "AshipaOS",
+      "version": "none",
+      "description": "AshipaOS Bootable Image",
+      "purl": "pkg:github/ashipaos/ashipaos@ffa9c28c0ea506836e507b4f6c40266b3a4f8085"
+    },
+    "properties": [
+      {
+        "name": "git:commit",
+        "value": "ffa9c28c0ea506836e507b4f6c40266b3a4f8085"
+      },
+      {
+        "name": "git:branch",
+        "value": "qwen-code-3c45a1a5-6f3c-46d2-a68a-dc497935c761"
+      },
+      {
+        "name": "git:tag",
+        "value": "none"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "name": "Debian",
+      "version": "bookworm",
+      "purl": "pkg:deb/debian/bookworm",
+      "supplier": {
+        "name": "Debian Project"
+      }
+    },
+    {
+      "type": "framework",
+      "name": "systemd",
+      "version": "latest",
+      "purl": "pkg:deb/debian/systemd"
+    },
+    {
+      "type": "library",
+      "name": "GStreamer",
+      "version": "1.22+",
+      "purl": "pkg:deb/debian/gstreamer1.0-tools",
+      "scope": "optional"
+    },
+    {
+      "type": "application",
+      "name": "cloud-init",
+      "version": "latest",
+      "purl": "pkg:deb/debian/cloud-init",
+      "scope": "optional"
+    },
+    {
+      "type": "firmware",
+      "name": "U-Boot",
+      "version": "device-specific",
+      "scope": "required"
+    }
+  ],
+  "dependencies": []
+}

@@ -7,6 +7,11 @@
 
 set -euo pipefail
 
+# Auto-elevate to root if not already running as root
+if [[ $EUID -ne 0 ]]; then
+    exec sudo "$0" "$@"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER1_DIR="$(dirname "$SCRIPT_DIR")"
 WORKSPACE_DIR="$(dirname "$LAYER1_DIR")"

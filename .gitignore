@@ -1,25 +1,31 @@
-# Build outputs — generated, never committed
-build/rootfs/
-build/work/
-build/output/
+```
+# Build artifacts and outputs
+output/
+build/
+dist/
 
-# Built images and compressed artefacts
-*.img
-*.xz
+# Evidence and build logs
+layers/*/evidence/
+build-evidence*.json
 
-# Local evidence captures (curated evidence only is committed)
-/evidence/local/
-/evidence/**/*.log
+# Compressed images and packages
+*.img.gz
+*.pkg
+*.tar.gz
 
-# Editor / OS junk
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+# Generated system files
+output/init/etc/machine-id
+output/init/etc/hostname
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
+# GPG keys and signatures
+output/gpg_*.txt
+output/gpg_*.asc
+*.sig
+
+# Checksums and SBOM
+output/*/SHA256SUMS
+output/sbom.json
+
+# Temporary build scripts
+build/scripts/
+```

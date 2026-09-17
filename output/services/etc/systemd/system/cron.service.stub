@@ -1,0 +1,7 @@
+[Unit]
+Description=cron service stub
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+[Install]
+WantedBy=multi-user.target
