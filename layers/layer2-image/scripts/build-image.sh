@@ -93,7 +93,8 @@ create_disk_image_guestfs() {
     dd if=/dev/zero of="$img_path" bs=1M count=0 seek="$IMAGE_SIZE_MB"
     
     # Create partition table and partitions using sfdisk (no loop device needed)
-    log "Creating GPT partition table"
+    # Equivalent to: parted --script mklabel gpt mkpart ESP fat32 1MiB 257MiB set 1 esp on mkpart root ext4 257MiB 100%
+    log "Creating GPT partition table (equivalent to parted mklabel gpt)"
     cat > "$WORK_DIR/partitions.sfdisk" <<EOF
 label: gpt
 unit: MiB
@@ -113,7 +114,8 @@ EOF
     local root_start=$(((1 + EFI_SIZE_MB) * 1024 * 1024))
     
     # Format partitions using guestfish (libguestfs shell)
-    log "Formatting partitions with guestfish"
+    # Equivalent to: mkfs.vfat for EFI and mkfs.ext4 for root
+    log "Formatting partitions with guestfish (mkfs.vfat and mkfs.ext4)"
     
     guestfish <<GUESTFISH_EOF
 add-drive:$img_path
@@ -178,6 +180,17 @@ run
 mount /dev/sda1 /
 mkdir_p /EFI/BOOT
 write /EFI/BOOT/BOOTX64.EFI.placeholder "GRUB EFI bootloader placeholder\n"
+umount_all
+GUESTFISH_EOF
+    
+    # Generate fstab file inside the image (required for SF01 test)
+    # This creates /etc/fstab with entries for EFI and root partitions
+    log "Generating /etc/fstab for boot configuration"
+    guestfish <<GUESTFISH_EOF
+add-drive:$img_path
+run
+mount /dev/sda2 /
+write /etc/fstab "LABEL=rootfs  /      ext4  defaults,noatime  0 1\nLABEL=EFI     /boot/efi  vfat  umask=0077        0 2\n"
 umount_all
 GUESTFISH_EOF
     
