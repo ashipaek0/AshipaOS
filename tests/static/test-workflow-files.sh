@@ -59,6 +59,11 @@ for p in files:
         assert "test-boot-x86_64-fake.sh" in os.listdir(os.path.join(root, "tests/vm")), "fake-QEMU regression test missing"
         layer2_script = open(os.path.join(root, "layers/layer2-image/scripts/build-image.sh")).read()
         assert "console=ttyS0,115200n8" in layer2_script, "x86_64 GRUB command line must expose ttyS0"
+        grub_linux_lines = [line for line in layer2_script.splitlines() if "linux /" in line]
+        grub_initrd_lines = [line for line in layer2_script.splitlines() if "initrd /" in line]
+        assert len(grub_linux_lines) == 3 and all("linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8" in line for line in grub_linux_lines), "x86_64 GRUB entries must retain Debian's root-level /vmlinuz and required console/root arguments"
+        assert len(grub_initrd_lines) == 3 and all("initrd /initrd.img" in line for line in grub_initrd_lines), "x86_64 GRUB entries must use Debian's root-level /initrd.img"
+        assert not any("linux /boot/vmlinuz " in line or "initrd /boot/initrd.img" in line for line in grub_linux_lines + grub_initrd_lines), "x86_64 GRUB entries must not use /boot kernel paths"
         assert "/boot/grub/grub.cfg" in layer2_script and "/root/boot/grub/grub.cfg" in layer2_script, "GRUB config must be written to canonical image paths"
         assert "ashipaos-boot-success.service" in open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read(), "boot marker service missing"
 
