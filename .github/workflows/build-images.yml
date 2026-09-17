@@ -54,6 +54,7 @@ jobs:
             qemu-system-arm \
             binfmt-support \
             libguestfs-tools \
+            linux-image-generic \
             gpg \
             jq \
             shellcheck \
@@ -64,6 +65,15 @@ jobs:
           
           # Configure libguestfs to use direct mode (no FUSE needed)
           export LIBGUESTFS_BACKEND=direct
+
+      - name: Verify libguestfs appliance
+        run: |
+          # GitHub's Ubuntu host kernel is not shipped as a readable /boot
+          # input for supermin. Install a repository kernel explicitly and
+          # expose only that public kernel image on this ephemeral runner.
+          sudo chmod a+r /boot/vmlinuz-*
+          export LIBGUESTFS_BACKEND=direct
+          timeout 120s libguestfs-test-tool
 
       - name: Configure GPG
         run: |
@@ -143,6 +153,7 @@ jobs:
             qemu-system-arm \
             binfmt-support \
             libguestfs-tools \
+            linux-image-generic \
             gpg \
             jq \
             shellcheck \
@@ -154,6 +165,14 @@ jobs:
           
           # Configure libguestfs to use direct mode (no FUSE needed)
           export LIBGUESTFS_BACKEND=direct
+
+      - name: Verify libguestfs appliance
+        run: |
+          # The appliance always uses the x86_64 runner's host kernel, even
+          # while it populates an arm64 target disk image.
+          sudo chmod a+r /boot/vmlinuz-*
+          export LIBGUESTFS_BACKEND=direct
+          timeout 120s libguestfs-test-tool
 
       - name: Configure GPG
         run: |
