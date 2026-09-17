@@ -36,6 +36,7 @@ for p in files:
         x86 = text[text.index("  build-x86_64:"):text.index("  build-a95x-f3-air:")]
         arm = text[text.index("  build-a95x-f3-air:"):text.index("  create-release:")]
         assert "qemu-system-x86" in x86 and "ovmf" in x86, "x86_64 job must install UEFI QEMU dependencies"
+        assert "util-linux" in x86, "x86_64 job must install stdbuf provider (util-linux)"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
         assert x86.index("Build Layer 2") < x86.index("tests/vm/boot-x86_64.sh") < x86.index("Build Layer 3"), "VM gate ordering invalid"
         assert "if: always()" in x86 and "output/evidence/vm-x86_64/" in x86, "VM evidence upload must survive failure"
@@ -50,6 +51,8 @@ for p in files:
         assert '-bios "$OVMF"' not in vm, "pflash OVMF code must not be passed as -bios"
         assert "-serial stdio" in vm, "VM gate must use live QEMU stdio serial capture"
         assert "-serial file:" not in vm, "VM gate must not use buffered serial file backend"
+        assert "command -v stdbuf" in vm, "VM gate must preflight stdbuf"
+        assert "stdbuf -o0 -e0 qemu-system-x86_64" in vm, "VM gate must launch QEMU through unbuffered stdbuf"
         assert '>"$SERIAL_LOG" 2>"$QEMU_LOG"' in vm, "VM gate must redirect QEMU stdout/stderr to separate evidence logs"
         assert "ASHIPAOS_BOOT_SUCCESS=1" in vm, "VM gate must require the deterministic boot marker"
         assert "kernel panic" in vm and "emergency mode" in vm, "VM gate must reject panic/emergency boots"

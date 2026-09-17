@@ -27,6 +27,10 @@ if [[ "${1:-}" == "--version" ]]; then
     printf 'QEMU emulator version 0.0-fake\n'
     exit 0
 fi
+[[ "${LD_PRELOAD:-}" == *libstdbuf* ]] || {
+    printf 'fake QEMU was not launched through stdbuf\n' >&2
+    exit 97
+}
 serial_mode=''
 have_code_pflash=0
 have_vars_pflash=0
@@ -82,6 +86,7 @@ run_case() {
         return 1
     fi
     local command_file="$TMP/evidence/$label/qemu-command.txt"
+    grep -Fq -- 'stdbuf -o0 -e0 qemu-system-x86_64' "$command_file"
     grep -Fq -- '-serial stdio' "$command_file"
     ! grep -Fq -- '-serial file:' "$command_file"
     local expected_redirection="> $TMP/evidence/$label/serial.log 2> $TMP/evidence/$label/qemu.log"

@@ -19,6 +19,7 @@ usage() { printf 'Usage: %s <x86_64-image> [evidence-directory]\n' "$(basename "
 [[ "$SHUTDOWN_GRACE_SECONDS" =~ ^[1-9][0-9]*$ ]] || die 'ASHIPAOS_VM_SHUTDOWN_GRACE_SECONDS must be a positive integer'
 (( SHUTDOWN_GRACE_SECONDS <= 60 )) || die 'VM shutdown grace must be <= 60 seconds'
 command -v qemu-system-x86_64 >/dev/null || die 'qemu-system-x86_64 is required'
+command -v stdbuf >/dev/null || die 'stdbuf is required for live unbuffered QEMU serial capture'
 
 is_non_secure_code() {
     local name=${1##*/}
@@ -80,7 +81,7 @@ QEMU_ARGS=(-machine q35 -accel tcg -cpu max -m 1024 "${QEMU_FIRMWARE_ARGS[@]}" \
 
 sha256sum "$IMAGE" > "$SHA_FILE"
 qemu-system-x86_64 --version > "$VERSION_FILE" 2>&1 || true
-printf '%q ' qemu-system-x86_64 "${QEMU_ARGS[@]}" > "$COMMAND_FILE"
+printf '%q ' stdbuf -o0 -e0 qemu-system-x86_64 "${QEMU_ARGS[@]}" > "$COMMAND_FILE"
 printf '> %q 2> %q\n' "$SERIAL_LOG" "$QEMU_LOG" >> "$COMMAND_FILE"
 
 stop_qemu() {
@@ -100,7 +101,7 @@ stop_qemu() {
 
 set +e
 : > "$SERIAL_LOG"
-qemu-system-x86_64 "${QEMU_ARGS[@]}" >"$SERIAL_LOG" 2>"$QEMU_LOG" &
+stdbuf -o0 -e0 qemu-system-x86_64 "${QEMU_ARGS[@]}" >"$SERIAL_LOG" 2>"$QEMU_LOG" &
 QEMU_PID=$!
 QEMU_STATUS=0
 MARKER_OBSERVED=0
