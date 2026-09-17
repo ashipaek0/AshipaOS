@@ -113,12 +113,23 @@ jobs:
           bash layers/layer10-release/scripts/build-10-release.sh x86_64
 
       - name: Sign Artefacts
+        working-directory: ${{ github.workspace }}
         run: |
-          bash scripts/ci-sign-artefacts.sh output/images/ output/ota/
+          set -Eeuo pipefail
+          echo "Signing artifacts from: $(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
+            "$GITHUB_WORKSPACE/output/images" \
+            "$GITHUB_WORKSPACE/output/ota"
 
       - name: Generate SBOM
+        working-directory: ${{ github.workspace }}
         run: |
-          bash scripts/ci-generate-sbom.sh output/sbom.json
+          set -Eeuo pipefail
+          echo "Generating SBOM from: $(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
+            "$GITHUB_WORKSPACE/output/sbom.json"
 
       - name: Upload Images
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -224,12 +235,23 @@ jobs:
           bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
 
       - name: Sign Artefacts
+        working-directory: ${{ github.workspace }}
         run: |
-          bash scripts/ci-sign-artefacts.sh output/images/ output/ota/
+          set -Eeuo pipefail
+          echo "Signing artifacts from: $(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
+            "$GITHUB_WORKSPACE/output/images" \
+            "$GITHUB_WORKSPACE/output/ota"
 
       - name: Generate SBOM
+        working-directory: ${{ github.workspace }}
         run: |
-          bash scripts/ci-generate-sbom.sh output/sbom.json
+          set -Eeuo pipefail
+          echo "Generating SBOM from: $(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
+            "$GITHUB_WORKSPACE/output/sbom.json"
 
       - name: Upload Images
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

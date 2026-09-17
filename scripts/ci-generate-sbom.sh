@@ -8,17 +8,21 @@ OUTPUT_FILE="${1:-output/sbom.json}"
 
 echo "=== Generating SBOM ==="
 
+# Capture repository root at start - CRITICAL for CI where working directory may change
+REPO_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
 # Get current timestamp
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Get git commit info
-if git rev-parse --git-dir > /dev/null 2>&1; then
-    GIT_COMMIT=$(git rev-parse HEAD)
-    GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "none")
+# Get git commit info using explicit repo path
+if git -C "$REPO_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
+    GIT_COMMIT=$(git -C "$REPO_ROOT" rev-parse HEAD)
+    GIT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
+    GIT_TAG=$(git -C "$REPO_ROOT" describe --tags --exact-match 2>/dev/null || echo "none")
 else
-    GIT_COMMIT="unknown"
-    GIT_BRANCH="unknown"
+    # Fallback to GITHUB_SHA if available (CI environment)
+    GIT_COMMIT="${GITHUB_SHA:-unknown}"
+    GIT_BRANCH="${GITHUB_REF_NAME:-unknown}"
     GIT_TAG="none"
 fi
 
