@@ -1,0 +1,7 @@
+[Unit]
+Description=ssh service stub
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+[Install]
+WantedBy=multi-user.target

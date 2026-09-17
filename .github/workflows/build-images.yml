@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq shellcheck sfdisk
 
       - name: Run static tests
         run: |
@@ -38,6 +38,7 @@ jobs:
   build-x86_64:
     needs: static-tests
     runs-on: ubuntu-latest
+    # Note: Uses libguestfs for disk image creation - no privileged mode needed
     if: github.event.inputs.target == 'x86_64' || github.event_name == 'push'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -45,7 +46,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq sfdisk
+          # Configure libguestfs to use direct mode (no FUSE needed)
+          export LIBGUESTFS_BACKEND=direct
 
       - name: Configure GPG
         run: |
@@ -55,10 +58,12 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+          sudo chown "$USER:$USER" output/rootfs-x86_64.tar.gz
 
       - name: Build Layer 2 (Disk Image)
         run: |
+          export LIBGUESTFS_BACKEND=direct
           bash layers/layer2-image/scripts/build-image.sh output/rootfs-x86_64.tar.gz x86_64
 
       - name: Build Layer 3 (First-Boot Init)
@@ -102,6 +107,7 @@ jobs:
   build-a95x-f3-air:
     needs: static-tests
     runs-on: ubuntu-latest
+    # Note: Uses libguestfs + QEMU emulation for ARM64 - no privileged mode needed
     if: github.event.inputs.target == 'a95x-f3-air' || github.event_name == 'push'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -109,7 +115,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq u-boot-tools
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq u-boot-tools sfdisk
+          # Enable ARM64 emulation via binfmt_misc
+          sudo update-binfmts --enable qemu-aarch64
+          # Configure libguestfs to use direct mode
+          export LIBGUESTFS_BACKEND=direct
 
       - name: Configure GPG
         run: |
@@ -119,10 +129,13 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
+          export QEMU_CPU=max
+          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
+          sudo chown "$USER:$USER" output/rootfs-a95x-f3-air.tar.gz
 
       - name: Build Layer 2 (Disk Image)
         run: |
+          export LIBGUESTFS_BACKEND=direct
           bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
       - name: Build Layer 3 (First-Boot Init)
