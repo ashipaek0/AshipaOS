@@ -232,6 +232,7 @@ jobs:
             gpg \
             jq \
             shellcheck \
+            dosfstools \
             u-boot-tools \
             util-linux \
             device-tree-compiler
@@ -265,6 +266,13 @@ jobs:
           export LIBGUESTFS_BACKEND=direct
           bash layers/layer2-image/tests/layout-tests.sh
           bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
+
+      - name: Gate A95X image contents
+        run: |
+          set -Eeuo pipefail
+          image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-a95x-f3-air-*.img' -print -quit)
+          [[ -n "$image" ]] || { echo 'A95X image not found; content gate cannot be skipped' >&2; exit 1; }
+          bash layers/layer2-image/tests/image-content-tests.sh "$image"
 
       - name: Build Layer 3 (First-Boot Init)
         run: |

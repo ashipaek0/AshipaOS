@@ -12,12 +12,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck dosfstools u-boot-tools
 
       - name: Run static tests
         run: |
           echo "=== Running Static Tests ==="
           bash tests/static/test-rootfs-ownership.sh
+          bash layers/layer2-image/tests/image-content-tests.sh
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
               echo "Testing ${layer}"

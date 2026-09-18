@@ -44,6 +44,8 @@ for p in files:
         assert "layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64" in x86, "x86_64 workflow must apply Layer 4 to the rootfs before image creation"
         assert "layer4-services/scripts/build-services.sh" not in arm, "Layer 4 x86_64 rootfs policy must not run for ARM"
         assert x86.index("layer4-services/scripts/build-services.sh") < x86.index("Build Layer 2"), "Layer 4 policy must run before image creation"
+        assert "Gate A95X image contents" in arm and 'image-content-tests.sh "$image"' in arm, "A95X build must run the image-content gate against its produced image"
+        assert "android-tools-mkbootimg" not in arm, "A95X CI must not depend on Ubuntu's broken mkbootimg wrapper"
         patch_name = "Patch x86_64 Layer 1 debootstrap retry handling"
         assert patch_name in x86, "x86_64 Layer 1 must validate and patch debootstrap retries"
         patch = x86[x86.index(patch_name):x86.index("Configure GPG")]

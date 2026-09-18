@@ -20,6 +20,28 @@ filesystems:
     mount_point: /
     options: "defaults,noatime"
 
+targets:
+  a95x-f3-air:
+    partition_table: dos
+    boot_partition:
+      start_sector: 8192
+      filesystem: fat16
+      label: A95XBOOT
+      files: [AML_AUTOSCRIPT, CFGLOAD, KERNEL.IMG, dtb.img, manifest]
+    root_partition:
+      start_sector: 532480
+      filesystem: ext4
+      label: RootFS
+    boot_contract:
+      source: "CoreELEC 21.3-Omega Generic Amlogic image; inspected extracted boot partition"
+      kernel_image: android-legacy
+      page_size: 2048
+      kernel_offset: "0x01080000"
+      ramdisk_offset: "0x01000000"
+      second_offset: "0x00f00000"
+      tags_offset: "0x00000100"
+      bootargs: "root=LABEL=RootFS rw console=ttyS0,115200 console=tty0"
+
 bootloader:
   type: uefi
   arch_mapping:
