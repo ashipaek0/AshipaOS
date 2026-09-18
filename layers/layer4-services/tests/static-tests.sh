@@ -88,6 +88,40 @@ else
     pass 'config rejects disable_unlisted=false'
 fi
 
+# Every configured unit list is untrusted input. Exercise absolute paths,
+# slash traversal, and dot-dot values in enabled, disabled, and required lists.
+for section in enabled disabled required_services; do
+    for unsafe_unit in '/etc/evil.service' 'foo/../../evil.service' '../evil.service' 'foo..service'; do
+        unsafe_layer="$tmp_dir/unsafe-${section}-$(printf '%s' "$unsafe_unit" | tr '/.' '__')"
+        cp -a "$LAYER_DIR" "$unsafe_layer"
+        python3 - "$CONFIG_FILE" "$unsafe_layer/config/services-config.yaml" "$section" "$unsafe_unit" <<'PYEOF'
+import sys
+
+source, destination, section, replacement = sys.argv[1:]
+lines = open(source, encoding='utf-8').read().splitlines(True)
+in_section = False
+replaced = False
+for index, line in enumerate(lines):
+    if line == f'  {section}:\n':
+        in_section = True
+        continue
+    if in_section and line.startswith('  ') and not line.startswith('    '):
+        in_section = False
+    if in_section and not replaced and line.startswith('    - '):
+        lines[index] = f'    - {replacement}\n'
+        replaced = True
+if not replaced:
+    raise SystemExit(f'could not replace first item in {section}')
+open(destination, 'w', encoding='utf-8').writelines(lines)
+PYEOF
+        if "$unsafe_layer/scripts/build-services.sh" --validate >/dev/null 2>&1; then
+            fail "$section rejects unsafe unit $unsafe_unit"
+        else
+            pass "$section rejects unsafe unit $unsafe_unit"
+        fi
+    done
+done
+
 unsafe_tar="$tmp_dir/unsafe.tar.gz"
 python3 - "$unsafe_tar" <<'PYEOF'
 import io
@@ -114,6 +148,76 @@ if "$BUILD_SCRIPT" /definitely/missing.tar.gz x86_64 >/dev/null 2>&1; then
     fail 'missing rootfs failure path is rejected'
 else
     pass 'missing rootfs failure path is rejected'
+fi
+
+# A configured template instance must validate against the distro template,
+# while systemctl still receives the configured instance name.
+template_test="$tmp_dir/template-test"
+mkdir -p "$template_test/bin"
+cp -a "$LAYER_DIR" "$template_test/layer4-services"
+cat > "$template_test/layer4-services/config/services-config.yaml" <<'EOF'
+target: x86_64
+services:
+  enabled:
+    - getty@tty1.service
+  disabled:
+    - getty@tty2.service
+  required_services:
+    - getty@tty1.service
+    - getty@tty2.service
+default_target: multi-user.target
+policy:
+  preset_file: /etc/systemd/system-preset/ashipaos.preset
+  disable_unlisted: true
+EOF
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "${TEST_LOG:?}"\n' \
+    > "$template_test/bin/systemd-analyze"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "${TEST_LOG:?}"\n' \
+    > "$template_test/bin/systemctl"
+chmod +x "$template_test/bin/systemd-analyze" "$template_test/bin/systemctl"
+template_rootfs="$template_test/with-template.tar.gz"
+missing_template_rootfs="$template_test/without-template.tar.gz"
+python3 - "$template_rootfs" "$missing_template_rootfs" <<'PYEOF'
+import io
+import sys
+import tarfile
+
+def write_rootfs(path, include_template):
+    with tarfile.open(path, 'w:gz') as archive:
+        for name in ('etc/systemd', 'usr/lib/systemd/system'):
+            info = tarfile.TarInfo(name)
+            info.type = tarfile.DIRTYPE
+            info.mode = 0o755
+            archive.addfile(info)
+        if include_template:
+            body = b'[Unit]\nDescription=Getty\n[Install]\nWantedBy=getty.target\n'
+            info = tarfile.TarInfo('usr/lib/systemd/system/getty@.service')
+            info.size = len(body)
+            archive.addfile(info, io.BytesIO(body))
+
+write_rootfs(sys.argv[1], True)
+write_rootfs(sys.argv[2], False)
+PYEOF
+export TEST_LOG="$template_test/systemctl.log"
+PATH="$template_test/bin:$PATH" \
+    "$template_test/layer4-services/scripts/build-services.sh" "$template_rootfs" x86_64 \
+    >/dev/null 2>&1 \
+    && pass 'templated instance resolves to distro template' \
+    || fail 'templated instance resolves to distro template'
+if grep -Fq -- 'enable getty@tty1.service' "$TEST_LOG" && \
+   grep -Fq -- 'disable getty@tty2.service' "$TEST_LOG" && \
+   ! grep -Fq -- 'enable getty@.service' "$TEST_LOG" && \
+   ! grep -Fq -- 'disable getty@.service' "$TEST_LOG"; then
+    pass 'systemctl enable/disable preserve templated instance names'
+else
+    fail 'systemctl enable/disable preserve templated instance names'
+fi
+if PATH="$template_test/bin:$PATH" \
+    "$template_test/layer4-services/scripts/build-services.sh" "$missing_template_rootfs" x86_64 \
+    >/dev/null 2>&1; then
+    fail 'missing template is rejected'
+else
+    pass 'missing template is rejected'
 fi
 
 printf '================================\nResults: %d passed, %d failed\n' "$PASSED" "$FAILED"

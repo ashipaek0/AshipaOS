@@ -39,6 +39,20 @@ config_list() {
     ' "$CONFIG_FILE"
 }
 
+is_safe_unit_identifier() {
+    local unit="$1"
+    # Unit names are data, not paths. Keep the accepted grammar deliberately
+    # narrow so configured values cannot introduce paths or dot-dot traversal.
+    [[ "$unit" =~ ^[A-Za-z0-9_@%:+.-]+\.service$ ]] || return 1
+    [[ "$unit" != /* && "$unit" != */* && "$unit" != *..* ]]
+}
+
+validate_unit_identifier() {
+    local unit="$1" provenance="$2"
+    is_safe_unit_identifier "$unit" \
+        || error "unsafe $provenance service unit identifier: $unit"
+}
+
 config_scalar() {
     local key="$1"
     awk -v key="$key" '$1 == key ":" { print $2; exit }' "$CONFIG_FILE"
@@ -64,7 +78,11 @@ validate_config() {
     mapfile -t disabled < <(config_list disabled)
     ((${#enabled[@]} > 0)) || error "enabled list is empty"
     ((${#disabled[@]} > 0)) || error "disabled list is empty"
-    for unit in "${enabled[@]}" "${disabled[@]}"; do
+    local required
+    mapfile -t required < <(config_list required_services)
+    ((${#required[@]} > 0)) || error "required services list is empty"
+    for unit in "${enabled[@]}" "${disabled[@]}" "${required[@]}"; do
+        validate_unit_identifier "$unit" "configured"
         [[ "$unit" == *.service ]] || error "service policy must use explicit .service units: $unit"
     done
     for unit in "${enabled[@]}"; do
@@ -115,9 +133,15 @@ extract_rootfs() {
 }
 
 unit_path() {
-    local unit="$1"
-    for base in "$ROOTFS/usr/lib/systemd/system" "$ROOTFS/lib/systemd/system"; do
-        [[ -e "$base/$unit" || -L "$base/$unit" ]] && { printf '%s\n' "$base/$unit"; return 0; }
+    local unit="$1" candidate base
+    for candidate in "$unit" "${unit%%@*}@.service"; do
+        [[ "$candidate" == "$unit" || "$unit" == *@*.service ]] || continue
+        for base in "$ROOTFS/usr/lib/systemd/system" "$ROOTFS/lib/systemd/system"; do
+            [[ -e "$base/$candidate" || -L "$base/$candidate" ]] && {
+                printf '%s\n' "$base/$candidate"
+                return 0
+            }
+        done
     done
     return 1
 }
@@ -126,18 +150,24 @@ validate_units() {
     local unit path
     mapfile -t required < <(config_list enabled)
     for unit in "${required[@]}"; do
+        validate_unit_identifier "$unit" "enabled"
         path=$(unit_path "$unit") || error "required distro unit missing from rootfs: $unit"
         [[ -f "$path" && ! -L "$path" ]] || error "required unit is not a real unit file: $unit"
         grep -q '^\[Unit\]$' "$path" || error "required unit is missing [Unit]: $unit"
     done
     mapfile -t disabled < <(config_list disabled)
     for unit in "${disabled[@]}"; do
+        validate_unit_identifier "$unit" "disabled"
         if path=$(unit_path "$unit"); then
             [[ -f "$path" && ! -L "$path" ]] || error "disabled unit is not a real unit file: $unit"
             grep -q '^\[Unit\]$' "$path" || error "disabled unit is missing [Unit]: $unit"
         fi
     done
     command -v systemd-analyze >/dev/null 2>&1 || error "systemd-analyze is required for unit validation"
+    mapfile -t required < <(config_list required_services)
+    for unit in "${required[@]}"; do
+        validate_unit_identifier "$unit" "required"
+    done
     local -a units=("${required[@]}")
     systemd-analyze verify --root="$ROOTFS" "${units[@]}" >/dev/null \
         || error "systemd-analyze rejected the configured units"
