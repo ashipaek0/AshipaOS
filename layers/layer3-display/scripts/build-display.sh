@@ -82,6 +82,13 @@ apt_options=(
 
 diagnose_apt_state() {
     local rootfs="$1" package
+    shift
+    # Keep resolver evidence useful but bounded.  awk reads the complete stream,
+    # avoiding a producer SIGPIPE, while only emitting the first 240 lines.
+    bounded_target() {
+        run_target "$rootfs" "$@" 2>&1 | awk 'NR <= 240 { print }' || true
+    }
+
     log "Target APT state immediately before locked install"
     printf '[L3-DISPLAY] dpkg architecture: '
     run_target "$rootfs" dpkg --print-architecture
@@ -90,14 +97,29 @@ diagnose_apt_state() {
     printf '[L3-DISPLAY] apt architecture/config:\n'
     run_target "$rootfs" apt-config "${apt_options[@]}" dump \
         | grep -E '^(APT::(Architecture|Architectures)|Dir::Etc::(sourcelist|sourceparts)|Acquire::(Check-Valid-Until|By-Hash))' || true
-    printf '[L3-DISPLAY] apt preferences:\n'
-    run_target "$rootfs" sh -c 'find /etc/apt/preferences /etc/apt/preferences.d -maxdepth 1 -type f -print -exec sed -n "1,120p" {} \\;' 2>/dev/null || true
-    for package in libswresample4 libavcodec59 libavdevice59 libavfilter8 libavformat59 mpv libmpv2; do
+    printf '[L3-DISPLAY] apt preferences (first 120 lines per file):\n'
+    run_target "$rootfs" sh -c 'find /etc/apt/preferences /etc/apt/preferences.d -maxdepth 1 -type f -print -exec sed -n "1,120p" {} \\;' 2>/dev/null \
+        | sed -E 's#(https?://)[^/@[:space:]]+@#\1REDACTED@#g; s#([Pp]ass(word|wd)|[Tt]oken|[Ss]ecret|[Aa]uthorization)[=:][[:space:]]*[^[:space:]]+#\1=REDACTED#g' \
+        | awk 'NR <= 240 { print }' || true
+    printf '[L3-DISPLAY] dpkg selections for resolver-relevant packages:\n'
+    bounded_target dpkg --get-selections \
+        | awk '$1 ~ /(ffmpeg|libav|swresample|mpv|^libc6(:|$)|^libstdc[+][+])/{ print }'
+    printf '[L3-DISPLAY] dpkg holds (selection and apt-mark):\n'
+    bounded_target dpkg --get-selections | awk '$2 == "hold" { print }'
+    bounded_target apt-mark showhold
+    printf '[L3-DISPLAY] installed resolver-relevant packages:\n'
+    bounded_target dpkg-query -W -f='${Package} ${Version} ${Architecture} ${Status}\\n' \
+        | awk '$4 == "installed" && $5 == "ok" && $6 == "installed" && $1 ~ /(ffmpeg|libav|swresample|mpv|^libc6(:|$)|^libstdc[+][+])/{ print }'
+    for package in libswresample4 libavcodec59 libavdevice59 libavfilter8 libavformat59 mpv libmpv2 libc6 libstdc++6; do
         printf '[L3-DISPLAY] apt-cache policy %s:\n' "$package"
-        run_target "$rootfs" apt-cache "${apt_options[@]}" policy "$package" || true
+        bounded_target apt-cache "${apt_options[@]}" policy "$package"
         printf '[L3-DISPLAY] installed %s:\n' "$package"
-        run_target "$rootfs" dpkg-query -W -f='${Package} ${Version} ${Architecture} ${Status}\\n' "$package" 2>/dev/null || true
+        bounded_target dpkg-query -W -f='${Package} ${Version} ${Architecture} ${Status}\\n' "$package"
     done
+    printf '[L3-DISPLAY] simulated locked install with resolver trace (first 240 lines):\n'
+    bounded_target env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" \
+        -s -y --no-install-recommends \
+        -o Debug::pkgProblemResolver=yes -o Debug::pkgDepCache::Marker=1 install "$@"
 }
 
 install_locked_packages() {
@@ -113,7 +135,7 @@ install_locked_packages() {
 
     prepare_apt_state "$rootfs"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" update
-    diagnose_apt_state "$rootfs"
+    diagnose_apt_state "$rootfs" "${specs[@]}"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" -y --no-install-recommends --download-only install "${specs[@]}"
 
     while IFS=$'\t' read -r name version architecture filename sha256; do

@@ -17,5 +17,18 @@ grep -q 'dpkg --print-foreign-architectures' "$SCRIPT"
 grep -q 'apt-config "\${apt_options\[@\]}" dump' "$SCRIPT"
 grep -q 'Acquire::(Check-Valid-Until|By-Hash)' "$SCRIPT"
 grep -q 'apt-cache.*policy' "$SCRIPT"
-grep -q 'libswresample4 libavcodec59 libavdevice59 libavfilter8 libavformat59 mpv libmpv2' "$SCRIPT"
+grep -q 'dpkg --get-selections' "$SCRIPT"
+grep -q 'apt-mark showhold' "$SCRIPT"
+grep -q 'installed resolver-relevant packages' "$SCRIPT"
+grep -q 'Debug::pkgProblemResolver=yes' "$SCRIPT"
+grep -q 'Debug::pkgDepCache::Marker=1' "$SCRIPT"
+grep -q 'NR <= 240' "$SCRIPT"
+
+# Credential diagnostics must redact values whether the separator is tight or
+# followed by whitespace, without leaking the fixture secret to the output.
+fixture=$'Password: supersecret\nToken= tokensecret\nAuthorization: bearersecret'
+redacted=$(printf '%s\n' "$fixture" | sed -E \
+    's#(https?://)[^/@[:space:]]+@#\1REDACTED@#g; s#([Pp]ass(word|wd)|[Tt]oken|[Ss]ecret|[Aa]uthorization)[=:][[:space:]]*[^[:space:]]+#\1=REDACTED#g')
+[[ "$redacted" == $'Password=REDACTED\nToken=REDACTED\nAuthorization=REDACTED' ]]
+! grep -qE 'supersecret|tokensecret|bearersecret' <<<"$redacted"
 printf 'layer3-display-apt-state-regression: PASS\n'
