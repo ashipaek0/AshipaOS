@@ -13,6 +13,7 @@ pass() { printf '✓ %s\n' "$1"; PASSED=$((PASSED + 1)); }
 fail() { printf '✗ %s\n' "$1"; FAILED=$((FAILED + 1)); }
 check() { if "$@"; then pass "$1"; else fail "$1"; fi; }
 contains() { grep -q -- "$1" "$2"; }
+fixed_contains() { grep -Fq -- "$1" "$2"; }
 not_contains() { ! grep -q -- "$1" "$2"; }
 
 printf 'Running Layer 4 Static Tests...\n================================\n'
@@ -25,6 +26,10 @@ check contains 'systemctl --root=' "$BUILD_SCRIPT"
 check contains 'packages_changed": false' "$BUILD_SCRIPT"
 check contains 'Layer 4 is x86_64-only' "$BUILD_SCRIPT"
 check contains 'tar --create --gzip' "$BUILD_SCRIPT"
+for pseudo_dir in dev proc sys run; do
+    check fixed_contains "--exclude='./$pseudo_dir/*'" "$BUILD_SCRIPT"
+done
+check fixed_contains 'tar --extract --gzip --file "$ROOTFS_TARBALL" --directory "$ROOTFS"' "$BUILD_SCRIPT"
 check contains 'unsafe rootfs tar member' "$BUILD_SCRIPT"
 check contains 'policy.disable_unlisted must be true' "$BUILD_SCRIPT"
 check contains 'disabled unit is not a real unit file' "$BUILD_SCRIPT"

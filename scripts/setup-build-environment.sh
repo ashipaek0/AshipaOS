@@ -349,7 +349,9 @@ download_rootfs() {
             rm -rf "$temp_dir/rootfs/tmp"/* "$temp_dir/rootfs/var/tmp"/*
             find "$temp_dir/rootfs/var/log" -type f -delete 2>/dev/null || true
             
-            tar -C "$temp_dir/rootfs" -czf "$output_dir/rootfs-${deb_arch}.tar.gz" .
+            tar -C "$temp_dir/rootfs" \
+                --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
+                -czf "$output_dir/rootfs-${deb_arch}.tar.gz" .
             log "Rootfs created via debootstrap: $output_dir/rootfs-${deb_arch}.tar.gz"
         else
             error "Cannot create rootfs: debootstrap not available and cloud image download failed"

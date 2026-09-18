@@ -22,6 +22,10 @@ grep -q 'apt-get.*--download-only.*install' "$SCRIPT"
 grep -q 'sha256sum' "$SCRIPT"
 grep -q 'dpkg-query' "$SCRIPT"
 grep -q 'build-evidence.json' "$SCRIPT"
+for pseudo_dir in dev proc sys run; do
+    grep -Fq -- "--exclude='./$pseudo_dir/*'" "$SCRIPT"
+done
+grep -Fq 'tar -xzf "$input" -C "$ROOTFS"' "$SCRIPT"
 grep -q '^TEMP_DIR=""$' "$SCRIPT"
 grep -q 'trap .cleanup;.*TEMP_DIR:-.*rm -rf --' "$SCRIPT"
 ! grep -q 'local input=.* temp output' "$SCRIPT"

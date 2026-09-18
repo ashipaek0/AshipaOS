@@ -109,7 +109,8 @@ extract_rootfs() {
     TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ashipaos-layer4.XXXXXX")
     ROOTFS="$TEMP_DIR/rootfs"
     mkdir -p "$ROOTFS"
-    tar --extract --gzip --file "$ROOTFS_TARBALL" --directory "$ROOTFS"
+    tar --extract --gzip --file "$ROOTFS_TARBALL" --directory "$ROOTFS" \
+        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*'
     [[ -d "$ROOTFS/etc/systemd" ]] || error "rootfs has no systemd configuration directory"
 }
 
@@ -209,7 +210,8 @@ main() {
     validate_units
     apply_policy
     local output="${ROOTFS_TARBALL}.layer4.tmp"
-    tar --create --gzip --file "$output" --directory "$ROOTFS" .
+    tar --create --gzip --file "$output" --directory "$ROOTFS" \
+        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' .
     [[ -s "$output" ]] || error "Layer 4 output tarball is empty"
     mv -f -- "$output" "$ROOTFS_TARBALL"
     generate_evidence

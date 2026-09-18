@@ -211,7 +211,9 @@ create_rootfs() {
     minimize_rootfs "$rootfs"
     validate_kernel_initramfs "$rootfs" "$debian_arch" "${KERNEL_PACKAGES[$debian_arch]}"
     mkdir -p "$(dirname "$output_file")"
-    tar -C "$rootfs" -czf "$output_file" .
+    tar -C "$rootfs" \
+        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
+        -czf "$output_file" .
     [[ -s "$output_file" ]] || error "Rootfs tarball is empty: $output_file"
     generate_evidence "$product_arch" "$debian_arch" "$output_file" "$rootfs"
     log "Rootfs created successfully: $output_file ($(du -h "$output_file" | cut -f1))"

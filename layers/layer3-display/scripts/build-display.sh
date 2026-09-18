@@ -210,7 +210,8 @@ main() {
     ROOTFS="$TEMP_DIR/rootfs"
     trap 'cleanup; [[ -n "${TEMP_DIR:-}" ]] && rm -rf -- "$TEMP_DIR"' EXIT
     mkdir -p "$ROOTFS"
-    tar -xzf "$input" -C "$ROOTFS"
+    tar -xzf "$input" -C "$ROOTFS" \
+        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*'
     mount_api "$ROOTFS"
 
     mkdir -p "$ROOTFS/etc/apt/sources.list.d"
@@ -225,7 +226,9 @@ main() {
     output="${input}.display.tmp"
     write_evidence "$ROOTFS" "$input"
     cleanup
-    tar -C "$ROOTFS" -czf "$output" .
+    tar -C "$ROOTFS" \
+        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
+        -czf "$output" .
     mv -f "$output" "$input"
     log "Installed display contract into $input"
 }
