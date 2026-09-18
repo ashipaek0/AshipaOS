@@ -88,7 +88,8 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+          sudo env DEBIAN_MIRROR=https://snapshot.debian.org/archive/debian/20240311T000000Z/ \
+            bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
 
       - name: Build Layer 3 Display (x86_64 only)
         run: |
