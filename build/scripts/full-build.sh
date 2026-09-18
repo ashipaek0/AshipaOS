@@ -61,9 +61,14 @@ build_layer3() {
 }
 
 build_layer4() {
-    local target="$1"
+    local rootfs="$1"
+    local target="$2"
     log "=== LAYER 4: Configuring System Services (target=$target) ==="
-    bash "$LAYERS_DIR/layer4-services/scripts/build-services.sh" "$target"
+    if [[ "$target" != "x86_64" ]]; then
+        log "Layer 4 is x86_64-only, skipping for target=$target"
+        return 0
+    fi
+    bash "$LAYERS_DIR/layer4-services/scripts/build-services.sh" "$rootfs" x86_64
     log "Layer 4 complete"
 }
 
@@ -208,9 +213,9 @@ main() {
         bash "$LAYERS_DIR/layer3-display/scripts/build-display.sh" "$rootfs_tar" "$target"
         log "Layer 3 display complete"
     fi
+    build_layer4 "$rootfs_tar" "$target"
     build_layer2 "$rootfs_tar" "$target"
     build_layer3 "$target"
-    build_layer4 "$target"
     build_layer5 "$target"
     build_layer6 "$target"
     build_layer7 "$target"

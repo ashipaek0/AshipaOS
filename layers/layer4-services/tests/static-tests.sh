@@ -1,71 +1,89 @@
-#!/bin/bash
-# Static tests for Layer 4: Core System Services
-set -euo pipefail
+#!/usr/bin/env bash
+# Static and negative tests for Layer 4 x86_64 service policy.
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
+BUILD_SCRIPT="$LAYER_DIR/scripts/build-services.sh"
+CONFIG_FILE="$LAYER_DIR/config/services-config.yaml"
 PASSED=0
 FAILED=0
 
-test_result() {
-    local test_name="$1"
-    local result="$2"
-    if [[ "$result" == "PASS" ]]; then
-        echo "✓ $test_name"
-        PASSED=$((PASSED + 1))
-    else
-        echo "✗ $test_name"
-        FAILED=$((FAILED + 1))
-    fi
-}
+pass() { printf '✓ %s\n' "$1"; PASSED=$((PASSED + 1)); }
+fail() { printf '✗ %s\n' "$1"; FAILED=$((FAILED + 1)); }
+check() { if "$@"; then pass "$1"; else fail "$1"; fi; }
+contains() { grep -q -- "$1" "$2"; }
+not_contains() { ! grep -q -- "$1" "$2"; }
 
-test_shebang() { head -1 "$1" | grep -q '^#!/bin/bash' && echo "PASS" || echo "FAIL"; }
-test_shell_strict() { grep -q 'set -euo pipefail' "$1" && echo "PASS" || echo "FAIL"; }
-test_usage_function() { grep -q 'usage()' "$1" && echo "PASS" || echo "FAIL"; }
-test_error_handling() { grep -q 'error()' "$1" && echo "PASS" || echo "FAIL"; }
-test_executable() { [[ -x "$1" ]] && echo "PASS" || echo "FAIL"; }
-test_no_hardcoding() { ! grep -qE '/dev/mmcblk|/sys/class/' "$1" && echo "PASS" || echo "FAIL"; }
-test_verification_class() { grep -qE 'Verification Class:' "$1" && echo "PASS" || echo "FAIL"; }
-test_dependencies() { grep -q 'Dependencies:\|layer3' "$1" && echo "PASS" || echo "FAIL"; }
-test_evidence_dir() { [[ -d "$LAYER_DIR/evidence" ]] || mkdir -p "$LAYER_DIR/evidence" && echo "PASS" || echo "FAIL"; }
-test_evidence_generation() { grep -q 'generate_evidence' "$1" && grep -q 'build-evidence.json' "$1" && echo "PASS" || echo "FAIL"; }
-test_config_exists() { [[ -f "$LAYER_DIR/config/services-config.yaml" ]] && echo "PASS" || echo "FAIL"; }
-test_services_section() { grep -q 'services:' "$LAYER_DIR/config/services-config.yaml" && echo "PASS" || echo "FAIL"; }
-test_enabled_list() { grep -q 'enabled:' "$LAYER_DIR/config/services-config.yaml" && echo "PASS" || echo "FAIL"; }
-test_preset_generation() { grep -q 'preset' "$1" && echo "PASS" || echo "FAIL"; }
-test_systemd_support() { grep -q 'systemd' "$1" && echo "PASS" || echo "FAIL"; }
+printf 'Running Layer 4 Static Tests...\n================================\n'
+check test -x "$BUILD_SCRIPT"
+check test -f "$CONFIG_FILE"
+check contains '^#!/usr/bin/env bash$' "$BUILD_SCRIPT"
+check contains 'set -Eeuo pipefail' "$BUILD_SCRIPT"
+check contains 'systemd-analyze verify' "$BUILD_SCRIPT"
+check contains 'systemctl --root=' "$BUILD_SCRIPT"
+check contains 'packages_changed": false' "$BUILD_SCRIPT"
+check contains 'Layer 4 is x86_64-only' "$BUILD_SCRIPT"
+check contains 'tar --create --gzip' "$BUILD_SCRIPT"
+check contains 'unsafe rootfs tar member' "$BUILD_SCRIPT"
+check contains 'policy.disable_unlisted must be true' "$BUILD_SCRIPT"
+check contains 'disabled unit is not a real unit file' "$BUILD_SCRIPT"
+check contains 'disabled unit is missing \[Unit\]' "$BUILD_SCRIPT"
+check contains 'failed to disable present distro unit' "$BUILD_SCRIPT"
+check not_contains '|| true' "$BUILD_SCRIPT"
+check not_contains 'etc/systemd/system"; do' "$BUILD_SCRIPT"
+check contains '^  enabled:$' "$CONFIG_FILE"
+check contains '^  disabled:$' "$CONFIG_FILE"
+check contains '^target: x86_64$' "$CONFIG_FILE"
+check contains '^  preset_file:' "$CONFIG_FILE"
+check contains '^  disable_unlisted: true$' "$CONFIG_FILE"
+check not_contains '\\.stub' "$BUILD_SCRIPT"
+check not_contains 'ExecStart=/bin/true' "$BUILD_SCRIPT"
+check not_contains '^    - ssh$' "$CONFIG_FILE"
+check not_contains '^    - cron$' "$CONFIG_FILE"
 
-echo "Running Layer 4 Static Tests..."
-echo "================================"
+list_output="$($BUILD_SCRIPT --list)"
+[[ "$list_output" == *"Enabled services:"* && "$list_output" == *"systemd-journald.service"* ]] && pass '--list emits configured enabled services' || fail '--list emits configured enabled services'
+$BUILD_SCRIPT --validate >/dev/null && pass '--validate accepts config semantics' || fail '--validate accepts config semantics'
 
-BUILD_SCRIPT="$LAYER_DIR/scripts/build-services.sh"
-CONFIG_FILE="$LAYER_DIR/config/services-config.yaml"
-
-if [[ -f "$BUILD_SCRIPT" ]]; then
-    test_result "SC01: Shebang" "$(test_shebang "$BUILD_SCRIPT")"
-    test_result "SC02: Strict mode" "$(test_shell_strict "$BUILD_SCRIPT")"
-    test_result "SC03: Usage function" "$(test_usage_function "$BUILD_SCRIPT")"
-    test_result "SC04: Error handling" "$(test_error_handling "$BUILD_SCRIPT")"
-    test_result "SC05: Executable" "$(test_executable "$BUILD_SCRIPT")"
-    test_result "SH01: No hardcoding" "$(test_no_hardcoding "$BUILD_SCRIPT")"
-    test_result "SV01: Verification class" "$(test_verification_class "$BUILD_SCRIPT")"
-    test_result "SV02: Dependencies" "$(test_dependencies "$BUILD_SCRIPT")"
-    test_result "SE01: Evidence dir" "$(test_evidence_dir)"
-    test_result "SE02: Evidence generation" "$(test_evidence_generation "$BUILD_SCRIPT")"
-    test_result "SI01: Preset generation" "$(test_preset_generation "$BUILD_SCRIPT")"
-    test_result "SI02: systemd support" "$(test_systemd_support "$BUILD_SCRIPT")"
+tmp_dir=$(mktemp -d)
+trap 'rm -rf -- "$tmp_dir"' EXIT
+cp -a "$LAYER_DIR" "$tmp_dir/layer4-services"
+sed -i 's/^  disable_unlisted: true$/  disable_unlisted: false/' \
+    "$tmp_dir/layer4-services/config/services-config.yaml"
+if "$tmp_dir/layer4-services/scripts/build-services.sh" --validate >/dev/null 2>&1; then
+    fail 'config rejects disable_unlisted=false'
 else
-    echo "✗ Build script not found"; FAILED=$((FAILED + 1))
+    pass 'config rejects disable_unlisted=false'
 fi
 
-if [[ -f "$CONFIG_FILE" ]]; then
-    test_result "SC01: Config exists" "$(test_config_exists)"
-    test_result "SC02: Services section" "$(test_services_section)"
-    test_result "SC03: Enabled list" "$(test_enabled_list)"
+unsafe_tar="$tmp_dir/unsafe.tar.gz"
+python3 - "$unsafe_tar" <<'PYEOF'
+import io
+import sys
+import tarfile
+
+with tarfile.open(sys.argv[1], 'w:gz') as archive:
+    member = tarfile.TarInfo('../escape')
+    member.size = 4
+    archive.addfile(member, io.BytesIO(b'test'))
+PYEOF
+if "$BUILD_SCRIPT" "$unsafe_tar" x86_64 >/dev/null 2>&1; then
+    fail 'tar traversal member is rejected before extraction'
 else
-    echo "✗ Config file not found"; FAILED=$((FAILED + 1))
+    pass 'tar traversal member is rejected before extraction'
 fi
 
-echo "================================"
-echo "Results: $PASSED passed, $FAILED failed"
+if "$BUILD_SCRIPT" /dev/null a95x-f3-air >/dev/null 2>&1; then
+    fail 'target restriction rejects ARM target'
+else
+    pass 'target restriction rejects ARM target'
+fi
+if "$BUILD_SCRIPT" /definitely/missing.tar.gz x86_64 >/dev/null 2>&1; then
+    fail 'missing rootfs failure path is rejected'
+else
+    pass 'missing rootfs failure path is rejected'
+fi
+
+printf '================================\nResults: %d passed, %d failed\n' "$PASSED" "$FAILED"
 [[ $FAILED -eq 0 ]]

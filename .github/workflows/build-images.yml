@@ -96,6 +96,10 @@ jobs:
           sudo bash layers/layer3-display/scripts/build-display.sh output/rootfs-x86_64.tar.gz x86_64
           bash layers/layer3-display/tests/check-debian-packages.sh
 
+      - name: Build Layer 4 (System Services, x86_64 rootfs policy)
+        run: |
+          bash layers/layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64
+
       - name: Build Layer 2 (Disk Image)
         run: |
           export LIBGUESTFS_BACKEND=direct
@@ -121,10 +125,6 @@ jobs:
       - name: Build Layer 3 (First-Boot Init)
         run: |
           bash layers/layer3-init/scripts/build-init.sh x86_64
-
-      - name: Build Layer 4 (System Services)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh x86_64
 
       - name: Build Layer 5 (Settings Daemon)
         run: |
@@ -232,10 +232,6 @@ jobs:
       - name: Build Layer 3 (First-Boot Init)
         run: |
           bash layers/layer3-init/scripts/build-init.sh a95x-f3-air
-
-      - name: Build Layer 4 (System Services)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh a95x-f3-air
 
       - name: Build Layer 5 (Settings Daemon)
         run: |
