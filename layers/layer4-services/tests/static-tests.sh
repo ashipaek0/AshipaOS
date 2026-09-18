@@ -47,6 +47,32 @@ check not_contains 'ExecStart=/bin/true' "$BUILD_SCRIPT"
 check not_contains '^    - ssh$' "$CONFIG_FILE"
 check not_contains '^    - cron$' "$CONFIG_FILE"
 
+# The enabled policy may only name units supplied by Layer 1's systemd package.
+# Keep this explicit so an unavailable optional unit cannot silently become a
+# Layer 4 requirement again.
+layer1_config="$LAYER_DIR/../layer1-rootfs/config/rootfs-config.yaml"
+if grep -q '^    - systemd$' "$layer1_config"; then
+    pass 'Layer 1 declares the systemd package for enabled Layer 4 units'
+else
+    fail 'Layer 1 declares the systemd package for enabled Layer 4 units'
+fi
+unsupported_enabled=0
+while IFS= read -r unit; do
+    case "$unit" in
+        systemd-journald.service|systemd-logind.service|systemd-networkd.service|getty@tty1.service)
+            ;;
+        *)
+            printf 'Unsupported enabled Layer 4 unit: %s\\n' "$unit" >&2
+            unsupported_enabled=1
+            ;;
+    esac
+done < <(awk '/^  enabled:/{in_section=1; next} in_section && /^  [[:alnum:]_-]+:/{exit} in_section && $1 == "-"{print $2}' "$CONFIG_FILE")
+if [[ "$unsupported_enabled" -eq 0 ]]; then
+    pass 'enabled Layer 4 units are provided by Layer 1 systemd'
+else
+    fail 'enabled Layer 4 units are provided by Layer 1 systemd'
+fi
+
 list_output="$($BUILD_SCRIPT --list)"
 [[ "$list_output" == *"Enabled services:"* && "$list_output" == *"systemd-journald.service"* ]] && pass '--list emits configured enabled services' || fail '--list emits configured enabled services'
 $BUILD_SCRIPT --validate >/dev/null && pass '--validate accepts config semantics' || fail '--validate accepts config semantics'
