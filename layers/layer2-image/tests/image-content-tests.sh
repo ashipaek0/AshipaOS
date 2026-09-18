@@ -312,6 +312,11 @@ def lfn_entry(name, ordinal, short, final=False):
         entry[offset:offset + len(part)] = part
     return entry
 
+def lfn_entries(name, short):
+    chunks = [name[offset:offset + 13] for offset in range(0, len(name), 13)]
+    return [lfn_entry(chunk, ordinal, short, final=(ordinal == len(chunks)))
+            for ordinal, chunk in reversed(list(enumerate(chunks, 1)))]
+
 image_size = (partition_start + partition_sectors) * sector
 with open(path, 'wb') as image:
     image.truncate(image_size)
@@ -352,12 +357,8 @@ with open(path, 'wb') as image:
         cluster = clusters[name]
         struct.pack_into('<H', entry, 26, cluster)
         struct.pack_into('<I', entry, 28, len(value))
-        if name == 'AML_AUTOSCRIPT':
-            short = short_names[name]
-            directory_entries.extend((
-                lfn_entry(name[13:], 2, short, final=True),
-                lfn_entry(name[:13], 1, short),
-            ))
+        if name in ('AML_AUTOSCRIPT', 'dtb.img', 'manifest'):
+            directory_entries.extend(lfn_entries(name, short_names[name]))
         directory_entries.append(entry)
         image.seek(data_start + (cluster - 2) * cluster_size)
         image.write(value)
@@ -447,6 +448,22 @@ def parse_root_directory(data, root, root_entries):
     assert not pending, 'unterminated LFN sequence'
     return names
 
+def match_boot_contract(names):
+    by_folded = {}
+    for actual in names:
+        folded = actual.casefold()
+        assert folded not in by_folded, (
+            'root directory has case-colliding names: ' + repr(sorted(
+                name for name in names if name.casefold() == folded)))
+        by_folded[folded] = actual
+    required = {name.casefold(): name for name in _REQUIRED}
+    missing = sorted(required[key] for key in required.keys() - by_folded.keys())
+    extra = sorted(by_folded[key] for key in by_folded.keys() - required.keys())
+    assert not missing and not extra, (
+        'root directory file set does not match boot contract; '
+        f'missing={missing!r}, extra={extra!r}, actual={sorted(names)!r}')
+    return {name: by_folded[name.casefold()] for name in _REQUIRED}
+
 p = sys.argv[1]
 with open(p, 'rb') as f:
     data = f.read()
@@ -460,7 +477,7 @@ reserved, fats, root_entries = struct.unpack_from('<HBB', data, b+14)
 spf = struct.unpack_from('<H', data, b+22)[0]
 root = b + (reserved + fats * spf) * 512
 names = parse_root_directory(data, root, root_entries)
-assert set(names) == _REQUIRED, 'root directory file set does not match boot contract'
+actual_names = match_boot_contract(names)
 cluster_size = data[b+13] * 512
 fat_start = b + reserved * 512
 root_bytes = root_entries * 32
@@ -495,8 +512,7 @@ def read_file(entry):
             assert 2 <= nxt <= max_cluster, 'FAT chain has invalid terminal cluster'
         cluster = nxt
     return bytes(out[:size])
-assert set(names) == _REQUIRED, 'root directory file set does not match boot contract'
-files = {name: read_file(names[name]) for name in _REQUIRED}
+files = {name: read_file(names[actual_names[name]]) for name in _REQUIRED}
 assert all(files[name] for name in _REQUIRED), 'required boot file is empty'
 manifest = json.loads(files['manifest'])
 assert set(manifest['files']) == _REQUIRED - {'manifest'}
