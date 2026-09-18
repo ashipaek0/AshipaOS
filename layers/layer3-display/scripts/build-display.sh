@@ -38,8 +38,21 @@ lock_source_line() {
 import json, sys
 lock = json.load(open(sys.argv[1], encoding="utf-8"))
 source = lock["source"]
-print("deb [check-valid-until=no] " + source["uri"] + " " + source["suite"] + " " + " ".join(source["components"]))
+print("deb [arch=amd64 check-valid-until=no] " + source["uri"] + " " + source["suite"] + " " + " ".join(source["components"]))
 PY
+}
+
+prepare_apt_state() {
+    local rootfs="$1" actual_arch
+    actual_arch=$(run_target "$rootfs" dpkg --print-architecture)
+    [[ "$actual_arch" == amd64 ]] || error "Layer 3 display requires an amd64 target rootfs, got $actual_arch"
+
+    # debootstrap leaves indexes for its mutable mirror in the target.  APT
+    # otherwise retains those lists when the source list is replaced, mixing
+    # candidates from two repositories and making valid snapshot dependencies
+    # appear uninstallable.
+    rm -rf -- "$rootfs/var/lib/apt/lists/"*
+    mkdir -p "$rootfs/var/lib/apt/lists/partial" "$rootfs/var/cache/apt/archives/partial"
 }
 
 # Emit name, version, architecture, filename and digest from the committed lock.
@@ -63,6 +76,8 @@ apt_options=(
     -o "Dir::Etc::sourceparts=-"
     -o Acquire::Check-Valid-Until=false
     -o Acquire::By-Hash=force
+    -o APT::Architecture=amd64
+    -o APT::Architectures=amd64
 )
 
 install_locked_packages() {
@@ -76,6 +91,7 @@ install_locked_packages() {
     done < <(load_lock)
     ((${#specs[@]} == 12)) || error "packages.lock must contain exactly 12 display packages"
 
+    prepare_apt_state "$rootfs"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" update
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" -y --no-install-recommends --download-only install "${specs[@]}"
 

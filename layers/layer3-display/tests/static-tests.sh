@@ -37,6 +37,7 @@ grep -q 'mpv' "$SESSION"
 grep -q 'BLOCKED' "$SESSION"
 ! grep -qE 'curl|wget|base64|/usr/bin/(ffmpeg|yt-dlp)' "$SESSION"
 ! grep -qE '^(User|Group)=ashipaos$' "$SERVICE"
+bash "$LAYER/tests/apt-state-regression.sh"
 python3 - "$LOCK" <<'PY'
 import json, sys
 lock = json.load(open(sys.argv[1], encoding="utf-8"))
