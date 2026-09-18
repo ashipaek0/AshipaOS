@@ -149,7 +149,7 @@ unit_path() {
 dependency_path() {
     local unit="$1" base
     for base in "$ROOTFS/etc/systemd/system" "$ROOTFS/usr/lib/systemd/system" "$ROOTFS/lib/systemd/system"; do
-        [[ -e "$base/$unit" || -L "$base/$unit" ]] && {
+        [[ -e "$base/$unit" ]] && {
             printf '%s\n' "$base/$unit"
             return 0
         }

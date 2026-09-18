@@ -240,7 +240,9 @@ policy:
   preset_file: /etc/systemd/system-preset/ashipaos.preset
   disable_unlisted: true
 EOF
-mkdir -p "$optional_test/rootfs/etc/systemd" "$optional_test/rootfs/usr/lib/systemd/system"
+mkdir -p "$optional_test/rootfs/etc/systemd/system" "$optional_test/rootfs/usr/lib/systemd/system"
+ln -s ../../../../missing/dbus.socket \
+    "$optional_test/rootfs/etc/systemd/system/dbus.socket"
 cat > "$optional_test/rootfs/usr/lib/systemd/system/systemd-logind.service" <<'EOF'
 [Unit]
 Wants=dbus.socket
