@@ -1,4 +1,3 @@
-```
 # Build artifacts and outputs
 output/
 build/
@@ -28,4 +27,3 @@ output/sbom.json
 
 # Temporary build scripts
 build/scripts/
-```
