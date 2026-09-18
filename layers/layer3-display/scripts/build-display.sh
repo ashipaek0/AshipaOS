@@ -190,7 +190,7 @@ write_evidence() {
         printf '{\n  "layer": 3,\n  "target": "x86_64",\n  "verification_class": "BUILD",\n  "debian_suite": "bookworm",\n  "debian_architecture": "amd64",\n  "package_lock": "config/packages.lock",\n  "rootfs_tarball": "%s",\n  "playback_asset": {"path": "/usr/share/ashipaos/display/test-video.mp4", "status": "BLOCKED_UNTIL_REPRODUCIBLE_ASSET"},\n  "packages": {\n' "$output"
         while IFS=$'\t' read -r pkg version architecture filename sha256; do
             [[ -n "$pkg" ]] || continue
-            policy=$(run_target "$rootfs" apt-cache policy "$pkg" | tr '\n' ' ' | sed 's/"/\\"/g')
+            policy=$(run_target "$rootfs" apt-cache "${apt_options[@]}" policy "$pkg" | tr '\n' ' ' | sed 's/"/\\"/g')
             printf '    "%s": {"version": "%s", "architecture": "%s", "sha256": "%s", "apt_policy": "%s"}%s\n' \
                 "$pkg" "$version" "$architecture" "$sha256" "$policy" "$([[ "$pkg" == python3-mpv ]] && echo '' || echo ',')"
         done < <(load_lock)
