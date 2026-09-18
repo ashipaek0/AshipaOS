@@ -203,6 +203,11 @@ main() {
         build_layer1 "$arch" "$rootfs_tar" "$target"
     fi
     
+    if [[ "$target" == "x86_64" ]]; then
+        log "=== LAYER 3 DISPLAY: Installing x86_64 Wayland/DRM stack ==="
+        bash "$LAYERS_DIR/layer3-display/scripts/build-display.sh" "$rootfs_tar" "$target"
+        log "Layer 3 display complete"
+    fi
     build_layer2 "$rootfs_tar" "$target"
     build_layer3 "$target"
     build_layer4 "$target"

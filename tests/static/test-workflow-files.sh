@@ -38,7 +38,10 @@ for p in files:
         assert "qemu-system-x86" in x86 and "ovmf" in x86, "x86_64 job must install UEFI QEMU dependencies"
         assert "util-linux" in x86, "x86_64 job must install stdbuf provider (util-linux)"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
-        assert x86.index("Build Layer 2") < x86.index("tests/vm/boot-x86_64.sh") < x86.index("Build Layer 3"), "VM gate ordering invalid"
+        assert "layer3-display/scripts/build-display.sh" in x86, "x86_64 display stack missing"
+        assert x86.index("Build Layer 1") < x86.index("layer3-display/scripts/build-display.sh") < x86.index("Build Layer 2"), "display stack must be installed before image creation"
+        assert "layer3-display/scripts/build-display.sh" not in arm, "display stack must remain x86_64-only"
+        assert x86.index("Build Layer 2") < x86.index("tests/vm/boot-x86_64.sh") < x86.index("Build Layer 3 (First-Boot Init)"), "VM gate ordering invalid"
         assert "if: always()" in x86 and "output/evidence/vm-x86_64/" in x86, "VM evidence upload must survive failure"
         assert "tests/vm/boot-x86_64.sh" not in arm and "qemu-system-x86" not in arm, "VM gate must remain x86_64-only"
         vm_script = os.path.join(root, "tests/vm/boot-x86_64.sh")

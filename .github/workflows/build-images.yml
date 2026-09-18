@@ -90,6 +90,11 @@ jobs:
         run: |
           sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
 
+      - name: Build Layer 3 Display (x86_64 only)
+        run: |
+          sudo bash layers/layer3-display/scripts/build-display.sh output/rootfs-x86_64.tar.gz x86_64
+          bash layers/layer3-display/tests/check-debian-packages.sh
+
       - name: Build Layer 2 (Disk Image)
         run: |
           export LIBGUESTFS_BACKEND=direct
