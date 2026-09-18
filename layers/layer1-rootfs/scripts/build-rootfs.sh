@@ -34,6 +34,9 @@ COREUTILS_PACKAGE="coreutils"
 BUSYBOX_PACKAGE="busybox"
 CA_CERTIFICATES_PACKAGE="ca-certificates"
 REPO_ROOT="$(cd "$LAYER1_DIR/../.." && pwd)"
+# The archive and its containing directory must remain writable by the user
+# who invoked sudo so the unprivileged downstream layers can use temp files.
+source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 
 usage() {
     cat <<EOF
@@ -215,6 +218,8 @@ create_rootfs() {
         --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
         -czf "$output_file" .
     [[ -s "$output_file" ]] || error "Rootfs tarball is empty: $output_file"
+    rootfs_output_owner "$output_file" "$(dirname "$output_file")" \
+        || error "Could not restore rootfs output ownership"
     generate_evidence "$product_arch" "$debian_arch" "$output_file" "$rootfs"
     log "Rootfs created successfully: $output_file ($(du -h "$output_file" | cut -f1))"
 }

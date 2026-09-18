@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 LOCK="$LAYER_DIR/config/packages.lock"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
+REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
+source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 SOURCE_LIST="/etc/apt/sources.list.d/ashipaos-layer3.list"
 TEMP_DIR=""
 
@@ -230,6 +232,8 @@ main() {
         --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
         -czf "$output" .
     mv -f "$output" "$input"
+    rootfs_output_owner "$input" "$(dirname "$input")" \
+        || error "Could not restore rootfs output ownership"
     log "Installed display contract into $input"
 }
 

@@ -17,6 +17,7 @@ jobs:
       - name: Run static tests
         run: |
           echo "=== Running Static Tests ==="
+          bash tests/static/test-rootfs-ownership.sh
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
               echo "Testing ${layer}"

@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/rootfs-ownership.sh"
 
 log() { echo "[SETUP] $(date '+%Y-%m-%d %H:%M:%S') $*"; }
 error() { echo "[SETUP ERROR] $*" >&2; exit 1; }
@@ -324,6 +325,8 @@ download_rootfs() {
         
         # Verify it's a valid tarball
         if tar -tzf "$output_file" &>/dev/null; then
+            rootfs_output_owner "$output_file" "$output_dir" \
+                || error "Could not restore rootfs output ownership"
             log "✓ Tarball validation successful"
             echo ""
             echo "Rootfs ready for Layer 2 build!"
@@ -352,6 +355,8 @@ download_rootfs() {
             tar -C "$temp_dir/rootfs" \
                 --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
                 -czf "$output_dir/rootfs-${deb_arch}.tar.gz" .
+            rootfs_output_owner "$output_dir/rootfs-${deb_arch}.tar.gz" "$output_dir" \
+                || error "Could not restore rootfs output ownership"
             log "Rootfs created via debootstrap: $output_dir/rootfs-${deb_arch}.tar.gz"
         else
             error "Cannot create rootfs: debootstrap not available and cloud image download failed"
