@@ -253,7 +253,7 @@ partition_offset = partition_start * sector
 reserved = 1
 fats = 2
 sectors_per_cluster = 8
-root_entries = 128
+root_entries = 512
 sectors_per_fat = 256
 root_sectors = root_entries * 32 // sector
 fat_start = partition_offset + reserved * sector
@@ -331,7 +331,7 @@ with open(path, 'wb') as image:
     boot[3:11] = b'MSDOS5.0'
     struct.pack_into('<H', boot, 11, sector)
     boot[13] = sectors_per_cluster
-    struct.pack_into('<HBB', boot, 14, reserved, fats, root_entries)
+    struct.pack_into('<HBH', boot, 14, reserved, fats, root_entries)
     struct.pack_into('<H', boot, 19, 0)
     struct.pack_into('<I', boot, 32, partition_sectors)
     boot[21] = 0xf8
@@ -473,7 +473,7 @@ assert start == 8192 and size == 256 * 2048
 b = start * 512
 assert data[b+54:b+62] == b'FAT16   '
 assert struct.unpack_from('<H', data, b+11)[0] == 512
-reserved, fats, root_entries = struct.unpack_from('<HBB', data, b+14)
+reserved, fats, root_entries = struct.unpack_from('<HBH', data, b+14)
 spf = struct.unpack_from('<H', data, b+22)[0]
 root = b + (reserved + fats * spf) * 512
 names = parse_root_directory(data, root, root_entries)
