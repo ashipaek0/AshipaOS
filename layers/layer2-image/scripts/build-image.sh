@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Layer 2: Build Partitioned Disk Image
+# Layer 2: Build Partitioned Disk Image with Bootloader
 # Verification Class: BUILD (VM and HARDWARE remain blocked)
 set -Eeuo pipefail
 
@@ -20,21 +20,24 @@ ROOT_SIZE_MB=""
 EFI_LABEL=""
 ROOT_LABEL=""
 
+COREELEC_URL="https://github.com/CoreELEC/CoreELEC/releases/download/21.3-Omega/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz"
+COREELEC_IMG="/tmp/coreelec-generic.img"
+BOOT_BLOBS_DIR="$LAYER_DIR/files/a95x-f3-air"
+
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS] <rootfs-image> [target]
 
-Build a GPT disk image from a Layer 1 rootfs tarball. This layer does not
-claim that the image is bootable; kernel and boot firmware are later inputs.
+Build a target-specific disk image from a Layer 1 rootfs tarball with bootloader installed.
 
 Options:
     -h, --help       Show this help message
     --validate       Validate configuration only
-    --layout-only F  Create and validate only the GPT layout in file F (test aid)
+    --layout-only F [target]  Create and validate only the target layout in file F (test aid)
     --print-repo-root  Print the resolved repository root (test aid)
 
 Verification Class: BUILD
-Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools
+Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools, grub-efi (x86_64), u-boot (ARM64)
 EOF
 }
 
@@ -101,8 +104,25 @@ parse_and_validate_config() {
 write_sfdisk_spec() {
     local destination="$1"
     local efi_sectors=$((EFI_SIZE_MB * 2048))
-    local root_start=$((2048 + efi_sectors))
+    local efi_start=2048
+    [[ "$TARGET" == "a95x-f3-air" ]] && efi_start=8192
+    local root_start=$((efi_start + efi_sectors))
     local root_sectors=$((ROOT_SIZE_MB * 2048))
+
+    if [[ "$TARGET" == "a95x-f3-air" ]]; then
+        # Amlogic's SD U-Boot writer preserves bytes 442..511 and writes the
+        # rest of the bundle at offset 512.  Use an MBR so its partition table
+        # lives in the preserved region; GPT metadata would be overwritten.
+        cat >"$destination" <<EOF
+label: dos
+unit: sectors
+sector-size: 512
+
+start=$efi_start, size=$efi_sectors, type=c, bootable
+start=$root_start, size=$root_sectors, type=83
+EOF
+        return
+    fi
 
     cat >"$destination" <<EOF
 label: gpt
@@ -149,8 +169,112 @@ mkdir-p /boot/efi
 mount /dev/sda1 /boot/efi
 mkdir-p /etc
 write /etc/fstab "LABEL=$ROOT_LABEL / ext4 defaults,noatime 0 1\nLABEL=$EFI_LABEL /boot/efi vfat umask=0077 0 2\n"
+# Install UEFI bootloader structure for x86_64
+mkdir-p /boot/efi/EFI/BOOT
+mkdir-p /boot/efi/EFI/systemd
+# Create placeholder for bootloader (actual bootloader installed by host tools or later layer)
+# This ensures the EFI partition has the correct directory structure
+write /boot/efi/EFI/BOOT/.gitkeep "EFI boot directory - bootloader installed by grub-install\n"
 umount-all
 EOF
+
+    # Install target-specific bootloader
+    if [[ "$TARGET" == "x86_64" ]]; then
+        install_x86_64_bootloader "$image"
+    elif [[ "$TARGET" == "a95x-f3-air" ]]; then
+        install_arm64_uboot "$image"
+    fi
+}
+
+install_x86_64_bootloader() {
+    local image="$1"
+    log "Installing GRUB EFI bootloader for x86_64 via guestfish..."
+
+    local grub_efi=""
+    for candidate in \
+        /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi \
+        /usr/lib/grub/x86_64-efi/grubx64.efi; do
+        if [[ -f "$candidate" ]]; then
+            grub_efi="$candidate"
+            break
+        fi
+    done
+    [[ -n "$grub_efi" ]] || error "GRUB EFI binary not found; install grub-efi-amd64-bin"
+
+    # GitHub-hosted runners do not permit host loop devices or privileged
+    # mounts. guestfish performs all image access through its appliance.
+    guestfish -a "$image" <<EOF
+run
+mount /dev/sda1 /
+mkdir-p /root
+mount /dev/sda2 /root
+mkdir-p /EFI/BOOT
+mkdir-p /boot/grub
+mkdir-p /root/boot/grub
+upload $grub_efi /EFI/BOOT/BOOTX64.EFI
+write /EFI/BOOT/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
+write /boot/grub/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
+write /root/boot/grub/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
+umount-all
+EOF
+
+    log "GRUB EFI bootloader installed successfully via guestfish"
+}
+
+install_arm64_uboot() {
+    local image="$1"
+    log "Installing U-Boot bootloader for A95X F3 Air (ARM64)..."
+    
+    local uboot_dir="$LAYER_DIR/files/a95x-f3-air"
+    local required_files=("aml_sdc_burn.UBOOT" "ddr-usb.bin" "meson1.dtb")
+    
+    # Check for required U-Boot files
+    local missing_files=()
+    for file in "${required_files[@]}"; do
+        if [[ ! -f "$uboot_dir/$file" ]]; then
+            missing_files+=("$file")
+        fi
+    done
+    
+    if [[ ${#missing_files[@]} -gt 0 ]]; then
+        for file in "${missing_files[@]}"; do
+            log "ERROR: missing A95X stock input: $uboot_dir/$file"
+        done
+        error "refusing to build A95X image without complete stock boot inputs"
+    fi
+    
+    local bundle="$uboot_dir/aml_sdc_burn.UBOOT"
+    local bundle_size
+    bundle_size=$(stat -c%s "$bundle")
+    [[ "$bundle_size" -gt 512 ]] || error "stock Amlogic U-Boot bundle is truncated"
+    [[ "$(sha256sum "$bundle" | awk '{print $1}')" == \
+        4b8ec8af9304ed7f6372c0c84d4e13813cf39a005b4d80bdbf9dc443ee9c7d9e ]] ||
+        error "stock Amlogic U-Boot bundle hash mismatch"
+
+    # The stock SD writer copies source[0:442] to image[0:442], then
+    # source[512:] to image[512:].  The 70-byte gap preserves the MBR
+    # partition entries at offsets 446..509.
+    log "Writing complete stock Amlogic U-Boot bundle with MBR-safe layout..."
+    dd if="$bundle" of="$image" bs=1 count=442 conv=notrunc status=none
+    dd if="$bundle" of="$image" bs=512 skip=1 seek=1 conv=notrunc status=none
+    
+    # Create boot script in EFI partition for UEFI-like boot on ARM
+    guestfish -a "$image" <<EOF
+run
+mount /dev/sda2 /
+mkdir-p /boot/extlinux
+mkdir-p /boot/dtbs
+upload $uboot_dir/meson1.dtb /boot/dtbs/a95x-f3-air.dtb
+write /boot/extlinux/extlinux.conf "DEFAULT ashipaos\\nLABEL ashipaos\\n  KERNEL /vmlinuz\\n  INITRD /initrd.img\\n  FDT /boot/dtbs/a95x-f3-air.dtb\\n  APPEND root=LABEL=$ROOT_LABEL rw console=ttyAML0,115200n8 console=tty0\\n"
+mkdir-p /extlinux
+write /extlinux/extlinux.conf "DEFAULT ashipaos\\nLABEL ashipaos\\n  KERNEL /vmlinuz\\n  INITRD /initrd.img\\n  FDT /boot/dtbs/a95x-f3-air.dtb\\n  APPEND root=LABEL=$ROOT_LABEL rw console=ttyAML0,115200n8 console=tty0\\n"
+mount /dev/sda1 /boot/efi
+mkdir-p /EFI/BOOT
+write /EFI/BOOT/README.txt "A95X uses stock U-Boot extlinux discovery; see /extlinux/extlinux.conf.\n"
+umount-all
+EOF
+    
+    log "U-Boot bootloader installed successfully for A95X F3 Air"
 }
 
 create_metadata() {
@@ -164,7 +288,7 @@ create_metadata() {
     "efi": {"size_mb": $EFI_SIZE_MB, "type": "vfat", "label": "$EFI_LABEL", "mount": "/boot/efi"},
     "root": {"size_mb": $ROOT_SIZE_MB, "type": "ext4", "label": "$ROOT_LABEL", "mount": "/"}
   },
-  "partition_table": "gpt",
+  "partition_table": "$([[ "$TARGET" == "a95x-f3-air" ]] && echo dos || echo gpt)",
   "bootloader": "not_configured",
   "rootfs_source": "$rootfs",
   "rootfs_size_bytes": $(stat -c%s "$rootfs"),
@@ -208,7 +332,7 @@ main() {
     case "${1:-}" in
         -h|--help) usage; return 0 ;;
         --validate) mode=validate; shift ;;
-        --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2 ;;
+        --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2; TARGET="${1:-x86_64}"; [[ $# -eq 0 || $# -eq 1 ]] || error "--layout-only accepts only [target]"; [[ $# -eq 0 ]] || shift ;;
         --print-repo-root) printf '%s\n' "$REPO_ROOT"; return 0 ;;
     esac
 
