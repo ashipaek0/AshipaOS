@@ -49,8 +49,8 @@ test_shell_standards() {
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
     
     # Check for set -euo pipefail
-    if grep -q "set -euo pipefail" "$script"; then
-        log_pass "Script uses 'set -euo pipefail'"
+    if grep -qE "set -E?euo pipefail" "$script"; then
+        log_pass "Script uses 'set -Eeuo pipefail'"
     else
         log_fail "Script missing 'set -euo pipefail'"
     fi
@@ -184,6 +184,88 @@ test_evidence_generation() {
     fi
 }
 
+# Test 8: Target kernel/initramfs policy and validation are explicit
+ test_kernel_initramfs_policy() {
+    log_test "Checking target kernel/initramfs policy..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    local config="$LAYER1_DIR/config/rootfs-config.yaml"
+
+    grep -q '^kernel:' "$config" && log_pass "Config declares kernel policy" || log_fail "Config missing kernel policy"
+    grep -q '^initramfs:' "$config" && log_pass "Config declares initramfs policy" || log_fail "Config missing initramfs policy"
+    grep -q 'x86_64: amd64' "$config" && log_pass "Config maps x86_64 to amd64" || log_fail "Config missing x86_64 mapping"
+    grep -q '\["x86_64"\]="amd64"' "$script" && log_pass "Script maps x86_64 to amd64" || log_fail "Script missing x86_64 mapping"
+    grep -q 'linux-image-amd64' "$script" && log_pass "amd64 kernel package is declared" || log_fail "amd64 kernel package missing"
+    grep -q 'initramfs-tools' "$script" && log_pass "initramfs tooling is declared" || log_fail "initramfs tooling missing"
+    grep -q 'validate_kernel_initramfs' "$script" && log_pass "Kernel/initramfs validation is enforced" || log_fail "Kernel/initramfs validation missing"
+    grep -q 'dpkg-query' "$script" && log_pass "Package metadata is recorded/checked" || log_fail "Package metadata handling missing"
+    grep -q 'sha256sum' "$script" && log_pass "File hashes are recorded" || log_fail "File metadata hashing missing"
+    grep -q 'local vmlinuz="\$rootfs/vmlinuz"' "$script" && log_pass "Validator checks root-level /vmlinuz" || log_fail "Validator does not check root-level /vmlinuz"
+    grep -q 'local initrd="\$rootfs/initrd.img"' "$script" && log_pass "Validator checks root-level /initrd.img" || log_fail "Validator does not check root-level /initrd.img"
+    grep -q 'file_metadata_json "\$rootfs_metadata" /vmlinuz' "$script" && log_pass "Evidence records root-level /vmlinuz" || log_fail "Evidence path for kernel is incorrect"
+    grep -q 'file_metadata_json "\$rootfs_metadata" /initrd.img' "$script" && log_pass "Evidence records root-level /initrd.img" || log_fail "Evidence path for initramfs is incorrect"
+    grep -q '\-L "\$vmlinuz"' "$script" && log_pass "Validator requires /vmlinuz symlink" || log_fail "Validator does not require /vmlinuz symlink"
+    grep -q '\-L "\$initrd"' "$script" && log_pass "Validator requires /initrd.img symlink" || log_fail "Validator does not require /initrd.img symlink"
+    grep -q '^    - /vmlinuz$' "$config" && log_pass "Config requires root-level /vmlinuz" || log_fail "Config has wrong kernel entry point"
+    grep -q '^    - /initrd.img$' "$config" && log_pass "Config requires root-level /initrd.img" || log_fail "Config has wrong initramfs entry point"
+    if grep -qE '/boot/(vmlinuz|initrd\.img)([^-]|$)' "$script"; then
+        log_fail "Script requires a non-versioned /boot kernel/initramfs alias"
+    else
+        log_pass "Script only resolves versioned files under /boot"
+    fi
+    if grep -qE '(/boot|boot/).*cp |cp .*(/boot|boot/)' "$script"; then
+        log_fail "Script appears to copy a host boot file"
+    else
+        log_pass "No host /boot copy path detected"
+    fi
+}
+
+# Test 9: x86_64 marker is emitted by the systemd-managed getty banner
+test_x86_64_boot_marker() {
+    log_test "Checking x86_64 serial login banner configuration..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    grep -q 'install_x86_64_boot_marker' "$script" && log_pass "x86_64 banner installer exists" || log_fail "x86_64 banner installer missing"
+    grep -q 'local issue="\$rootfs/etc/issue"' "$script" && log_pass "Banner writes rootfs /etc/issue" || log_fail "Banner path is not rootfs /etc/issue"
+    grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$script" && log_pass "Banner appends exact success marker" || log_fail "Exact success marker append missing"
+    local marker_guard
+    marker_guard=$(grep 'if \[\[ "\$product_arch"' "$script" || true)
+    if [[ "$marker_guard" == *'"x86_64"'* && "$marker_guard" == *'"amd64"'* ]]; then
+        log_pass "Banner installation enables x86_64 and amd64 aliases"
+    else
+        log_fail "x86_64/amd64 installation guard missing"
+    fi
+    if [[ "$marker_guard" != *'"arm64"'* && "$marker_guard" != *'"armhf"'* ]]; then
+        log_pass "Banner installation excludes ARM aliases"
+    else
+        log_fail "ARM alias unexpectedly enables banner installation"
+    fi
+    if grep -q 'ashipaos-boot-success.service\|multi-user.target.wants' "$script"; then
+        log_fail "Marker must not depend on a separate systemd service"
+    else
+        log_pass "Marker has no separate service dependency"
+    fi
+}
+
+# Test 10: Safe argument and validation failures are non-zero
+ test_argument_validation() {
+    log_test "Checking argument and validation failure paths..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+    if bash "$script" >/dev/null 2>&1; then
+        log_fail "Missing arguments unexpectedly succeeded"
+    else
+        log_pass "Missing arguments fail non-zero"
+    fi
+    if bash "$script" invalid-arch /tmp/layer1-static-test.tar.gz >/dev/null 2>&1; then
+        log_fail "Invalid architecture unexpectedly succeeded"
+    else
+        log_pass "Invalid architecture fails non-zero"
+    fi
+    if bash -n "$script"; then
+        log_pass "Build script passes bash syntax validation"
+    else
+        log_fail "Build script has bash syntax errors"
+    fi
+}
+
 # Run all tests
 main() {
     echo "========================================"
@@ -211,7 +293,16 @@ main() {
     
     test_evidence_generation
     echo ""
-    
+
+    test_kernel_initramfs_policy
+    echo ""
+
+    test_x86_64_boot_marker
+    echo ""
+
+    test_argument_validation
+    echo ""
+
     echo "========================================"
     echo "Test Results: $PASSED passed, $FAILED failed"
     echo "========================================"

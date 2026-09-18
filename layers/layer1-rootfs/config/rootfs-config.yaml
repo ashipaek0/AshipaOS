@@ -1,5 +1,5 @@
 # Layer 1 Configuration: Minimal Debian Root Filesystem
-# This configuration file defines parameters for rootfs generation
+# Kernel/initramfs packages are installed in the target rootfs, never copied from the host.
 
 debian:
   suite: bookworm
@@ -9,11 +9,17 @@ debian:
     - contrib
     - non-free-firmware
 
-# Architectures to support
+# Product names are mapped to Debian names by build-rootfs.sh.
 architectures:
   - arm64
   - amd64
   - armhf
+  - x86_64
+architecture_map:
+  x86_64: amd64
+  amd64: amd64
+  arm64: arm64
+  armhf: armhf
 
 # Packages to include in minimal rootfs
 packages:
@@ -43,25 +49,45 @@ packages:
     - sysvinit-utils
     - tar
     - util-linux
-  
+
   essential:
     - apt
     - systemd
     - dbus
     - kmod
     - udev
-  
+
   networking:
     - iproute2
     - netbase
     - ifupdown
-  
+
   utilities:
     - ca-certificates
     - curl
     - wget
     - vim-tiny
     - less
+
+# Debian target-rootfs policy. Each target installs its own kernel and tooling.
+kernel:
+  packages:
+    amd64:
+      - linux-image-amd64
+    arm64:
+      - linux-image-arm64
+    armhf:
+      - linux-image-armmp
+  required_files:
+    # Debian exposes these root-level symlinks to versioned files under /boot.
+    - /vmlinuz
+    - /initrd.img
+
+initramfs:
+  packages:
+    - initramfs-tools
+  generate: true
+  validate_versioned_files: true
 
 # Packages to exclude (for minimization)
 exclude_patterns:
@@ -79,10 +105,12 @@ verification:
   checks:
     - rootfs_boots_in_vm
     - essential_packages_present
+    - kernel_and_initramfs_present
     - no_unnecessary_files
     - size_within_limits
-  
+
   size_limits:
     arm64: 200M
     amd64: 250M
     armhf: 180M
+    x86_64: 250M

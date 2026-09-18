@@ -189,9 +189,15 @@ install_x86_64_bootloader() {
     guestfish -a "$image" <<EOF
 run
 mount /dev/sda1 /
+mkdir-p /root
+mount /dev/sda2 /root
 mkdir-p /EFI/BOOT
+mkdir-p /boot/grub
+mkdir-p /root/boot/grub
 upload $grub_efi /EFI/BOOT/BOOTX64.EFI
-write /EFI/BOOT/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /boot/vmlinuz root=LABEL=$ROOT_LABEL ro quiet\\n  initrd /boot/initrd.img\\n}\\n"
+write /EFI/BOOT/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
+write /boot/grub/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
+write /root/boot/grub/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
 umount-all
 EOF
 

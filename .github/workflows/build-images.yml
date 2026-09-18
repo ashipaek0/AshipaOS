@@ -52,6 +52,8 @@ jobs:
             debootstrap \
             qemu-user-static \
             qemu-system-arm \
+            qemu-system-x86 \
+            ovmf \
             binfmt-support \
             libguestfs-tools \
             linux-image-generic \
@@ -93,6 +95,22 @@ jobs:
           export LIBGUESTFS_BACKEND=direct
           bash layers/layer2-image/tests/layout-tests.sh
           bash layers/layer2-image/scripts/build-image.sh output/rootfs-x86_64.tar.gz x86_64
+
+      - name: Stage 2 QEMU UEFI boot gate (x86_64 only)
+        run: |
+          set -Eeuo pipefail
+          image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-x86_64-*.img' -print -quit)
+          [[ -n "$image" ]] || { echo 'Layer 2 x86_64 image not found' >&2; exit 1; }
+          bash tests/vm/boot-x86_64.sh "$image" output/evidence/vm-x86_64
+
+      - name: Upload x86_64 VM evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ashipaos-x86_64-vm-evidence-${{ github.run_id }}
+          path: output/evidence/vm-x86_64/
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Build Layer 3 (First-Boot Init)
         run: |
