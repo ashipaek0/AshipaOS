@@ -201,7 +201,9 @@ verify_units() {
     local verify_output="$TEMP_DIR/systemd-analyze-verify.out" line dependency allowed saw_diagnostic=0
     local -a optional_missing=()
     mapfile -t optional_missing < <(optional_missing_dependencies)
-    if systemd-analyze verify --root="$ROOTFS" "${required[@]}" >"$verify_output" 2>&1; then
+    # Layer 1 intentionally omits /usr/share/man; suppress only systemd-analyze's
+    # optional man-page lookup while retaining all unit/dependency diagnostics.
+    if systemd-analyze --man=no verify --root="$ROOTFS" "${required[@]}" >"$verify_output" 2>&1; then
         return 0
     fi
     while IFS= read -r line; do

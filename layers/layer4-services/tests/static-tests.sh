@@ -21,7 +21,7 @@ check test -x "$BUILD_SCRIPT"
 check test -f "$CONFIG_FILE"
 check contains '^#!/usr/bin/env bash$' "$BUILD_SCRIPT"
 check contains 'set -Eeuo pipefail' "$BUILD_SCRIPT"
-check contains 'systemd-analyze verify' "$BUILD_SCRIPT"
+check contains 'systemd-analyze --man=no verify' "$BUILD_SCRIPT"
 check contains 'systemctl --root=' "$BUILD_SCRIPT"
 check contains 'packages_changed": false' "$BUILD_SCRIPT"
 check contains 'Layer 4 is x86_64-only' "$BUILD_SCRIPT"
@@ -255,6 +255,7 @@ EOF
 tar -czf "$optional_test/rootfs.tar.gz" -C "$optional_test/rootfs" .
 cat > "$optional_test/bin/systemd-analyze" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" > "${VERIFY_ARGS:?}"
 printf '%b\n' "${VERIFY_OUTPUT:?}"
 exit 1
 EOF
@@ -264,12 +265,18 @@ exit 0
 EOF
 chmod +x "$optional_test/bin/systemd-analyze" "$optional_test/bin/systemctl"
 export VERIFY_OUTPUT='systemd-logind.service: Unit dbus.socket not found.'
+export VERIFY_ARGS="$optional_test/systemd-analyze.args"
 if PATH="$optional_test/bin:$PATH" \
     "$optional_test/layer4-services/scripts/build-services.sh" "$optional_test/rootfs.tar.gz" x86_64 \
     >/dev/null 2>&1; then
     pass 'missing optional Wants/After dependency is classified and tolerated'
 else
     fail 'missing optional Wants/After dependency is classified and tolerated'
+fi
+if grep -Fq -- '--man=no verify --root=' "$VERIFY_ARGS"; then
+    pass 'systemd-analyze verify disables optional man-page lookup'
+else
+    fail 'systemd-analyze verify disables optional man-page lookup'
 fi
 sed -i '/^Wants=dbus\.socket$/a Requires=dbus.socket' \
     "$optional_test/rootfs/usr/lib/systemd/system/systemd-logind.service"
