@@ -3,6 +3,9 @@
 # on hardware with recorded evidence. NEVER invent values here.
 name: A95X F3 Air
 
+features:
+  boot_status: true
+
 status:
   device_tree: PROVISIONAL
   wifi: PROVISIONAL

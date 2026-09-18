@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+# Retain at most 4096 bytes of the request line and bound the read time.
+request_file=$(mktemp)
+trap 'rm -f "$request_file"' EXIT
+busybox timeout 1 busybox ash -c 'IFS= read -r line && printf "%s\\n" "$line"' >"$request_file" 2>/dev/null || true
+request_line=$(head -c 4096 "$request_file" | tr -d '\r\n')
+
+if [ "$request_line" = "GET /boot-status HTTP/1.0" ] ||
+   [ "$request_line" = "GET /boot-status HTTP/1.1" ]; then
+    printf 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 24\r\nConnection: close\r\n\r\nASHIPAOS_BOOT_STATUS=OK\n'
+elif [ "${request_line%% *}" = "GET" ]; then
+    printf 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+else
+    printf 'HTTP/1.1 405 Method Not Allowed\r\nAllow: GET\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+fi

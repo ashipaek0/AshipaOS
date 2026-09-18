@@ -215,7 +215,7 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz
+          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
       - name: Build Layer 2 (Disk Image)
         run: |

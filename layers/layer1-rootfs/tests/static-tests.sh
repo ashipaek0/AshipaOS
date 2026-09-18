@@ -238,7 +238,11 @@ test_x86_64_boot_marker() {
     else
         log_fail "ARM alias unexpectedly enables banner installation"
     fi
-    if grep -q 'ashipaos-boot-success.service\|multi-user.target.wants' "$script"; then
+    local marker_installer
+    marker_installer=$(<"$script")
+    marker_installer=${marker_installer#*install_x86_64_boot_marker()}
+    marker_installer=${marker_installer%%target_enables_boot_status()*}
+    if [[ "$marker_installer" == *ashipaos-boot-success.service* || "$marker_installer" == *multi-user.target.wants* ]]; then
         log_fail "Marker must not depend on a separate systemd service"
     else
         log_pass "Marker has no separate service dependency"

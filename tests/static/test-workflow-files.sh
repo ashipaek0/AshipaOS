@@ -78,8 +78,9 @@ for p in files:
         assert 'if [[ "$product_arch" == "x86_64" || "$product_arch" == "amd64" ]]' in marker, "boot marker must enable x86_64 and amd64 aliases"
         marker_guard = next(line for line in marker.splitlines() if 'if [[ "$product_arch"' in line)
         assert '"arm64"' not in marker_guard and '"armhf"' not in marker_guard, "boot marker must remain disabled for ARM aliases"
-        assert "ashipaos-boot-success.service" not in marker, "boot marker must not depend on a separate service"
-        assert "multi-user.target.wants" not in marker, "boot marker must not use target service wiring"
+        marker_installer = marker[marker.index("install_x86_64_boot_marker()"):marker.index("target_enables_boot_status()")]
+        assert "ashipaos-boot-success.service" not in marker_installer, "boot marker must not depend on a separate service"
+        assert "multi-user.target.wants" not in marker_installer, "boot marker must not use target service wiring"
 
 
 print("test-workflow-files: PASS")

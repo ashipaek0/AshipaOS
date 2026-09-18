@@ -39,8 +39,9 @@ usage() {
 build_layer1() {
     local arch="$1"
     local output="$2"
+    local target="$3"
     log "=== LAYER 1: Building RootFS (arch=$arch) ==="
-    bash "$LAYERS_DIR/layer1-rootfs/scripts/build-rootfs.sh" "$arch" "$output"
+    bash "$LAYERS_DIR/layer1-rootfs/scripts/build-rootfs.sh" "$arch" "$output" "$target"
     log "Layer 1 complete: $output"
 }
 
@@ -199,7 +200,7 @@ main() {
             die "Rootfs not found: $rootfs_tar"
         fi
     else
-        build_layer1 "$arch" "$rootfs_tar"
+        build_layer1 "$arch" "$rootfs_tar" "$target"
     fi
     
     build_layer2 "$rootfs_tar" "$target"

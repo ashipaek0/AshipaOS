@@ -31,16 +31,19 @@ declare -A KERNEL_PACKAGES=(
 )
 INITRAMFS_PACKAGE="initramfs-tools"
 COREUTILS_PACKAGE="coreutils"
+BUSYBOX_PACKAGE="busybox"
+REPO_ROOT="$(cd "$LAYER1_DIR/../.." && pwd)"
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <target_arch> <output_file>
+Usage: $(basename "$0") <target_arch> <output_file> [target]
 
 Creates a Debian root filesystem with a target-resolved kernel and initramfs.
 
 Arguments:
   target_arch   Product/Debian architecture (x86_64, amd64, arm64, armhf)
   output_file   Output path for the rootfs tarball
+  target        Optional product target; enables target features from build/targets
 
 Environment Variables:
   DEBIAN_SUITE      Debian suite (default: bookworm)
@@ -101,6 +104,25 @@ install_x86_64_boot_marker() {
     printf 'ASHIPAOS_BOOT_SUCCESS=1\n' >> "$issue"
 }
 
+target_enables_boot_status() {
+    local target="${1:-}"
+    local target_file="$REPO_ROOT/build/targets/amlogic/boxes/${target}.yaml"
+    [[ -f "$target_file" ]] && grep -q '^  boot_status: true$' "$target_file"
+}
+
+install_boot_status() {
+    local rootfs="$1"
+    local target="${2:-}"
+    target_enables_boot_status "$target" || return 0
+    local overlay="$REPO_ROOT/rootfs-overlay"
+    [[ -f "$overlay/usr/libexec/ashipaos-boot-status-handler" ]] || error "Missing boot-status handler overlay"
+    [[ -f "$overlay/etc/systemd/system/ashipaos-boot-status.service" ]] || error "Missing boot-status service overlay"
+    install -D -m 0755 "$overlay/usr/libexec/ashipaos-boot-status-handler" "$rootfs/usr/libexec/ashipaos-boot-status-handler"
+    install -D -m 0644 "$overlay/etc/systemd/system/ashipaos-boot-status.service" "$rootfs/etc/systemd/system/ashipaos-boot-status.service"
+    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants"
+    ln -sf ../ashipaos-boot-status.service "$rootfs/etc/systemd/system/multi-user.target.wants/ashipaos-boot-status.service"
+}
+
 install_kernel_and_initramfs() {
     local rootfs="$1"
     local debian_arch="$2"
@@ -117,7 +139,7 @@ install_kernel_and_initramfs() {
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
         apt-get -o DPkg::Options::=--force-confold update
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE"
+        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE"
 
     # Kernel postinst normally creates these. Explicitly finish generation so both
     # native and debootstrap --foreign builds have the same deterministic gate.
@@ -157,7 +179,7 @@ validate_kernel_initramfs() {
 }
 
 create_rootfs() {
-    local product_arch="$1" output_file="$2" debian_arch="$3"
+    local product_arch="$1" output_file="$2" debian_arch="$3" target="${4:-}"
     local temp_dir rootfs qemu_arch
     temp_dir=$(mktemp -d)
     rootfs="$temp_dir/rootfs"
@@ -184,6 +206,7 @@ create_rootfs() {
     if [[ "$product_arch" == "x86_64" || "$product_arch" == "amd64" ]]; then
         install_x86_64_boot_marker "$rootfs"
     fi
+    install_boot_status "$rootfs" "$target"
     minimize_rootfs "$rootfs"
     validate_kernel_initramfs "$rootfs" "$debian_arch" "${KERNEL_PACKAGES[$debian_arch]}"
     mkdir -p "$(dirname "$output_file")"
@@ -241,12 +264,12 @@ EOF
 }
 
 main() {
-    [[ $# -eq 2 ]] || usage
+    [[ $# -ge 2 && $# -le 3 ]] || usage
     local product_arch="$1" output_file="$2"
     local debian_arch="${ARCH_MAP[$product_arch]:-}"
     [[ -n "$debian_arch" ]] || error "Invalid architecture: $product_arch (valid: x86_64, amd64, arm64, armhf)"
     check_dependencies "$debian_arch"
-    create_rootfs "$product_arch" "$output_file" "$debian_arch"
+    create_rootfs "$product_arch" "$output_file" "$debian_arch" "${3:-}"
     # Re-open the tarball for evidence would require extracting it; metadata was
     # captured before packaging by the same validated target rootfs.
     log "Layer 1 build completed successfully; kernel/initramfs validation passed"

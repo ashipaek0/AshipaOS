@@ -63,6 +63,7 @@ packages:
     - ifupdown
 
   utilities:
+    - busybox
     - ca-certificates
     - curl
     - wget
