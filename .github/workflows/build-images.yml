@@ -80,6 +80,42 @@ jobs:
           export LIBGUESTFS_BACKEND=direct
           timeout 120s libguestfs-test-tool
 
+      - name: Patch x86_64 Layer 1 debootstrap retry handling
+        run: |
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          expected_version = "1.0.134ubuntu2"
+          functions = Path("/usr/share/debootstrap/functions")
+          version = subprocess.check_output(
+              ["dpkg-query", "-W", "-f=${Version}", "debootstrap"], text=True
+          ).strip()
+          if version != expected_version:
+              raise SystemExit(
+                  f"unexpected debootstrap version: {version!r}; "
+                  f"expected {expected_version!r}"
+              )
+          if not functions.is_file():
+              raise SystemExit(f"missing debootstrap source: {functions}")
+
+          text = functions.read_text()
+          old = 'if ! just_get "$from" "$dest2"; then continue 2; fi'
+          new = 'if ! just_get "$from" "$dest2"; then continue; fi'
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f"expected exactly one buggy debootstrap download branch, "
+                  f"found {text.count(old)}"
+              )
+          if text.count(new):
+              raise SystemExit("debootstrap retry correction already present")
+          patched = text.replace(old, new)
+          if patched.count(old) != 0 or patched.count(new) != 1:
+              raise SystemExit("debootstrap retry correction postcondition failed")
+          functions.write_text(patched)
+          print(f"patched {functions} for debootstrap {version}")
+          PY
+
       - name: Configure GPG
         run: |
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
