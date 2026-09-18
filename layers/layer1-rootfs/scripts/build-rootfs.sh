@@ -32,6 +32,7 @@ declare -A KERNEL_PACKAGES=(
 INITRAMFS_PACKAGE="initramfs-tools"
 COREUTILS_PACKAGE="coreutils"
 BUSYBOX_PACKAGE="busybox"
+CA_CERTIFICATES_PACKAGE="ca-certificates"
 REPO_ROOT="$(cd "$LAYER1_DIR/../.." && pwd)"
 
 usage() {
@@ -139,7 +140,7 @@ install_kernel_and_initramfs() {
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
         apt-get -o DPkg::Options::=--force-confold update
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE"
+        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE"
 
     # Kernel postinst normally creates these. Explicitly finish generation so both
     # native and debootstrap --foreign builds have the same deterministic gate.

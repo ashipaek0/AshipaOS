@@ -8,6 +8,7 @@ LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 LOCK="$LAYER_DIR/config/packages.lock"
 EVIDENCE_DIR="$LAYER_DIR/evidence"
 SOURCE_LIST="/etc/apt/sources.list.d/ashipaos-layer3.list"
+TEMP_DIR=""
 
 error() { printf '[L3-DISPLAY ERROR] %s\n' "$*" >&2; exit 1; }
 log() { printf '[L3-DISPLAY] %s\n' "$*"; }
@@ -137,15 +138,15 @@ write_evidence() {
 
 main() {
     [[ $# -eq 2 ]] || { usage; exit 2; }
-    local input="$1" target="$2" temp output
+    local input="$1" target="$2" output
     [[ "$target" == x86_64 ]] || error "Layer 3 display is x86_64-only; refusing target '$target'"
     [[ -s "$input" ]] || error "Rootfs tarball not found or empty: $input"
     [[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
     command -v mount >/dev/null 2>&1 || error "mount is required"
 
-    temp=$(mktemp -d)
-    ROOTFS="$temp/rootfs"
-    trap 'cleanup; rm -rf "$temp"' EXIT
+    TEMP_DIR=$(mktemp -d)
+    ROOTFS="$TEMP_DIR/rootfs"
+    trap 'cleanup; [[ -n "${TEMP_DIR:-}" ]] && rm -rf -- "$TEMP_DIR"' EXIT
     mkdir -p "$ROOTFS"
     tar -xzf "$input" -C "$ROOTFS"
     mount_api "$ROOTFS"

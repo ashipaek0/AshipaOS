@@ -249,7 +249,24 @@ test_x86_64_boot_marker() {
     fi
 }
 
-# Test 10: Safe argument and validation failures are non-zero
+# Test 10: CA certificates are available to later rootfs APT operations
+test_ca_certificates_bootstrap() {
+    log_test "Checking rootfs CA certificate bootstrap..."
+    local script="$LAYER1_DIR/scripts/build-rootfs.sh"
+
+    if grep -q 'CA_CERTIFICATES_PACKAGE="ca-certificates"' "$script"; then
+        log_pass "CA certificates package is explicitly declared"
+    else
+        log_fail "CA certificates package is not explicitly declared"
+    fi
+    if grep -q 'install "\$kernel_package" "\$INITRAMFS_PACKAGE" "\$COREUTILS_PACKAGE" "\$BUSYBOX_PACKAGE" "\$CA_CERTIFICATES_PACKAGE"' "$script"; then
+        log_pass "CA certificates are installed in the target rootfs before Layer 3 APT"
+    else
+        log_fail "CA certificates are missing from the target rootfs install command"
+    fi
+}
+
+# Test 11: Safe argument and validation failures are non-zero
  test_argument_validation() {
     log_test "Checking argument and validation failure paths..."
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
@@ -302,6 +319,9 @@ main() {
     echo ""
 
     test_x86_64_boot_marker
+    echo ""
+
+    test_ca_certificates_bootstrap
     echo ""
 
     test_argument_validation
