@@ -159,9 +159,12 @@ install_locked_packages() {
 
 validate_target_runtime() {
     local rootfs="$1"
-    run_target "$rootfs" command -v cage >/dev/null || error "cage executable missing from target rootfs"
-    run_target "$rootfs" command -v mpv >/dev/null || error "mpv executable missing from target rootfs"
-    run_target "$rootfs" command -v python3 >/dev/null || error "python3 executable missing from target rootfs"
+    run_target "$rootfs" /bin/sh -c 'command -v cage' >/dev/null \
+        || error "cage executable missing from target rootfs"
+    run_target "$rootfs" /bin/sh -c 'command -v mpv' >/dev/null \
+        || error "mpv executable missing from target rootfs"
+    run_target "$rootfs" /bin/sh -c 'command -v python3' >/dev/null \
+        || error "python3 executable missing from target rootfs"
     run_target "$rootfs" python3 -c 'import mpv; print(mpv.MPV)' >/dev/null \
         || error "target rootfs Python mpv import/API check failed"
 }
