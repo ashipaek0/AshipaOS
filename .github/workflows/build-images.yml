@@ -190,7 +190,6 @@ jobs:
             jq \
             shellcheck \
             u-boot-tools \
-            u-boot \
             util-linux \
             device-tree-compiler
           
