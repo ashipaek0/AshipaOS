@@ -220,5 +220,77 @@ else
     pass 'missing template is rejected'
 fi
 
+# A distro unit may have an optional Wants/After dependency that is not shipped
+# by the pinned package version. Only that classified diagnostic is tolerated;
+# unrelated verifier failures must remain fatal.
+optional_test="$tmp_dir/optional-dependency-test"
+mkdir -p "$optional_test/bin"
+cp -a "$LAYER_DIR" "$optional_test/layer4-services"
+cat > "$optional_test/layer4-services/config/services-config.yaml" <<'EOF'
+target: x86_64
+services:
+  enabled:
+    - systemd-logind.service
+  disabled:
+    - bluetooth.service
+  required_services:
+    - systemd-logind.service
+default_target: multi-user.target
+policy:
+  preset_file: /etc/systemd/system-preset/ashipaos.preset
+  disable_unlisted: true
+EOF
+mkdir -p "$optional_test/rootfs/etc/systemd" "$optional_test/rootfs/usr/lib/systemd/system"
+cat > "$optional_test/rootfs/usr/lib/systemd/system/systemd-logind.service" <<'EOF'
+[Unit]
+Wants=dbus.socket
+After=dbus.socket
+[Service]
+ExecStart=/bin/true
+[Install]
+WantedBy=multi-user.target
+EOF
+tar -czf "$optional_test/rootfs.tar.gz" -C "$optional_test/rootfs" .
+cat > "$optional_test/bin/systemd-analyze" <<'EOF'
+#!/usr/bin/env bash
+printf '%b\n' "${VERIFY_OUTPUT:?}"
+exit 1
+EOF
+cat > "$optional_test/bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$optional_test/bin/systemd-analyze" "$optional_test/bin/systemctl"
+export VERIFY_OUTPUT='systemd-logind.service: Unit dbus.socket not found.'
+if PATH="$optional_test/bin:$PATH" \
+    "$optional_test/layer4-services/scripts/build-services.sh" "$optional_test/rootfs.tar.gz" x86_64 \
+    >/dev/null 2>&1; then
+    pass 'missing optional Wants/After dependency is classified and tolerated'
+else
+    fail 'missing optional Wants/After dependency is classified and tolerated'
+fi
+sed -i '/^Wants=dbus\.socket$/a Requires=dbus.socket' \
+    "$optional_test/rootfs/usr/lib/systemd/system/systemd-logind.service"
+tar -czf "$optional_test/rootfs.tar.gz" -C "$optional_test/rootfs" .
+export VERIFY_OUTPUT='systemd-logind.service: Unit dbus.socket not found.'
+if PATH="$optional_test/bin:$PATH" \
+    "$optional_test/layer4-services/scripts/build-services.sh" "$optional_test/rootfs.tar.gz" x86_64 \
+    >/dev/null 2>&1; then
+    fail 'missing required dependency is not tolerated'
+else
+    pass 'missing required dependency is not tolerated'
+fi
+sed -i '/^Requires=dbus\.socket$/d' \
+    "$optional_test/rootfs/usr/lib/systemd/system/systemd-logind.service"
+tar -czf "$optional_test/rootfs.tar.gz" -C "$optional_test/rootfs" .
+export VERIFY_OUTPUT=$'systemd-logind.service: Unit dbus.socket not found.\nsystemd-logind.service: Unit required.socket not found.'
+if PATH="$optional_test/bin:$PATH" \
+    "$optional_test/layer4-services/scripts/build-services.sh" "$optional_test/rootfs.tar.gz" x86_64 \
+    >/dev/null 2>&1; then
+    fail 'unclassified verifier diagnostics remain fatal'
+else
+    pass 'unclassified verifier diagnostics remain fatal'
+fi
+
 printf '================================\nResults: %d passed, %d failed\n' "$PASSED" "$FAILED"
 [[ $FAILED -eq 0 ]]

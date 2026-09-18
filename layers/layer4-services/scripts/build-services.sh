@@ -146,6 +146,83 @@ unit_path() {
     return 1
 }
 
+dependency_path() {
+    local unit="$1" base
+    for base in "$ROOTFS/etc/systemd/system" "$ROOTFS/usr/lib/systemd/system" "$ROOTFS/lib/systemd/system"; do
+        [[ -e "$base/$unit" || -L "$base/$unit" ]] && {
+            printf '%s\n' "$base/$unit"
+            return 0
+        }
+    done
+    return 1
+}
+
+optional_missing_dependency() {
+    local source="$1" dependency="$2" directive value token optional=0 required=0
+    while IFS= read -r line; do
+        [[ "$line" == *=* ]] || continue
+        directive="${line%%=*}"
+        value="${line#*=}"
+        case "$directive" in
+            Wants|After)
+                for token in $value; do
+                    [[ "$token" == "$dependency" ]] && optional=1
+                done
+                ;;
+            Requires|Requisite|BindsTo|Upholds|RequiresMountsFor|WantsMountsFor)
+                for token in $value; do
+                    [[ "$token" == "$dependency" ]] && required=1
+                done
+                ;;
+        esac
+    done < "$source"
+    ((optional == 1 && required == 0))
+}
+
+optional_missing_dependencies() {
+    local unit source line directive value dependency
+    local -a units=("${required[@]}")
+    for unit in "${units[@]}"; do
+        source=$(unit_path "$unit") || continue
+        while IFS= read -r line; do
+            [[ "$line" == Wants=* || "$line" == After=* ]] || continue
+            directive="${line%%=*}"
+            value="${line#*=}"
+            for dependency in $value; do
+                dependency_path "$dependency" >/dev/null 2>&1 && continue
+                optional_missing_dependency "$source" "$dependency" \
+                    && printf '%s\n' "$dependency"
+            done
+        done < "$source"
+    done | sort -u
+}
+
+verify_units() {
+    local verify_output="$TEMP_DIR/systemd-analyze-verify.out" line dependency allowed saw_diagnostic=0
+    local -a optional_missing=()
+    mapfile -t optional_missing < <(optional_missing_dependencies)
+    if systemd-analyze verify --root="$ROOTFS" "${required[@]}" >"$verify_output" 2>&1; then
+        return 0
+    fi
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        saw_diagnostic=1
+        allowed=0
+        for dependency in "${optional_missing[@]}"; do
+            if [[ "$line" == *"Unit $dependency not found."* ]]; then
+                allowed=1
+                break
+            fi
+        done
+        if [[ "$allowed" -eq 0 ]]; then
+            cat "$verify_output" >&2
+            return 1
+        fi
+    done < "$verify_output"
+    ((saw_diagnostic == 1 && ${#optional_missing[@]} > 0)) || return 1
+    log "systemd-analyze accepted configured units with optional missing dependencies: ${optional_missing[*]}"
+}
+
 validate_units() {
     local unit path
     mapfile -t required < <(config_list enabled)
@@ -168,9 +245,7 @@ validate_units() {
     for unit in "${required[@]}"; do
         validate_unit_identifier "$unit" "required"
     done
-    local -a units=("${required[@]}")
-    systemd-analyze verify --root="$ROOTFS" "${units[@]}" >/dev/null \
-        || error "systemd-analyze rejected the configured units"
+    verify_units || error "systemd-analyze rejected the configured units"
 }
 
 enable_unit() {
