@@ -242,6 +242,27 @@ test_multi_arch() {
     fi
 }
 
+# SB01: A95X uses the complete stock bundle, not split/placeholder blobs.
+test_a95x_inputs() {
+    local dir="$LAYER_DIR/files/a95x-f3-air"
+    [[ -f "$dir/aml_sdc_burn.UBOOT" && -f "$dir/ddr-usb.bin" && -f "$dir/meson1.dtb" ]] || { echo FAIL; return; }
+    [[ ! -e "$dir/bl301.bin" && ! -e "$dir/bl31.img" && ! -e "$dir/u-boot.bin" ]] || { echo FAIL; return; }
+    [[ "$(stat -c%s "$dir/aml_sdc_burn.UBOOT")" -eq 1339248 ]] || { echo FAIL; return; }
+    [[ "$(sha256sum "$dir/aml_sdc_burn.UBOOT" | awk '{print $1}')" == 4b8ec8af9304ed7f6372c0c84d4e13813cf39a005b4d80bdbf9dc443ee9c7d9e ]] || { echo FAIL; return; }
+    [[ "$(sha256sum "$dir/ddr-usb.bin" | awk '{print $1}')" == 6446cd26ab8719ed6da4beb96bfb7b63b41e809a7cc79b46397afb625e459523 ]] || { echo FAIL; return; }
+    [[ "$(od -An -tx1 -N4 "$dir/meson1.dtb" | tr -d ' \\n')" == d00dfeed ]] || { echo FAIL; return; }
+    [[ "$(stat -c%s "$dir/meson1.dtb")" -eq 80329 ]] || { echo FAIL; return; }
+    echo PASS
+}
+
+# SB02: assembly must preserve MBR bytes 446..509 and use stock offsets.
+test_a95x_assembly() {
+    local file="$1"
+    grep -q 'bs=1 count=442' "$file" && grep -q 'bs=512 skip=1 seek=1' "$file" && \
+        grep -q 'label: dos' "$file" && grep -q 'efi_start=8192' "$file" && \
+        ! grep -q 'bl301.bin\\|bl31.img' "$file" && echo PASS || echo FAIL
+}
+
 echo "Running Layer 2 Static Tests..."
 echo "================================"
 
@@ -283,6 +304,8 @@ fi
 if [[ -f "$CONFIG_FILE" ]]; then
     test_result "SI01: Image size configurable" "$(test_image_size_config "$CONFIG_FILE")"
     test_result "SI02: Multiple architectures supported" "$(test_multi_arch "$CONFIG_FILE")"
+    test_result "SB01: Stock A95X inputs" "$(test_a95x_inputs)"
+    test_result "SB02: MBR-safe stock assembly" "$(test_a95x_assembly "$BUILD_SCRIPT")"
 else
     echo "✗ Configuration file not found"
     ((FAILED++))

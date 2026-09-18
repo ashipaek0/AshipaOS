@@ -39,6 +39,22 @@ assert parts[1]["start"] == 2048 + 256 * 2048
 assert parts[1]["size"] == 3584 * 2048
 PY
 
+a95x_image="$TMP_DIR/a95x-layout.img"
+"$BUILD_SCRIPT" --layout-only "$a95x_image" a95x-f3-air
+sfdisk --verify "$a95x_image" >/dev/null
+a95x_layout="$(sfdisk --json "$a95x_image")"
+python3 - "$a95x_layout" <<'PY'
+import json, sys
+table = json.loads(sys.argv[1])["partitiontable"]
+parts = table["partitions"]
+assert table["label"] == "dos"
+assert len(parts) == 2
+assert parts[0]["start"] == 8192
+assert parts[0]["size"] == 256 * 2048
+assert parts[1]["start"] == 8192 + 256 * 2048
+assert parts[1]["size"] == 3584 * 2048
+PY
+
 bad_config="$TMP_DIR/bad.yaml"
 sed 's/image_size_mb: 4096/image_size_mb: 100/' "$LAYER_DIR/config/image-config.yaml" >"$bad_config"
 if ASHIPAOS_IMAGE_CONFIG="$bad_config" "$BUILD_SCRIPT" --validate 2>/dev/null; then

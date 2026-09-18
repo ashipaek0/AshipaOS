@@ -1,25 +1,20 @@
 # U-Boot Bootloader for A95X F3 Air (Amlogic S905X3)
 
+Layer 2 uses the complete stock `aml_sdc_burn.UBOOT` bundle extracted from the
+provided A95X image. It is intentionally not split into BL301/BL31/U-Boot
+pieces. `ddr-usb.bin` is the matching USB DDR-training payload retained for
+provenance/recovery tooling and is not concatenated into the SD bundle.
+
+`meson1.dtb` is the raw 4-GiB FDT extracted from the gzip-wrapped stock
+`meson1.dtb` payload (FDT magic `d00dfeed`, 80,329 bytes).
+
 ## Required Files
 
-To boot AshipaOS on the A95X F3 Air TV box, the following U-Boot files must be placed in this directory:
+The committed target inputs are:
 
-### Essential Boot Files
-1. **u-boot.bin** - Primary U-Boot bootloader binary
-   - Source: Amlogic U-Boot for S905X3 (mainline or vendor)
-   - Size: Typically 256KB-512KB
-   
-2. **bl301.bin** - ARM Trusted Firmware BL301 blob
-   - Required for S905X3 secure boot chain
-   - Provided by Amlogic or extracted from stock firmware
-
-3. **bl31.img** - ARM Trusted Firmware BL31 (ATF)
-   - Handles secure monitor calls
-   - Platform-specific for S905X3
-
-4. **ddr4_1d.fw** / **ddr3_1d.fw** - DDR memory training firmware
-   - Matches the RAM type in your specific A95X F3 Air variant
-   - Critical for system stability
+1. **aml_sdc_burn.UBOOT** - complete stock SD U-Boot bundle
+2. **ddr-usb.bin** - matching stock USB DDR payload
+3. **meson1.dtb** - raw stock 4-GiB device tree
 
 ### Optional but Recommended
 5. **acs.bin** - Amlogic Certificate Signature blob
