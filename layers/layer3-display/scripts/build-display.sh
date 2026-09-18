@@ -80,6 +80,26 @@ apt_options=(
     -o APT::Architectures=amd64
 )
 
+diagnose_apt_state() {
+    local rootfs="$1" package
+    log "Target APT state immediately before locked install"
+    printf '[L3-DISPLAY] dpkg architecture: '
+    run_target "$rootfs" dpkg --print-architecture
+    printf '[L3-DISPLAY] dpkg foreign architectures: '
+    run_target "$rootfs" dpkg --print-foreign-architectures || true
+    printf '[L3-DISPLAY] apt architecture/config:\n'
+    run_target "$rootfs" apt-config "${apt_options[@]}" dump \
+        | grep -E '^(APT::(Architecture|Architectures)|Dir::Etc::(sourcelist|sourceparts)|Acquire::(Check-Valid-Until|By-Hash))' || true
+    printf '[L3-DISPLAY] apt preferences:\n'
+    run_target "$rootfs" sh -c 'find /etc/apt/preferences /etc/apt/preferences.d -maxdepth 1 -type f -print -exec sed -n "1,120p" {} \\;' 2>/dev/null || true
+    for package in libswresample4 libavcodec59 libavdevice59 libavfilter8 libavformat59 mpv libmpv2; do
+        printf '[L3-DISPLAY] apt-cache policy %s:\n' "$package"
+        run_target "$rootfs" apt-cache "${apt_options[@]}" policy "$package" || true
+        printf '[L3-DISPLAY] installed %s:\n' "$package"
+        run_target "$rootfs" dpkg-query -W -f='${Package} ${Version} ${Architecture} ${Status}\\n' "$package" 2>/dev/null || true
+    done
+}
+
 install_locked_packages() {
     local rootfs="$1" line name version architecture filename sha256
     local -a specs=() lock_names=()
@@ -93,6 +113,7 @@ install_locked_packages() {
 
     prepare_apt_state "$rootfs"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" update
+    diagnose_apt_state "$rootfs"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" -y --no-install-recommends --download-only install "${specs[@]}"
 
     while IFS=$'\t' read -r name version architecture filename sha256; do
