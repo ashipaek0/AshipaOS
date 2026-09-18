@@ -10,7 +10,9 @@ import json, pathlib, sys
 script, config, prov = map(pathlib.Path, sys.argv[1:])
 s = script.read_text(); c = config.read_text(); p = json.loads(prov.read_text())
 a95x = s[s.index('make_a95x_kernel'):s.index('install_x86_64_bootloader()')]
-assert 'mkfs-options vfat 0 /dev/sda1 -F 16' in a95x
+assert 'mkfs-options' not in a95x
+assert 'mkfs.fat -F 16' in a95x
+assert 'dd if="$filesystem" of="$image" bs=512 seek=8192' in a95x
 assert 'ANDROID!' in a95x and 'page = 2048' in a95x
 assert 'secure rootfs extraction failed' in a95x and 'extract an attacker-controlled path' in a95x
 assert 'traversal symlink target' in a95x and 'unresolved rootfs path' in a95x

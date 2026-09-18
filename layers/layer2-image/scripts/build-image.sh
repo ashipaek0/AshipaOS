@@ -40,7 +40,7 @@ Options:
     --print-repo-root  Print the resolved repository root (test aid)
 
 Verification Class: BUILD
-Dependencies: Layer 1 rootfs, util-linux sfdisk, libguestfs-tools, grub-efi (x86_64), u-boot (ARM64)
+Dependencies: Layer 1 rootfs, util-linux sfdisk, dosfstools (A95X FAT16), libguestfs-tools, grub-efi (x86_64), u-boot (ARM64)
 EOF
 }
 
@@ -341,6 +341,18 @@ EOF
     mkimage -A arm64 -T script -C none -n A95X-CFGLOAD -d "$WORK_DIR/CFGLOAD.txt" "$outdir/CFGLOAD" >/dev/null || error "failed to compile CFGLOAD"
 }
 
+format_a95x_boot_partition() {
+    local image="$1" filesystem="$WORK_DIR/a95x-fat16.img"
+    local partition_bytes=$((256 * 1024 * 1024))
+    command -v mkfs.fat >/dev/null || error "dosfstools (mkfs.fat) is required for A95X FAT16 formatting"
+    # The optional guestfish filesystem-formatting API is not available on all
+    # CI runners. Format a bounded userspace file, then copy only the FAT16
+    # partition bytes into the existing image; this cannot alter MBR geometry.
+    truncate -s "$partition_bytes" "$filesystem"
+    mkfs.fat -F 16 -S 512 -n "$A95X_BOOT_LABEL" "$filesystem" >/dev/null
+    dd if="$filesystem" of="$image" bs=512 seek=8192 conv=notrunc status=none
+}
+
 install_a95x_boot_partition() {
     local image="$1" rootfs_tar="$2" bootdir="$WORK_DIR/a95x-boot"
     [[ -f "$A95X_PROVENANCE" ]] || error "missing exact A95X provenance manifest"
@@ -352,6 +364,7 @@ install_a95x_boot_partition() {
     [[ "$(sha256sum "$BOOT_BLOBS_DIR/ddr-usb.bin" | awk '{print $1}')" == 6446cd26ab8719ed6da4beb96bfb7b63b41e809a7cc79b46397afb625e459523 ]] || error "DDR USB hash mismatch"
     dd if="$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT" of="$image" bs=1 count=442 conv=notrunc status=none
     dd if="$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT" of="$image" bs=512 skip=1 seek=1 conv=notrunc status=none
+    format_a95x_boot_partition "$image"
     make_a95x_scripts "$bootdir"
     cat >"$bootdir/manifest" <<EOF
 {
@@ -369,7 +382,6 @@ install_a95x_boot_partition() {
 EOF
     guestfish -a "$image" <<EOF
 run
-mkfs-options vfat 0 /dev/sda1 -F 16
 set-label /dev/sda1 $A95X_BOOT_LABEL
 mkfs ext4 /dev/sda2
 set-label /dev/sda2 RootFS
