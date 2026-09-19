@@ -1,0 +1,56 @@
+name: coreelec-ce2a
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ce2a:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout AshipaOS
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - name: Install userspace inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck gzip parted device-tree-compiler python3-jsonschema
+      - name: Static and negative gates (before build)
+        run: |
+          bash tests/static/test-coreelec-ce2a.sh
+          bash tests/negative/test-coreelec-ce2a.sh
+          bash -n build/coreelec/ce2a-build.sh build/coreelec/ce2a-inspect-image.sh
+      - name: Validate pinned source metadata
+        run: bash build/coreelec/validate-pin.sh build/coreelec/pin.json
+      - name: Build pinned CoreELEC Generic image (CI only)
+        env:
+          CI: true
+        run: |
+          mkdir -p output/ce2a/evidence
+          bash build/coreelec/ce2a-build.sh --ci build/coreelec/pin.json output/ce2a/workspace output/ce2a/evidence
+      - name: Inspect Generic image (read-only)
+        if: success()
+        run: |
+          export CE2A_DTB_SHA256="$(sha256sum output/ce2a/workspace/source/target/boot/sm1_s905x3_4g_1gbit.dtb | cut -d' ' -f1)"
+          bash build/coreelec/ce2a-inspect-image.sh \
+            output/ce2a/evidence/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz \
+            build/coreelec/pin.json \
+            output/ce2a/workspace/source/target/boot/sm1_s905x3_4g_1gbit.dtb \
+            output/ce2a/inspection
+      - name: Validate generated CE-2A manifest
+        if: success()
+        run: |
+          python3 build/coreelec/validate-ce2a-manifest.py \
+            output/ce2a/inspection/ce2a-manifest.json \
+            schemas/coreelec-ce2a-manifest.schema.json \
+            build/coreelec/pin.json
+      - name: Upload CE-2A evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: coreelec-ce2a-evidence
+          path: output/ce2a/
+          if-no-files-found: warn
+          retention-days: 30

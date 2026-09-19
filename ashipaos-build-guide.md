@@ -926,6 +926,8 @@ Use or create `ashipaek0/CoreELEC` from the upstream `coreelec-21` source line. 
 
 Release preparation must fail closed when the tag resolves to another commit, the checkout is dirty, a mutable branch tip is supplied as a release input, or an expected hash differs. Read the project/device/architecture tuple from the pinned source and build output; do not infer `arm64` from the S905X3 CPU because the confirmed image is `Amlogic-ng.arm`.
 
+CE-2A is a prerequisite-only GitHub Actions source-build and Generic-image inspection gate. It is isolated from the Debian x86_64/Pi workflows and does not select runtime, launcher, hwdec, or no-Kodi behavior. Its stock Generic output is expected to contain Kodi and is labeled `stock-kodi-containing/rejected_for_ashipaos`; evidence must report `runtime_status=UNRESOLVED`. Tasks 0.5.3–0.5.9 remain separate follow-on decisions and cannot be marked complete from CE-2A evidence.
+
 Build the unmodified pinned fork in canonical CI as a source-build and reproducibility gate, not to rediscover hardware support. Record the source pin, fork pin, build environment/container and toolchain identities, command/tuple, output name and hashes, package graph, and complete logs.
 
 ### Verification

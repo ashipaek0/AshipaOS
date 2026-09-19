@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashipaos.dev/schemas/coreelec-ce2a-manifest.schema.json",
+  "title": "CE-2A CoreELEC prerequisite evidence",
+  "type": "object",
+  "required": ["schema_version", "status", "source", "builder", "tuple", "artifact", "image", "partition", "dtb", "kodi", "runtime", "verification", "blocker", "ci_provenance"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"const": "PREREQUISITE"},
+    "source": {"type": "object", "required": ["repository", "fork", "tag", "commit", "archive_sha256"], "properties": {
+      "repository": {"const": "https://github.com/ashipaek0/CoreELEC.git"},
+      "fork": {"type": "object", "required": ["full_name", "required", "parent"], "properties": {"full_name": {"const": "ashipaek0/CoreELEC"}, "required": {"const": true}, "parent": {"const": "CoreELEC/CoreELEC"}}, "additionalProperties": false},
+      "tag": {"const": "21.3-Omega"},
+      "commit": {"const": "fc61125e8900ab0c2593a29b615980ed0cd5b939"},
+      "archive_sha256": {"const": "c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a"}
+    }, "additionalProperties": true},
+    "builder": {"type": "object", "required": ["dockerfile", "dockerfile_sha256", "base_image", "base_digest", "amd64_manifest_digest"], "properties": {
+      "dockerfile": {"const": "tools/docker/jammy/Dockerfile"},
+      "dockerfile_sha256": {"const": "4f0d46fdf9709230f29e6ea8c423a292024287f653b30f67be01d567a08125a2"},
+      "base_image": {"const": "ubuntu@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02"},
+      "base_digest": {"const": "sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02"},
+      "amd64_manifest_digest": {"const": "sha256:281c5745f657873d78e5531fc5ba8575f46ab7769b94550ac99543f122679986"}
+    }, "additionalProperties": true},
+    "tuple": {"type": "object", "required": ["PROJECT", "DEVICE", "ARCH", "OFFICIAL"], "properties": {"PROJECT": {"const": "Amlogic-ce"}, "DEVICE": {"const": "Amlogic-ng"}, "ARCH": {"const": "arm"}, "OFFICIAL": {"const": "yes"}}, "additionalProperties": false},
+    "artifact": {"type": "object", "required": ["path", "name", "sha256"], "properties": {"path": {"const": "target/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz"}, "name": {"const": "CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": true},
+    "image": {"type": "object", "required": ["compressed_sha256", "raw_bytes", "read_only"], "properties": {"compressed_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "raw_bytes": {"type": "integer", "minimum": 1}, "read_only": {"const": true}}, "additionalProperties": true},
+    "partition": {"type": "object", "required": ["table", "boot_filesystem", "boot_partition"], "properties": {"table": {"enum": ["mbr", "gpt"]}, "boot_filesystem": {"const": "fat"}, "boot_partition": {"type": "integer", "minimum": 1}, "entries": {"type": "array"}}, "additionalProperties": true},
+    "dtb": {"type": "object", "required": ["requested", "installed_name", "sha256", "expected_sha256", "inspection_tree", "structure"], "properties": {"requested": {"const": "sm1_s905x3_4g_1gbit.dtb"}, "installed_name": {"const": "dtb.img"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "expected_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "inspection_tree": {"type": "string"}, "structure": {"const": "valid-dtb-dtc"}}, "additionalProperties": true},
+    "kodi": {"type": "object", "required": ["classification", "matches"], "properties": {"classification": {"const": "stock-kodi-containing/rejected_for_ashipaos"}, "matches": {"type": "array"}}, "additionalProperties": true},
+    "runtime": {"type": "object", "required": ["runtime_status", "no_kodi_claim", "hwdec_status"], "properties": {"runtime_status": {"const": "UNRESOLVED"}, "no_kodi_claim": {"const": false}, "hwdec_status": {"const": "UNRESOLVED"}}, "additionalProperties": true},
+    "verification": {"type": "object", "required": ["classes", "result"], "properties": {"classes": {"type": "array", "items": {"type": "string"}}, "result": {"const": "PREREQUISITE_ONLY"}}, "additionalProperties": true},
+    "blocker": {"type": "object", "required": ["status", "reason"], "properties": {"status": {"const": "BLOCKED"}, "reason": {"type": "string", "minLength": 1}}, "additionalProperties": true},
+    "ci_provenance": {"type": "object", "required": ["required", "runner", "local_build_permitted"], "properties": {"required": {"const": true}, "runner": {"const": "github-actions"}, "local_build_permitted": {"const": false}}, "additionalProperties": true}
+  },
+  "additionalProperties": false
+}

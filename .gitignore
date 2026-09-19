@@ -35,3 +35,6 @@ build/*
 build/coreelec/*
 !build/coreelec/pin.json
 !build/coreelec/validate-pin.sh
+!build/coreelec/ce2a-build.sh
+!build/coreelec/ce2a-inspect-image.sh
+!build/coreelec/validate-ce2a-manifest.py
