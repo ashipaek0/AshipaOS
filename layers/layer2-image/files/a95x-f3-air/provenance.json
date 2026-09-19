@@ -24,12 +24,12 @@
   "ddr_usb_relationship": {
     "role": "matching stock USB DDR-training payload",
     "relationship": "paired with aml_sdc_burn.UBOOT in the verified stock input set",
-    "sd_image_action": "not concatenated or copied into the SD image; retained and hash-checked for USB recovery/provenance tooling"
+    "sd_image_action": "aml_sdc_burn.UBOOT and ddr-usb.bin are not written to the SD image; both are retained for provenance/recovery only"
   },
   "generated_inputs": {
     "kernel": "target rootfs /vmlinuz, securely resolved within the rootfs archive to a regular file",
     "ramdisk": "target rootfs /initrd.img, securely resolved within the rootfs archive to a regular file",
-    "android_legacy_header": "AshipaOS self-contained legacy v0 generator, page size 2048",
+    "android_legacy_header": "AshipaOS self-contained legacy v0 generator, standard name/cmdline/ID offsets 48:64/64:576/576:596, page size 2048",
     "mkimage": "Debian u-boot-tools"
   },
   "hardware_claim": "none; physical boot remains unverified"

@@ -19,15 +19,15 @@ assert 'traversal symlink target' in a95x and 'unresolved rootfs path' in a95x
 assert 'rootfs_kernel_provenance' in a95x and 'ddr_usb_relationship' in a95x
 assert '0x01080000' in a95x and '0x00f00000' in a95x and '0x00000100' in a95x
 assert 'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0' in s
-# Android legacy v0 layout: name [44:60), cmdline [60:572), ID [572:592).
-assert 'header[44:60] = name.ljust(16, b' in a95x
-assert 'header[60:572] = cmdline.ljust(512, b' in a95x
-assert 'header[572:592] = hashlib.sha1' in a95x
-assert 'header[44:64]' not in a95x
-assert 'header[60:60 + len(cmdline)]' not in a95x
-name_start, name_end = 44, 60
-cmdline_start, cmdline_end = 60, 572
-id_start, id_end = 572, 592
+# Android legacy v0 layout: name [48:64), cmdline [64:576), ID [576:596).
+assert 'header[48:64] = name.ljust(16, b' in a95x
+assert 'header[64:576] = cmdline.ljust(512, b' in a95x
+assert 'header[576:596] = hashlib.sha1' in a95x
+assert 'header[44:60]' not in a95x
+assert 'header[60:572]' not in a95x
+name_start, name_end = 48, 64
+cmdline_start, cmdline_end = 64, 576
+id_start, id_end = 576, 596
 assert name_end == cmdline_start and cmdline_end == id_start
 assert set(range(name_start, name_end)).isdisjoint(range(cmdline_start, cmdline_end))
 assert set(range(cmdline_start, cmdline_end)).isdisjoint(range(id_start, id_end))
@@ -38,8 +38,17 @@ assert 'filesystem: fat16' in c and 'start_sector: 8192' in c and 'start_sector:
 assert p['stock_inputs']['meson1.dtb']['sha256'].startswith('264dc24f')
 assert p['contract_source']['sha256'] == '9edf06e752ed285e11a565584a2369a39b734df56bd0852ce37eee3d9ea9d16b'
 assert p['extraction_evidence']['archive_sha256'] == p['contract_source']['sha256']
-assert p['ddr_usb_relationship']['sd_image_action'].startswith('not concatenated')
+assert 'aml_sdc_burn.UBOOT and ddr-usb.bin are not written' in p['ddr_usb_relationship']['sd_image_action']
 assert p['generated_inputs']['android_legacy_header'].startswith('AshipaOS self-contained')
+assert 'dd if="$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT"' not in a95x
+assert 'aml_sdc_burn.UBOOT" of="$image"' not in a95x
+assert 'ddr-usb.bin" of="$image"' not in a95x
+assert 'start_sector: 1' in c and 'end_sector: 8191' in c
+assert 'contents: zero' in c and 'raw_sd_payload_writes: false' in c
+assert 'defenv' in a95x and 'autoscr ${loadaddr}' in a95x
+assert "fatload '${device}'" not in a95x
+assert 'fatload \\${device} \\${devnr}:\\${partnr} \\${loadaddr} KERNEL.IMG' in a95x
+assert 'bootm start' in a95x and 'bootm loados' in a95x and 'bootm prep' in a95x and 'bootm go' in a95x
 print('A95X contract/source negative tests passed')
 PY
 
@@ -270,12 +279,12 @@ struct.pack_into('<I', kernel, 20, 0x01000000)
 struct.pack_into('<I', kernel, 28, 0x00f00000)
 struct.pack_into('<I', kernel, 32, 0x00000100)
 struct.pack_into('<I', kernel, 36, 2048)
-kernel[44:60] = b'AshipaOS-A95X'.ljust(16, b'\0')
+kernel[48:64] = b'AshipaOS-A95X'.ljust(16, b'\0')
 cmdline = b'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0'
-kernel[60:60 + len(cmdline)] = cmdline
+kernel[64:64 + len(cmdline)] = cmdline
 kernel[2048:2052] = b'KERN'
 kernel[4096:4100] = b'RAMD'
-kernel[572:592] = hashlib.sha1(kernel[2048:2052] + kernel[4096:4100]).digest()
+kernel[576:596] = hashlib.sha1(kernel[2048:2052] + kernel[4096:4100]).digest()
 
 files = {
     'AML_AUTOSCRIPT': b'autoscript\n',
@@ -527,22 +536,22 @@ assert struct.unpack_from('<I', kernel, 28)[0] == 0x00f00000
 assert struct.unpack_from('<I', kernel, 32)[0] == 0x00000100
 cmdline = b'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0'
 expected_id = hashlib.sha1(kernel[2048:2048 + struct.unpack_from('<I', kernel, 8)[0]] + kernel[2048 + ((struct.unpack_from('<I', kernel, 8)[0] + 2047) // 2048) * 2048:2048 + ((struct.unpack_from('<I', kernel, 8)[0] + 2047) // 2048) * 2048 + struct.unpack_from('<I', kernel, 16)[0]]).digest()
-name = kernel[44:60]
+name = kernel[48:64]
 assert name.startswith(b'AshipaOS-A95X')
 assert name.rstrip(b'\0') == b'AshipaOS-A95X'
-assert kernel[44:60].rstrip(b'\0') == b'AshipaOS-A95X'
-assert kernel[60:572].startswith(b'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0')
-assert kernel[60:60 + len(cmdline)] == cmdline
-assert kernel[44:60].find(cmdline[:4]) == -1
-assert kernel[572:592] == expected_id
-assert kernel[44:60].find(expected_id[:4]) == -1
-assert kernel[60:572].find(expected_id[:4]) == -1
-assert set(range(44, 60)).isdisjoint(range(60, 572))
-assert set(range(60, 572)).isdisjoint(range(572, 592))
-assert set(range(44, 60)).isdisjoint(range(572, 592))
+assert kernel[48:64].rstrip(b'\0') == b'AshipaOS-A95X'
+assert kernel[64:576].startswith(b'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0')
+assert kernel[64:64 + len(cmdline)] == cmdline
+assert kernel[48:64].find(cmdline[:4]) == -1
+assert kernel[576:596] == expected_id
+assert kernel[48:64].find(expected_id[:4]) == -1
+assert kernel[64:576].find(expected_id[:4]) == -1
+assert set(range(48, 64)).isdisjoint(range(64, 576))
+assert set(range(64, 576)).isdisjoint(range(576, 596))
+assert set(range(48, 64)).isdisjoint(range(576, 596))
 # These shifted reads must not reproduce a valid field at an overlapping offset.
-assert kernel[64:64 + len(cmdline)] != cmdline
-assert kernel[576:596] != expected_id
+assert kernel[60:60 + len(cmdline)] != cmdline
+assert kernel[572:592] != expected_id
 # The manifest was already resolved and read with every required boot file.
 assert manifest['files']['KERNEL.IMG'] == hashlib.sha256(kernel).hexdigest()
 print('FAT16 A95X image content parsed successfully')

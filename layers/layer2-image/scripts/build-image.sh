@@ -121,9 +121,8 @@ write_sfdisk_spec() {
     local root_sectors=$((ROOT_SIZE_MB * 2048))
 
     if [[ "$TARGET" == "a95x-f3-air" ]]; then
-        # Amlogic's SD U-Boot writer preserves bytes 442..511 and writes the
-        # rest of the bundle at offset 512.  Use an MBR so its partition table
-        # lives in the preserved region; GPT metadata would be overwritten.
+        # A95X SD boot uses the DOS/MBR partition table directly.  The verified
+        # contract leaves sectors 1..8191 empty before the FAT16 partition.
         cat >"$destination" <<EOF
 label: dos
 unit: sectors
@@ -309,14 +308,14 @@ header[:8] = b'ANDROID!'
 struct.pack_into('<10I', header, 8, len(kernel_data), 0x01080000,
                  len(ramdisk_data), 0x01000000, 0, 0x00f00000,
                  0x00000100, page, 0, 0)
-# Android legacy v0 has a 16-byte product/name field at [44:60],
-# followed immediately by cmdline at [60:572] and the 20-byte ID at [572:592].
+# Android legacy v0 has name at [48:64], cmdline at [64:576], and the
+# 20-byte ID at [576:596].
 name = b'AshipaOS-A95X'
 cmdline = b'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0'
 assert len(name) <= 16 and len(cmdline) <= 512
-header[44:60] = name.ljust(16, b'\0')
-header[60:572] = cmdline.ljust(512, b'\0')
-header[572:592] = hashlib.sha1(kernel_data + ramdisk_data).digest()
+header[48:64] = name.ljust(16, b'\0')
+header[64:576] = cmdline.ljust(512, b'\0')
+header[576:596] = hashlib.sha1(kernel_data + ramdisk_data).digest()
 def padded(data): return data + b'\0' * ((-len(data)) % page)
 out.write_bytes(bytes(header).ljust(page, b'\0') + padded(kernel_data) + padded(ramdisk_data))
 PY
@@ -328,14 +327,25 @@ make_a95x_scripts() {
     local outdir="$1"
     command -v mkimage >/dev/null || error "u-boot-tools (mkimage) is required for A95X scripts"
     cat >"$WORK_DIR/AML_AUTOSCRIPT.txt" <<'EOF'
-fatload mmc 0:1 0x01000000 CFGLOAD
-source 0x01000000
+defenv
+setenv loadaddr 0x01000000
+setenv dtb_mem_addr 0x10000000
+setenv cfgloadsd 'fatload mmc 0:1 ${loadaddr} CFGLOAD'
+setenv device mmc
+setenv devnr 0
+setenv partnr 1
+run cfgloadsd
+autoscr ${loadaddr}
 EOF
     cat >"$WORK_DIR/CFGLOAD.txt" <<EOF
 setenv bootargs '$A95X_BOOTARGS'
-fatload mmc 0:1 0x01000000 KERNEL.IMG
-fatload mmc 0:1 0x10000000 dtb.img
-bootm 0x01000000 - 0x10000000
+fatload \${device} \${devnr}:\${partnr} \${loadaddr} KERNEL.IMG
+fatload \${device} \${devnr}:\${partnr} \${dtb_mem_addr} dtb.img
+bootm \${loadaddr}
+bootm start
+bootm loados
+bootm prep
+bootm go
 EOF
     mkimage -A arm64 -T script -C none -n A95X-AUTOSCRIPT -d "$WORK_DIR/AML_AUTOSCRIPT.txt" "$outdir/AML_AUTOSCRIPT" >/dev/null || error "failed to compile AML_AUTOSCRIPT"
     mkimage -A arm64 -T script -C none -n A95X-CFGLOAD -d "$WORK_DIR/CFGLOAD.txt" "$outdir/CFGLOAD" >/dev/null || error "failed to compile CFGLOAD"
@@ -359,11 +369,6 @@ install_a95x_boot_partition() {
     mkdir -p "$bootdir"
     make_a95x_kernel "$rootfs_tar" "$bootdir/KERNEL.IMG"
     cp -- "$BOOT_BLOBS_DIR/meson1.dtb" "$bootdir/dtb.img"
-    [[ -f "$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT" && -f "$BOOT_BLOBS_DIR/ddr-usb.bin" ]] || error "missing verified A95X stock boot inputs"
-    [[ "$(sha256sum "$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT" | awk '{print $1}')" == 4b8ec8af9304ed7f6372c0c84d4e13813cf39a005b4d80bdbf9dc443ee9c7d9e ]] || error "stock U-Boot hash mismatch"
-    [[ "$(sha256sum "$BOOT_BLOBS_DIR/ddr-usb.bin" | awk '{print $1}')" == 6446cd26ab8719ed6da4beb96bfb7b63b41e809a7cc79b46397afb625e459523 ]] || error "DDR USB hash mismatch"
-    dd if="$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT" of="$image" bs=1 count=442 conv=notrunc status=none
-    dd if="$BOOT_BLOBS_DIR/aml_sdc_burn.UBOOT" of="$image" bs=512 skip=1 seek=1 conv=notrunc status=none
     format_a95x_boot_partition "$image"
     make_a95x_scripts "$bootdir"
     cat >"$bootdir/manifest" <<EOF

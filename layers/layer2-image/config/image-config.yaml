@@ -41,6 +41,10 @@ targets:
       second_offset: "0x00f00000"
       tags_offset: "0x00000100"
       bootargs: "root=LABEL=RootFS rw console=ttyS0,115200 console=tty0"
+      prepartition_gap: {start_sector: 1, end_sector: 8191, contents: zero}
+      raw_sd_payload_writes: false
+      script_semantics: {autoscript: autoscr, cfgload_device: environment-derived}
+      android_v0_offsets: {name: "48:64", cmdline: "64:576", id: "576:596"}
 
 bootloader:
   type: uefi
