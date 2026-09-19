@@ -40,8 +40,9 @@ grep -Fxq 'PROJECT=Amlogic-ce' "$WORKSPACE/source/.config" 2>/dev/null || true
 # The Dockerfile is rebuilt with the exact pinned base; no host build path is accepted.
 image="ce2a-builder:${commit:0:12}"
 docker build --pull=false --build-arg "BASE_IMAGE=$base_ref" --tag "$image" --file "$WORKSPACE/source/$dockerfile_rel" "$WORKSPACE/source"
-docker run --rm --init --user 0:0 -w /build -e PROJECT=Amlogic-ce -e DEVICE=Amlogic-ng -e ARCH=arm -e OFFICIAL=yes -v "$WORKSPACE/source:/build" "$image" bash -lc 'PROJECT=Amlogic-ce DEVICE=Amlogic-ng ARCH=arm OFFICIAL=yes make image'
-# The root build user owns files created in the bind mount; make the runner-readable
+chmod -R a+rwX "$WORKSPACE/source"
+docker run --rm --init --user docker -w /build -e PROJECT=Amlogic-ce -e DEVICE=Amlogic-ng -e ARCH=arm -e OFFICIAL=yes -v "$WORKSPACE/source:/build" "$image" bash -lc 'PROJECT=Amlogic-ce DEVICE=Amlogic-ng ARCH=arm OFFICIAL=yes make image'
+# Make the runner-readable
 # output explicit before host-side inspection and evidence collection.
 chmod -R a+rX "$WORKSPACE/source/target"
 count=$(find "$WORKSPACE/source/target" -maxdepth 1 -type f -name 'CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz' -print | wc -l)
