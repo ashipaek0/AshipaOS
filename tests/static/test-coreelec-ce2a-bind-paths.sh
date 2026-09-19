@@ -12,6 +12,10 @@ first_docker=text.index('docker build')
 assert workspace < first_docker and evidence < first_docker
 assert '"$WORKSPACE/source:/build"' in text
 assert 'docker build' in text and '"$WORKSPACE/source"' in text
+run=text[text.index('docker run'):text.index('\ncount=', text.index('docker run'))]
+assert '--user 0:0' in run, 'Docker build must use an explicit writable root user'
+assert '-w /build' in run, 'Docker build must set /build as the working directory'
+assert 'chmod -R a+rX "$WORKSPACE/source/target"' in text, 'runner-readable target output is required'
 # Mutation guard: removing normalization must make the contract fail.
 mutated=text.replace('WORKSPACE=$(realpath "$2")', 'WORKSPACE=$2').replace('EVIDENCE=$(realpath "$3")', 'EVIDENCE=$3')
 assert 'WORKSPACE=$(realpath "$2")' not in mutated
