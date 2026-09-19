@@ -30,12 +30,19 @@ jobs:
       - name: Run static tests
         run: |
           echo "=== Running Static Tests ==="
+          bash tests/static/test-rootfs-ownership.sh
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
               echo "Testing ${layer}"
               bash "${layer}tests/static-tests.sh"
             fi
           done
+
+      - name: Validate immutable CoreELEC pin shape
+        run: bash tests/static/test-coreelec-pin.sh
+
+      - name: Validate immutable CoreELEC pin against authorized fork
+        run: bash build/coreelec/validate-pin.sh
 
   build-x86_64:
     needs: static-tests
@@ -80,6 +87,42 @@ jobs:
           export LIBGUESTFS_BACKEND=direct
           timeout 120s libguestfs-test-tool
 
+      - name: Patch x86_64 Layer 1 debootstrap retry handling
+        run: |
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          expected_version = "1.0.134ubuntu2"
+          functions = Path("/usr/share/debootstrap/functions")
+          version = subprocess.check_output(
+              ["dpkg-query", "-W", "-f=${Version}", "debootstrap"], text=True
+          ).strip()
+          if version != expected_version:
+              raise SystemExit(
+                  f"unexpected debootstrap version: {version!r}; "
+                  f"expected {expected_version!r}"
+              )
+          if not functions.is_file():
+              raise SystemExit(f"missing debootstrap source: {functions}")
+
+          text = functions.read_text()
+          old = 'if ! just_get "$from" "$dest2"; then continue 2; fi'
+          new = 'if ! just_get "$from" "$dest2"; then continue; fi'
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f"expected exactly one buggy debootstrap download branch, "
+                  f"found {text.count(old)}"
+              )
+          if text.count(new):
+              raise SystemExit("debootstrap retry correction already present")
+          patched = text.replace(old, new)
+          if patched.count(old) != 0 or patched.count(new) != 1:
+              raise SystemExit("debootstrap retry correction postcondition failed")
+          functions.write_text(patched)
+          print(f"patched {functions} for debootstrap {version}")
+          PY
+
       - name: Configure GPG
         run: |
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
@@ -88,7 +131,17 @@ jobs:
 
       - name: Build Layer 1 (RootFS)
         run: |
-          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+          sudo env DEBIAN_MIRROR=https://snapshot.debian.org/archive/debian/20240311T000000Z/ \
+            bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+
+      - name: Build Layer 3 Display (x86_64 only)
+        run: |
+          sudo bash layers/layer3-display/scripts/build-display.sh output/rootfs-x86_64.tar.gz x86_64
+          bash layers/layer3-display/tests/check-debian-packages.sh
+
+      - name: Build Layer 4 (System Services, x86_64 rootfs policy)
+        run: |
+          bash layers/layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64
 
       - name: Build Layer 2 (Disk Image)
         run: |
@@ -115,10 +168,6 @@ jobs:
       - name: Build Layer 3 (First-Boot Init)
         run: |
           bash layers/layer3-init/scripts/build-init.sh x86_64
-
-      - name: Build Layer 4 (System Services)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh x86_64
 
       - name: Build Layer 5 (Settings Daemon)
         run: |
@@ -189,6 +238,7 @@ jobs:
             gpg \
             jq \
             shellcheck \
+            dosfstools \
             u-boot-tools \
             util-linux \
             device-tree-compiler
@@ -223,13 +273,16 @@ jobs:
           bash layers/layer2-image/tests/layout-tests.sh
           bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
+      - name: Gate A95X image contents
+        run: |
+          set -Eeuo pipefail
+          image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-a95x-f3-air-*.img' -print -quit)
+          [[ -n "$image" ]] || { echo 'A95X image not found; content gate cannot be skipped' >&2; exit 1; }
+          bash layers/layer2-image/tests/image-content-tests.sh "$image"
+
       - name: Build Layer 3 (First-Boot Init)
         run: |
           bash layers/layer3-init/scripts/build-init.sh a95x-f3-air
-
-      - name: Build Layer 4 (System Services)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh a95x-f3-air
 
       - name: Build Layer 5 (Settings Daemon)
         run: |

@@ -1,0 +1,25 @@
+# Layer 3 Display Stack: x86_64 only
+# Exact package versions and SHA256 values are consumed from packages.lock.
+# The lock points at an immutable Debian Bookworm snapshot.
+targets:
+  - x86_64
+runtime_user: ashipa
+packages:
+  - libdrm2
+  - libegl1
+  - libgl1-mesa-dri
+  - libgles2
+  - mesa-vulkan-drivers
+  - libwayland-client0
+  - libwayland-server0
+  - wayland-protocols
+  - cage
+  - seatd
+  - mpv
+  - python3-mpv
+playback:
+  asset: /usr/share/ashipaos/display/test-video.mp4
+  status: BLOCKED_UNTIL_REPRODUCIBLE_ASSET
+verification:
+  qemu_software_runtime: separate_from_physical_gpu
+  physical_display_gpu: HARDWARE

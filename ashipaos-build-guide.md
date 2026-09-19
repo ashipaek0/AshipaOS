@@ -183,16 +183,16 @@ The following require actual hardware:
 
 - Does the image boot on a Pi 4?
 - Does it boot on a Pi 5?
-- Does the A95X F3 Air boot with the selected DTB?
-- Does the A95X WiFi actually work?
-- Does its IR receiver work?
-- Does CEC work?
-- Does hardware video decoding actually use the expected decoder?
-- Does 10-bit HEVC work?
+- Does an AshipaOS image built from the pinned `ashipaek0/CoreELEC` fork still boot the exact A95X F3 Air with the confirmed DTB installed as `dtb.img`?
+- Does the no-Kodi service reach the released Jellyfin MPV Shim full-screen library/browser UI?
+- Do the retained CoreELEC display, audio, Ethernet, Wi-Fi, Bluetooth where exercised, storage, and claimed input paths still work after replacement integration?
+- Does Jellyfin MPV Shim, rather than Kodi, select the expected hardware decoder for each claimed codec, including 10-bit HEVC?
 - Does the physical provisioning process work?
 - Does a real TV display the expected output?
 - Does the remote control behave correctly?
 - Does OTA rollback actually recover the physical device after a failed boot?
+
+The pinned stock image, confirmed DTB, display/video, Wi-Fi, Bluetooth, and general box hardware are already confirmed baseline facts for the user's exact unit. They must not be reopened as unknown merely because GitHub cannot reproduce physical evidence. The questions above concern the AshipaOS post-replacement integration and remain independent `HARDWARE`/`MANUAL` gates; stock-baseline success cannot pass them.
 
 These require either:
 
@@ -482,7 +482,9 @@ wifi:
       artifact: evidence/amlogic/a95x-f3-air/wifi/dhcp.log
 ```
 
-A hardware fact should be reviewed again when any of the following change:
+For `a95x-f3-air`, the user-confirmed CoreELEC 21.3-Omega facts in Task 0.5.1 are `CONFIRMED`. Store baseline and replacement evidence under separate namespaces or status fields, such as `coreelec_baseline` and `ashipaos_integration`; integration failure must not overwrite baseline status, and baseline success must not masquerade as integration proof.
+
+A future CoreELEC rebase triggers Task 0.5.1's trimmed reconfirmation. It does not retroactively make the current 21.3-Omega facts provisional. Other hardware facts should be reviewed when any of the following change:
 
 - kernel branch;
 - CoreELEC ref;
@@ -652,9 +654,12 @@ ashipaos/
  │   └── tests/
  │
  ├── evidence/
- ├── docs/
- └── amlogic-coreelec-fork/
+ └── docs/
 ```
+
+The canonical CoreELEC fork is the external repository `ashipaek0/CoreELEC`, fetched only from an AshipaOS-owned immutable pin record containing repository, upstream source branch, tag, full commit, fork commit, actual project/device/architecture tuple, and expected source/archive hashes. A manually populated local checkout is never authoritative.
+
+AshipaOS-owned CoreELEC patches, package definitions, overlays, CI glue, integration contracts, and manifests remain distinct from the fetched source tree. The fork owns the A95X OS image. The application updater owns only writable application slots and must never mutate the CoreELEC system image.
 
 The exact directory names may be adapted to the existing repository, but ownership boundaries **MUST** remain.
 
@@ -856,160 +861,45 @@ A trivial PR must run static and build checks successfully.
 
 # LAYER 0.5 — Amlogic/CoreELEC Track
 
-This is a separate build pipeline from the Debian Pi/x86_64 track.
+The `a95x-f3-air` target is a CoreELEC-derived pipeline, not a Debian image variant. CoreELEC owns the A95X OS image and remains the boot, kernel, firmware, driver, display, decode, network, and hardware-support base. Layer 1's `debootstrap`, Debian rootfs, kernel, partition, and image-assembly path is exclusively for Pi and x86_64.
 
-The existing architecture separates:
+The A95X product delta is deliberately narrow:
 
-- Amlogic-ne kernel branch scope;
-- A95X F3 Air box scope;
-- generic AshipaOS package/service layer.
+- retain the proven pinned CoreELEC hardware and OS stack;
+- exclude Kodi from the package graph before image construction, with no Kodi fallback;
+- add Jellyfin MPV Shim, the smallest pinned-source-supported runtime bridge, and AshipaOS services;
+- provide independently releasable, CI-built, signed A/B application bundles.
 
-Preserve that architecture and make the boundary enforceable.
-
-The Amlogic track **MUST** produce:
-
-- a working AshipaOS image for the confirmed box;
-- a reusable kernel-branch-scoped AshipaOS package/service layer;
-- a box configuration containing hardware-specific values;
-- evidence-backed hardware facts.
+Later layers still define shared product, security, persistence, and verification outcomes for A95X where relevant. Their Debian package-install, rootfs-construction, compositor, partition, boot, and `.old` SquashFS instructions do not automatically apply. A95X implements those outcomes through CoreELEC packages and overlays, the contracts established here, and A95X-specific verification. Other A95X revisions, other S905X3 boxes, other Amlogic families, and a hypothetical second-box exercise are non-goals.
 
 ---
 
-## Task 0.5.1 — Establish Amlogic hardware facts
+## Task 0.5.1 — Record the confirmed A95X/CoreELEC baseline
 
-### Goal
+Here are the confirmed facts:
 
-Determine the exact hardware facts required to boot and operate the first supported box.
+- The supported unit is the user's exact **A95X F3 Air** with an **Amlogic S905X3** SoC.
+- The working baseline is `CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic`.
+- The authoritative upstream source line is `https://github.com/CoreELEC/CoreELEC/tree/coreelec-21`.
+- Tag `21.3-Omega` resolves to full commit `fc61125e8900ab0c2593a29b615980ed0cd5b939`.
+- The canonical AshipaOS CoreELEC fork is `ashipaek0/CoreELEC`.
+- The confirmed DTB is `sm1_s905x3_4g_1gbit.dtb`; copy it to the FAT boot-partition root and rename it `dtb.img`.
+- On this exact unit, the pinned stock CoreELEC baseline confirms boot, display/video, Wi-Fi, Bluetooth, and general box hardware operation.
 
-Create:
+These are `CONFIRMED` `coreelec_baseline` facts. They are not evidence that an AshipaOS image still boots or that Jellyfin MPV Shim correctly uses the retained display, input, audio, network, or hardware-decode paths after Kodi is excluded. Those are separate `ashipaos_integration` gates in Tasks 0.5.8 and 0.5.9.
 
-```text
-build/targets/amlogic/boxes/a95x-f3-air.yaml
-```
+Work begins from this baseline. Do not require a stock-image rebuild, DTB discovery, serial-console availability, driver discovery, or another baseline confirmation first.
 
-Initial schema:
+For a future CoreELEC rebase only, perform this trimmed reconfirmation:
 
-```yaml
-name: A95X F3 Air
+1. Write the candidate image to spare removable media.
+2. Copy `sm1_s905x3_4g_1gbit.dtb` to the FAT root as `dtb.img`.
+3. Boot the user's exact box by the confirmed baseline process.
+4. Capture candidate release, immutable source/fork pins, and DTB identity.
+5. Smoke-test baseline boot, display/video, audio, Ethernet, Wi-Fi, Bluetooth where exercised, input, and storage behavior.
+6. Compare results with the recorded 21.3-Omega baseline.
 
-status:
-  device_tree: PROVISIONAL
-  wifi: PROVISIONAL
-  bluetooth: UNKNOWN
-  ir: PROVISIONAL
-  hardware_decode: PROVISIONAL
-
-soc:
-  value: S905X3
-  status: PROVISIONAL
-
-kernel_branch:
-  value: Amlogic-ne
-  status: PROVISIONAL
-
-device_tree:
-  value: null
-  status: UNKNOWN
-  evidence: []
-
-wifi:
-  driver: null
-  status: UNKNOWN
-  evidence: []
-
-bluetooth:
-  supported: null
-  status: UNKNOWN
-  evidence: []
-
-ram:
-  variants: []
-  status: UNKNOWN
-  evidence: []
-
-ir:
-  receiver: null
-  status: UNKNOWN
-  evidence: []
-
-cec:
-  status: UNKNOWN
-  evidence: []
-
-audio:
-  hdmi: UNKNOWN
-  analog: UNKNOWN
-  spdif: UNKNOWN
-  evidence: []
-
-power:
-  button: UNKNOWN
-  wake_ir: UNKNOWN
-  led: UNKNOWN
-  evidence: []
-
-storage:
-  boot_media: UNKNOWN
-  emmc_install: UNKNOWN
-  evidence: []
-
-boot:
-  serial_console:
-    status: UNKNOWN
-    evidence: []
-  recovery:
-    status: UNKNOWN
-    evidence: []
-```
-
-Do not put an unverified device-tree filename into the release configuration.
-
-Use the existing procedure to inspect:
-
-- exact device model;
-- board revision;
-- available CoreELEC device trees;
-- serial console.
-
-### Verification
-
-```yaml
-verification:
-  - class: HARDWARE
-    runner: hardware-lab
-    target: a95x-f3-air
-```
-
-If no hardware lab is available:
-
-```yaml
-verification:
-  - class: HARDWARE
-    runner: blocked
-```
-
-A specific first-choice DTB is identified.
-
-Serial console access is available.
-
-The result is recorded in the box configuration with `CONFIRMED` or `PROVISIONAL` status and evidence references.
-
----
-
-## Task 0.5.2 — Pin CoreELEC
-
-Clone CoreELEC and check out a specific stable release/tag.
-
-Do not track an unpinned development branch.
-
-Record:
-
-```yaml
-coreelec:
-  repository: <repository>
-  ref: <tag>
-  commit: <full-commit>
-```
+A failed candidate blocks that rebase and leaves the current 21.3-Omega pin supported; it does not invalidate the current confirmed baseline.
 
 ### Verification
 
@@ -1017,111 +907,52 @@ coreelec:
 verification:
   - class: STATIC
     runner: github-actions
-```
-
-Examples:
-
-```bash
-git rev-parse HEAD
-git status
-```
-
-The recorded commit **MUST** equal the checked-out commit.
-
----
-
-## Task 0.5.3 — Build stock CoreELEC before modifying it
-
-### Goal
-
-Establish a known-good hardware baseline.
-
-Build the stock image using the CoreELEC build instructions corresponding to the pinned commit.
-
-### Verification
-
-```yaml
-verification:
+    target: a95x-f3-air
+    proves: baseline record contains the exact immutable inputs and separate evidence namespaces
   - class: HARDWARE
     runner: hardware-lab
     target: a95x-f3-air
+    when: future-rebase-only
+    proves: candidate baseline reconfirmation on the exact unit
 ```
 
-On a spare SD card:
-
-- stock image boots;
-- Kodi starts;
-- the selected DTB works;
-- serial console can capture boot output.
-
-Do not proceed if the baseline does not boot.
+Evidence records the full commit, target, image, DTB/hash, timestamp, runner, results, and artefact paths. An unavailable future hardware runner is `BLOCKED`; it does not reopen the current facts.
 
 ---
 
-## Task 0.5.4 — Identify and remove Kodi
+## Task 0.5.2 — Pin and build the canonical CoreELEC fork
 
-Find the Kodi package and the mechanism by which the stock image enables it.
+Use or create `ashipaek0/CoreELEC` from the upstream `coreelec-21` source line. Release builds fetch this canonical fork and verify both the exact tag and full commit. The initial release pin is tag `21.3-Omega` at `fc61125e8900ab0c2593a29b615980ed0cd5b939`. An AshipaOS-owned immutable pin record must contain repository, upstream source branch, tag, full upstream commit, fork commit, actual CoreELEC project/device/architecture tuple, and expected source/archive hashes.
 
-The exploratory command remains useful:
+Release preparation must fail closed when the tag resolves to another commit, the checkout is dirty, a mutable branch tip is supplied as a release input, or an expected hash differs. Read the project/device/architecture tuple from the pinned source and build output; do not infer `arm64` from the S905X3 CPU because the confirmed image is `Amlogic-ng.arm`.
 
-```bash
-find . -path "*/packages/mediacenter/kodi*" -name "package.mk"
-```
-
-Do not assume the package path or service name if the pinned CoreELEC version differs.
-
-Important correction:
-
-Do not define a “successful” image without Kodi as a finished product.
-
-The removal-only build is an intermediate build proving the package mechanism, not a release candidate.
+Build the unmodified pinned fork in canonical CI as a source-build and reproducibility gate, not to rediscover hardware support. Record the source pin, fork pin, build environment/container and toolchain identities, command/tuple, output name and hashes, package graph, and complete logs.
 
 ### Verification
 
 ```yaml
 verification:
+  - class: STATIC
+    runner: github-actions
+    target: a95x-f3-air
+    proves: immutable pin format and fail-closed validation
   - class: BUILD
     runner: github-actions
-
-  - class: HARDWARE
-    runner: hardware-lab
     target: a95x-f3-air
+    proves: clean pinned fork builds and emits recorded artefacts
 ```
 
-The build completes and the build log records the removed Kodi package/service.
-
-The hardware verification confirms:
-
-- the image boots;
-- Kodi is not running;
-- no broken units are caused by removal;
-- the AshipaOS replacement path is identifiable.
-
-If hardware is unavailable, the hardware verification is blocked.
+Negative tests cover a moved tag, wrong full commit, dirty checkout, mutable branch input, wrong archive hash, and unexpected build tuple.
 
 ---
 
-## Task 0.5.5 — Build the generic Jellyfin/mpv-shim package
+## Task 0.5.3 — Define the no-Kodi package graph
 
-Create the AshipaOS application package using CoreELEC’s package conventions.
+Inspect the pinned source to identify every Kodi package, dependency, image inclusion point, service, launcher, autostart path, update/recovery reference, and fallback. Exclude Kodi before image construction; never install it and delete it from a completed root filesystem. Run a dependency-closure check so no retained package silently pulls Kodi back in.
 
-The package **MUST** contain no A95X-specific references.
+The final package manifest and image must contain no Kodi executable, package payload, Kodi-only library, add-on, configuration, unit, launcher, autostart path, update payload, recovery path, or fallback. Any retained component formerly reached through Kodi must be justified as a non-Kodi runtime dependency in the integration contract.
 
-It may contain:
-
-- pinned Jellyfin mpv shim version;
-- pinned Python dependencies;
-- mpv/cage dependencies;
-- generic installation logic.
-
-It **MUST NOT** contain:
-
-- A95X;
-- F3;
-- Air;
-- device tree names;
-- RAM variants;
-- box-specific WiFi configuration.
+A removal-only image is not a release candidate and does not create a separate hardware milestone. After this package-graph gate passes, proceed directly to runtime and replacement integration.
 
 ### Verification
 
@@ -1129,70 +960,34 @@ It **MUST NOT** contain:
 verification:
   - class: STATIC
     runner: github-actions
-```
-
-Example:
-
-```bash
-grep -RniE 'a95x|f3|air' packages/ashipaos/jellyfin-mpv-shim
-```
-
-Expected: no matches.
-
-```yaml
-verification:
+    target: a95x-f3-air
+    proves: explicit exclusion and dependency-closure rules cover every inclusion path
   - class: BUILD
     runner: github-actions
+    target: a95x-f3-air
+    proves: final manifest and unpacked image contain no forbidden Kodi artefact
 ```
 
-The resulting root filesystem contains the installed package.
+Publish the dependency graph, exclusion report, final package manifest, image scan, and logs. Any Kodi match fails the gate.
 
 ---
 
-## Task 0.5.5b — Formalise box configuration
+## Task 0.5.4 — Discover and preserve the CoreELEC media runtime
 
-The box configuration is the only place where the physical box’s hardware-specific values are selected.
+Inventory the pinned CoreELEC display, EGL/GBM/DRM, audio, input, ffmpeg, mpv/libmpv, Python ABI, hardware-decode, network, permissions, and service-manager interfaces that remain usable without Kodi. Determine whether Jellyfin MPV Shim can use direct GBM/DRM, an existing CoreELEC mpv/libmpv path, or a minimal added bridge.
 
-Example structure:
+Evaluate direct GBM/DRM first. Add cage or Wayland only when pinned-source, build, and exact-target evidence proves it necessary and compatible with the retained decode path. Do not choose a launcher or `hwdec` value by analogy with Pi/x86_64.
 
-```yaml
-name: A95X F3 Air
+Record in the CoreELEC integration contract:
 
-kernel_branch: Amlogic-ne
+- chosen runtime bridge and rejected alternatives with evidence;
+- exact packages, patches, and build flags;
+- display, audio, input, network, and hardware-decode interfaces;
+- device permissions and least-privilege user/group model;
+- startup dependencies and environment;
+- CoreELEC Python, libmpv/mpv, ffmpeg, libc, and other native ABI requirements.
 
-soc: S905X3
-
-device_tree:
-  value: <confirmed-or-provisional-dtb>
-  status: PROVISIONAL
-  evidence: []
-
-wifi:
-  driver_package: <driver-or-null>
-  status: PROVISIONAL
-  evidence: []
-
-bluetooth:
-  supported: false
-  status: PROVISIONAL
-  evidence: []
-
-ram:
-  variants:
-    - 2G
-    - 4G
-  status: PROVISIONAL
-  evidence: []
-
-ir:
-  receiver: <confirmed-or-null>
-  status: UNKNOWN
-  evidence: []
-```
-
-A box configuration may reference a driver package by name.
-
-It **MUST NOT** embed the driver’s package implementation.
+Do not replace the working CoreELEC kernel, firmware, DTB, graphics, audio, network, or decode stack merely to resemble the Debian track. This task is a prerequisite for Tasks 0.5.5 and 0.5.6; later tasks may not guess its launcher, package, ABI, or hardware-decode result.
 
 ### Verification
 
@@ -1200,163 +995,29 @@ It **MUST NOT** embed the driver’s package implementation.
 verification:
   - class: STATIC
     runner: github-actions
-```
-
-A second box on the same kernel branch can be represented by another configuration file without modifying the generic AshipaOS package.
-
----
-
-## Task 0.5.6 — Integrate AshipaOS services into CoreELEC
-
-Identify CoreELEC’s actual overlay mechanism and service naming from the pinned source tree.
-
-Integrate:
-
-- display service;
-- settingsd;
-- provisioning;
-- update services;
-- input support;
-- AshipaOS defaults.
-
-The device-tree placement **MUST** consume the selected box configuration.
-
-Do not assume a service is named `kodi.service`; verify it against the pinned CoreELEC tree.
-
-### CoreELEC integration contract
-
-Create:
-
-```text
-contracts/coreelec-integration.md
-```
-
-It must record, for the pinned CoreELEC ref:
-
-```yaml
-coreelec_integration:
-  coreelec_ref: <tag>
-  package_system: <package-system>
-  service_manager: systemd
-  overlay_mechanism: <mechanism>
-  kodi_removal_method: <method>
-  retained_services: []
-  disabled_services: []
-  replaced_services: []
-  input_stack: <unknown-or-described>
-  cec_stack: <unknown-or-described>
-  ir_stack: <unknown-or-described>
-  network_stack: <connman-or-other>
-  update_conflicts: <none-or-described>
-```
-
-### Verification
-
-```yaml
-verification:
+    target: a95x-f3-air
+    proves: pinned-source inventory and evidence-backed runtime decision are complete
   - class: BUILD
     runner: github-actions
-
+    target: a95x-f3-air
+    proves: selected bridge and ABI probes build against the pinned graph
   - class: HARDWARE
     runner: hardware-lab
     target: a95x-f3-air
+    proves: selected local runtime renders and preserves the intended media path
 ```
 
-The image boots directly into AshipaOS without a Kodi fallback.
+Hardware unavailability is `BLOCKED`, not permission to select cage, Wayland, direct DRM, or `hwdec` by assumption.
 
 ---
 
-## Task 0.5.7 — Confirm hardware decode
+## Task 0.5.5 — Build the reproducible Jellyfin MPV Shim bundle
 
-Test:
+Use `https://github.com/jellyfin/jellyfin-mpv-shim` and pin the initial upstream stable release `v3.0.0`, published 2026-09-08. Record its resolved full commit and source archive checksum. Read requirements from that pinned release's `pyproject` and project metadata and resolve exact dependencies in CI for the CoreELEC Python and native ABI recorded by Task 0.5.4. Do not maintain a hand-authored substitute dependency list.
 
-- H.264;
-- HEVC;
-- HEVC 10-bit where the hardware supports it.
+Produce a complete, target-compatible AshipaOS bundle containing the application and resolved Python dependencies, plus an SBOM or dependency manifest. Declare CoreELEC-provided native components, including libmpv where selected, as explicit compatibility requirements in the signed bundle manifest. Keep all A95X box-specific values outside generic application source and payload.
 
-The comparison against stock CoreELEC is retained.
-
-### Verification
-
-```yaml
-verification:
-  - class: HARDWARE
-    runner: hardware-lab
-    target: a95x-f3-air
-```
-
-Record:
-
-- media type;
-- resolution;
-- codec;
-- decoder selected;
-- CPU utilisation;
-- playback result;
-- relevant kernel/application errors.
-
-Do not label hardware decode `CONFIRMED` merely because playback is smooth.
-
-Record evidence.
-
----
-
-## Task 0.5.8 — Confirm WiFi
-
-Verify the actual driver and interface.
-
-### Verification
-
-```yaml
-verification:
-  - class: HARDWARE
-    runner: hardware-lab
-    target: a95x-f3-air
-```
-
-Example:
-
-```bash
-iw dev
-```
-
-Record:
-
-- interface name;
-- driver;
-- firmware;
-- association result;
-- DHCP result.
-
-Update the box configuration status from `PROVISIONAL` to `CONFIRMED` only after successful testing.
-
----
-
-## Task 0.5.9 — Document Amlogic rebase procedure
-
-Create:
-
-```text
-docs/amlogic-rebase-procedure.md
-```
-
-It **MUST** describe:
-
-- selecting a new CoreELEC release;
-- recording its commit;
-- applying the AshipaOS patch/package set;
-- validating package integration;
-- validating boot;
-- validating hardware decode;
-- validating networking;
-- validating the box configuration;
-- reviewing changed hardware assumptions.
-
-It **MUST** also contain a section:
-
-```text
-Branch scope vs box scope
-```
+Production devices must not run `pip`, compile source, resolve dependencies, check out Git, query PyPI as a trust root, or install unsigned upstream payloads. They consume only AshipaOS CI-built, promoted, signed and hashed bundles.
 
 ### Verification
 
@@ -1364,24 +1025,29 @@ Branch scope vs box scope
 verification:
   - class: STATIC
     runner: github-actions
+    target: a95x-f3-air
+    proves: upstream pin, metadata-derived lock, manifest, and target isolation are complete
+  - class: BUILD
+    runner: github-actions
+    target: a95x-f3-air
+    proves: imports, entrypoint, version, configuration loading, archive safety, dependency closure, ABI metadata, reproducibility metadata, hash, and signature
 ```
 
-A future contributor can determine whether a value is branch-scoped or box-scoped without reading the entire codebase.
+Evidence includes upstream tag/commit/source hash, dependency-lock hash, SBOM, target/ABI contract, bundle hash, signature/key ID, build identity, and test logs.
 
 ---
 
-## Task 0.5.10 — Second-box dry run
+## Task 0.5.6 — Integrate the A95X boot-to-Jellyfin service
 
-Create a hypothetical second box configuration.
+Add only the package/overlay and service required by the pinned CoreELEC source and Task 0.5.4's runtime decision. At boot, launch the released upstream Jellyfin MPV Shim built-in library/browser UI full-screen and keep playback in the same appliance session. There is no visible Kodi, general-purpose desktop, or Kodi fallback.
 
-Do not modify generic AshipaOS package code unless the exercise demonstrates a genuinely missing generic capability.
+The service must:
 
-If a new hardware capability is required:
-
-- add a generic schema field;
-- add a standalone package if required;
-- reference it from the box configuration;
-- do not special-case the existing box.
+- run unprivileged wherever the retained CoreELEC interfaces permit, with only documented devices/groups and explicit justification for unavoidable privilege;
+- load configuration, Jellyfin credentials, identity, cache, downloads, logs, and updater state from protected persistent locations under `/storage`, outside OS and application bundles;
+- select a valid writable application slot when present and otherwise use the immutable known-good application bundled with the OS;
+- define startup ordering, bounded restart policy, log path, application-level readiness signal, and an on-screen or remotely diagnosable failure state;
+- use only upstream mainline/released built-in UI behavior.
 
 ### Verification
 
@@ -1389,15 +1055,149 @@ If a new hardware capability is required:
 verification:
   - class: STATIC
     runner: github-actions
+    target: a95x-f3-air
+    proves: service, persistence, privilege, slot-selection, rescue, and no-Kodi contracts
+  - class: BUILD
+    runner: github-actions
+    target: a95x-f3-air
+    proves: required service/overlay and rescue bundle are present and internally valid
+  - class: HARDWARE
+    runner: hardware-lab
+    target: a95x-f3-air
+    proves: boot reaches the full-screen released UI through the selected bridge
+  - class: MANUAL
+    runner: human
+    target: a95x-f3-air
+    proves: visible appliance UX and diagnosable failure state
 ```
 
-The second-box exercise does not require editing the generic Jellyfin package or common service overlay.
+---
+
+## Task 0.5.7 — Build and inspect the final A95X image
+
+Build through the pinned canonical fork in CI with the no-Kodi graph, selected runtime bridge, AshipaOS service, immutable `v3.0.0` rescue bundle, and confirmed DTB selection. Inspect the produced image and final package manifest rather than trusting build-log intent.
+
+The gate requires:
+
+- `sm1_s905x3_4g_1gbit.dtb` installed at the FAT root as `dtb.img`, with identity/hash checked;
+- expected runtime, service, rescue bundle, and release metadata files;
+- no Kodi artefact described in Task 0.5.3;
+- CoreELEC tag/commit, fork commit, app tag/commit, dependency-lock hash, bundle hash/signature, image hash, and CI run recorded.
+
+Fail on an unexpected target ABI, missing or wrong DTB, unsigned bundle/manifest, mutable input, omitted metadata, or any Kodi artefact.
+
+### Verification
+
+```yaml
+verification:
+  - class: STATIC
+    runner: github-actions
+    target: a95x-f3-air
+    proves: all release inputs and inspection rules are immutable and explicit
+  - class: BUILD
+    runner: github-actions
+    target: a95x-f3-air
+    proves: final image content, package graph, DTB, bundle, metadata, hashes, and signatures pass
+```
+
+Only a passing candidate proceeds to hardware dispatch.
+
+---
+
+## Task 0.5.8 — Verify post-Kodi A95X integration
+
+On the user's exact A95X F3 Air, verify that the AshipaOS candidate boots with `sm1_s905x3_4g_1gbit.dtb` installed as `dtb.img` and reaches the full-screen Jellyfin library/browser without Kodi. Verify display, audio, Ethernet, Wi-Fi, Bluetooth where exercised, persistent storage, claimed input paths, and every other CoreELEC hardware behavior relied on by AshipaOS after the package/service replacement.
+
+These are post-replacement integration regressions, not rediscovery of baseline support. Verify persistent configuration across reboot and client registration/login to a Jellyfin server without recording credentials in evidence. Record image hash, CoreELEC and fork commits, app/bundle version, exact unit/target, timestamp, runner, logs, and observational evidence.
+
+### Verification
+
+```yaml
+verification:
+  - class: HARDWARE
+    runner: hardware-lab
+    target: a95x-f3-air
+    proves: post-Kodi boot, retained hardware paths, persistence, and server integration
+  - class: MANUAL
+    runner: human
+    target: a95x-f3-air
+    proves: full-screen UI, navigation, and visible failure-free behavior
+```
+
+Unavailable exact-box hardware is `BLOCKED`; stock CoreELEC baseline evidence cannot substitute for this gate.
+
+---
+
+## Task 0.5.9 — Verify Jellyfin playback and hardware decoding
+
+Play representative H.264, HEVC, HEVC 10-bit, and every other codec claimed by the candidate through Jellyfin MPV Shim, not Kodi. For each case record:
+
+- exact Jellyfin MPV Shim and mpv/libmpv versions and configuration;
+- selected decoder and video-output path;
+- codec, profile, bit depth, and resolution;
+- CPU utilization, dropped frames, and playback result;
+- relevant application, mpv, and kernel errors.
+
+Use the confirmed stock CoreELEC result only for diagnosis. Kodi decoding the same file does not confirm AshipaOS integration, and smooth playback alone does not prove hardware decoding. Only codecs with captured decoder evidence may be advertised as AshipaOS capabilities.
+
+### Verification
+
+```yaml
+verification:
+  - class: HARDWARE
+    runner: hardware-lab
+    target: a95x-f3-air
+    proves: Jellyfin playback uses the claimed hardware decoder and retained output path
+  - class: MANUAL
+    runner: human
+    target: a95x-f3-air
+    proves: visible playback quality for the declared cases
+```
+
+---
+
+## Task 0.5.10 — Maintain and rebase the CoreELEC fork
+
+Track stable CoreELEC tags deliberately; never feed the mutable `coreelec-21` branch head directly into a release. For a proposed rebase:
+
+1. create a new immutable pin and retain the previous supported pin;
+2. review/reapply the small AshipaOS package and overlay delta;
+3. rebuild and repeat Task 0.5.3's no-Kodi closure and Task 0.5.7's image-content checks;
+4. run Task 0.5.1's trimmed future-rebase baseline reconfirmation;
+5. run Tasks 0.5.8 and 0.5.9;
+6. independently exercise applicable OS update/recovery gates before promotion.
+
+Record upstream changes to package conventions, Python/native ABI, mpv/libmpv, ffmpeg, graphics/decode, service manager, networking, update mechanism, DTB, firmware, and drivers. Explain upstream branch scope versus exact-box scope; never generalize this unit's DTB or evidence to another box or revision.
+
+Do not promote a candidate until every required `STATIC`, `BUILD`, `HARDWARE`, and `MANUAL` gate passes. A failed or blocked candidate leaves the current pin and recovery path supported. CoreELEC/OS rebases remain separate in source, cadence, manifest, activation, health, and rollback from stable Jellyfin MPV Shim bundle releases.
+
+### Verification
+
+```yaml
+verification:
+  - class: STATIC
+    runner: github-actions
+    target: a95x-f3-air
+    proves: immutable rebase record, delta review, and change-impact inventory
+  - class: BUILD
+    runner: github-actions
+    target: a95x-f3-air
+    proves: candidate source build, no-Kodi graph, and final image inspection
+  - class: HARDWARE
+    runner: hardware-lab
+    target: a95x-f3-air
+    proves: baseline reconfirmation, post-replacement integration, decode, and recovery
+  - class: MANUAL
+    runner: human
+    target: a95x-f3-air
+    proves: visible UI, navigation, and playback acceptance
+```
 
 ---
 
 # LAYER 1 — Minimal Debian Root Filesystem
 
-This layer builds the Debian Pi/x86_64 pipeline.
+This layer builds the Debian Pi/x86_64 pipeline. No Layer 1 Debian rootfs, kernel, or image-assembly task applies to `a95x-f3-air`; A95X implementers must use Layer 0.5 and must never feed a Debian rootfs into the CoreELEC track.
 
 ---
 
@@ -1679,6 +1479,8 @@ The ownership boundary is represented in scripts and tests.
 
 # LAYER 2 — Base System and Boot
 
+For A95X, preserve CoreELEC's pinned init, udev, boot, identity, time, and service mechanisms unless the Layer 0.5 integration contract identifies a narrow required change. Apply this layer's behavioral and security outcomes through CoreELEC packages/overlays; do not reinstall a Debian base system or blindly mask CoreELEC services. Enumerate every service disabled because of Kodi removal and verify it has no retained non-Kodi hardware responsibility.
+
 ---
 
 ## Task 2.1 — Install systemd and base services
@@ -1843,6 +1645,8 @@ Do not install unrelated driver packages merely because they exist in a generic 
 
 Target definitions determine required graphics packages.
 
+For A95X, retain the pinned CoreELEC graphics/display stack selected by Task 0.5.4. Do not install a generic Debian Mesa stack over it.
+
 ### Verification
 
 ```yaml
@@ -1865,7 +1669,7 @@ Record the renderer and DRM devices.
 
 ## Task 3.2 — Install Wayland/cage
 
-Install the Wayland compositor and required runtime libraries.
+Install the Wayland compositor and required runtime libraries for the Pi/x86_64 path. Cage/Wayland is not an A95X requirement unless Task 0.5.4 proves it necessary and compatible with the retained CoreELEC display and decode path.
 
 ### Verification
 
@@ -1890,6 +1694,8 @@ Install mpv and the Python binding required by Jellyfin mpv shim.
 Verify the actual installed package provides the required library/API.
 
 Verification must occur inside the target rootfs or an equivalent target-equivalent environment, not merely on the build host.
+
+For A95X, build and verify mpv/libmpv and Python-binding compatibility through the pinned CoreELEC package graph and the application bundle contract in Tasks 0.5.4–0.5.5. Debian package/import results are not proof for A95X.
 
 ### Verification
 
@@ -1929,6 +1735,8 @@ Do not create arbitrary writable directories inside the immutable root filesyste
 
 This task now verifies the runtime user requirement that Layer 1 deliberately deferred.
 
+For A95X, use the launcher selected in Task 0.5.4 and service defined in Task 0.5.6. Require unprivileged execution where supported and evidence for every device/group or unavoidable privilege granted.
+
 ### Verification
 
 ```yaml
@@ -1946,7 +1754,7 @@ The display process runs as `ashipaos`.
 
 ## Task 3.5 — Test mpv independently
 
-Play a local test file through cage before adding Jellyfin mpv shim.
+Play a local test file through cage before adding Jellyfin mpv shim on Pi/x86_64. For A95X, run the independent local-media smoke test through the runtime selected in Task 0.5.4 before Jellyfin network playback; hardware-decode confirmation remains the separate Task 0.5.9 gate.
 
 ### Verification
 
@@ -1962,6 +1770,8 @@ Record playback and hardware decode evidence.
 ---
 
 # LAYER 4 — Network Stack
+
+For A95X, do not reinstall or replace the confirmed CoreELEC network or firmware stack merely to standardize on Debian. Identify and retain the pinned CoreELEC network manager and persistent-state conventions from source. Wi-Fi hardware/driver operation is confirmed baseline; verify instead that no-Kodi integration, persistence, provisioning, and settings operations still work. Provisioning and settings writers must target the retained interfaces rather than assume ConnMan paths when pinned-source evidence differs. Credentials belong only in protected persistent storage and hardware-lab secrets, never in an image or evidence.
 
 ---
 
@@ -2150,6 +1960,8 @@ Record:
 
 The base application is the fallback for app updates.
 
+For A95X, Task 0.5.5 governs the CI-built bundle: the initial reproducible pin is upstream stable `v3.0.0`, with full commit, source hash, metadata-derived dependency lock, ABI contract, bundle hash, and signature. Do not invent a Python dependency list.
+
 ### Verification
 
 ```yaml
@@ -2165,6 +1977,8 @@ verification:
 Application configuration belongs on `/storage`.
 
 The immutable image **MUST** contain only defaults.
+
+For A95X, configuration, Jellyfin credentials, identity, cache/downloads, and updater state remain outside both writable application slots and the immutable CoreELEC image.
 
 ### Verification
 
@@ -2195,7 +2009,7 @@ video:
   codecs: ...
 ```
 
-Do not hard-code Intel VAAPI configuration into a service shared by Amlogic/Pi targets.
+Do not hard-code Intel VAAPI configuration into a service shared by Amlogic/Pi targets. Do not hard-code an A95X `hwdec` value until Task 0.5.4 identifies the supported interface and Task 0.5.9 proves actual decoder selection.
 
 ### Verification
 
@@ -2227,19 +2041,15 @@ verification:
 
 Run first boot twice.
 
-The second boot **MUST NOT** overwrite user configuration.
+The second boot **MUST NOT** overwrite user configuration. On A95X, application activation, rollback, and CoreELEC rebase must also preserve existing configuration and identity.
 
 ---
 
 ## Task 5.5 — Launch Jellyfin mpv shim
 
-The display service launches:
+The display service uses a per-target launcher. Pi/x86_64 launch through their declared cage path. A95X uses the CoreELEC runtime bridge recorded by Task 0.5.4 and service from Task 0.5.6, booting directly to the released Jellyfin MPV Shim full-screen built-in library/browser UI and player.
 
-```text
-cage → jellyfin-mpv-shim
-```
-
-with the target’s environment and persistent application path.
+The launcher uses the target’s environment and persistent application path.
 
 The service **MUST NOT** assume that the application update directory exists.
 
@@ -2286,7 +2096,7 @@ verification:
 
 Install and test CEC support only on targets that expose it.
 
-Do not treat CEC availability as universal.
+Do not treat CEC availability as universal. On the exact A95X unit, CoreELEC baseline hardware, including Bluetooth, is confirmed, but Kodi mappings are not Jellyfin MPV Shim evidence. For each claimed CEC, Bluetooth remote, USB HID, or keyboard path, identify the retained CoreELEC event source and add only the minimal mapping/bridge required by the released Jellyfin UI.
 
 ### Verification
 
@@ -2321,17 +2131,15 @@ verification:
     target: target-specific
 ```
 
-TV remote navigation moves focus through the UI.
+Record real keycodes. Verify focus navigation, select, back, play/pause, and recovery from an unmapped key in the released UI. TV remote navigation must not be inferred from Kodi behavior.
 
 ---
 
 ## Task 6.4 — IR
 
-On Amlogic hardware, first inspect the existing vendor-kernel input devices.
+On the exact A95X unit, preserve and document the confirmed CoreELEC input path, then verify Jellyfin navigation and playback controls. Kodi input behavior is not sufficient evidence.
 
-Do not assume that an IR receiver needs to be added from scratch.
-
-Use `ir-keytable` only after identifying the actual receiver/input path.
+For IR and every other claimed input, identify the retained event source and use only the minimal mapping/bridge required by the released Jellyfin UI. Use `ir-keytable` only when pinned-source and device evidence identify it as the actual path.
 
 ### Verification
 
@@ -2354,6 +2162,8 @@ Record the actual keycodes before creating the permanent keymap.
 ---
 
 # LAYER 7 — Settings Bridge
+
+For A95X, implement `settingsd` as a CoreELEC package/overlay against the actual retained service, network, and boot interfaces. `write_boot_config` must not alter the confirmed DTB, CoreELEC boot chain, or arbitrary files; expose only explicitly validated A95X operations. Application-slot activation is owned by the app updater and is not an unrestricted `settingsd` action. All protocol, authorization, and security requirements below remain unchanged.
 
 ---
 
@@ -2522,6 +2332,10 @@ verification:
 
 # LAYER 8 — OS OTA
 
+The Pi/x86_64 OTA design remains intact. A95X OS updates are a distinct profile: signed AshipaOS releases built from a deliberately pinned `ashipaek0/CoreELEC` state, never direct installation of arbitrary upstream CoreELEC images. Before claiming A95X rollback, inspect and document the pinned CoreELEC update and boot mechanism; do not assume the Debian `.old` SquashFS method or boot-counter location applies.
+
+OS checking, application, reboot, health, and recovery remain separate from no-reboot application-bundle updates. A Jellyfin application release must not force an OS rebuild unless its declared CoreELEC/native ABI constraints cannot be met by the current base.
+
 The OTA concept is retained, but its contracts are tightened.
 
 ---
@@ -2556,6 +2370,8 @@ For the current implementation, explicitly distinguish:
 - signature = authenticity
 
 Do not claim that a hash alone authenticates the publisher.
+
+For A95X, signatures are mandatory. Bind the OS manifest to `a95x-f3-air`, CoreELEC tag/full commit, fork commit, image hash, DTB filename/hash, minimum storage and schema compatibility, and the evidence-backed CoreELEC rollback/recovery contract.
 
 Minimum OTA trust contract:
 
@@ -2662,7 +2478,7 @@ The updater should also handle:
 - target mismatch;
 - blacklisted failed releases.
 
-The current `.old` model is retained for this version of the architecture.
+The current `.old` model is retained for the Pi/x86_64 architecture. It does not apply to A95X unless the pinned CoreELEC mechanism is inspected and proves an equivalent contract.
 
 ### Rollback contract
 
@@ -2753,9 +2569,11 @@ A test update follows the declared policy end-to-end.
 
 ---
 
-# LAYER 8.5 — Jellyfin mpv-shim Application Updates
+# LAYER 8.5 — Jellyfin MPV Shim Application Updates
 
-The application update mechanism remains independent of OS updates.
+The application update mechanism remains independent of OS updates. Pi/x86_64 retain the behavior specified below. For A95X, the signed A/B profile in each task is mandatory and supersedes `PYTHONPATH` shadowing, mutable `pip --target` installs, and copying a live `site-packages` tree as rollback. Production A95X devices consume only promoted AshipaOS bundles and never run `pip`, compile, resolve mutable dependencies, or trust PyPI directly.
+
+For A95X, Tasks 8.5.1–8.5.7 require `STATIC` and `BUILD` verification on `github-actions` for slot, feed, trust, manifest, staging, validation, activation, timer, and failure-state contracts. Task 8.5.8 additionally requires portable `VM` tests on `github-actions`, exact-box `HARDWARE` tests on `hardware-lab`, and visible continuity/recovery `MANUAL` tests on `human`. An unavailable required runner yields `BLOCKED`; no lower verification class substitutes for it.
 
 ---
 
@@ -2773,7 +2591,9 @@ Use:
 
 Prefer complete staged application bundles over mutating the live installation.
 
-The existing `PYTHONPATH` shadowing mechanism may be retained during migration, but the final contract should use an atomic application activation point.
+The existing `PYTHONPATH` shadowing mechanism may be retained during Pi/x86_64 migration, but the final contract should use an atomic application activation point.
+
+**A95X profile:** use `/storage/.local/lib/ashipaos-app/slots/A` and `slots/B`, an atomically updated active-slot selector, and durable updater state stored outside both slots. Keep configuration, Jellyfin credentials, identity, cache, downloads, and logs outside both slots. Retain the immutable OS-bundled known-good application as rescue fallback when neither writable slot validates.
 
 ---
 
@@ -2790,6 +2610,8 @@ The checker **MUST** report:
 and the orchestrator **MUST** handle exit 2 explicitly.
 
 Do not let `set -e` terminate the update path.
+
+**A95X profile:** the device queries a signed AshipaOS stable app feed, not PyPI or a mutable GitHub branch. CI may discover upstream tags, but rejects drafts/prereleases, resolves the tag to a full commit, hashes source, builds/tests the complete bundle, and publishes only after explicit AshipaOS promotion. The device rejects quarantined releases until a newer eligible version exists.
 
 ### Verification
 
@@ -2821,6 +2643,8 @@ It **MUST NOT** overwrite `current/`.
 
 Verify package metadata and imports before activation.
 
+**A95X profile:** download to a temporary path on persistent storage. Before safe extraction into the inactive slot, verify signed manifest/key ID, stable channel, monotonically acceptable version and downgrade policy, exact target, CoreELEC base, architecture, Python/native ABI constraints, declared size, and SHA-256. Use a single-instance lock, sufficient-space check, durable state, safe path/symlink handling, fsync/atomic rename where required, and interruption-safe cleanup. Never alter the active slot or rescue application.
+
 ---
 
 ## Task 8.5.4 — Validate staged application
@@ -2833,6 +2657,8 @@ At minimum:
 - configuration load.
 
 If validation fails, delete the pending version and leave the current version untouched.
+
+**A95X profile:** without installer hooks or device-side compilation, validate archive paths/symlinks, permissions, manifest completeness, dependency closure, imports, reported version, configuration loading against a non-secret fixture, entrypoint startup, and every CoreELEC/Python/native ABI constraint. Failure leaves the active selector untouched and quarantines or removes the candidate according to policy.
 
 ---
 
@@ -2863,6 +2689,8 @@ previous → current
 
 and record the failed version so the timer does not repeatedly install it.
 
+**A95X profile:** atomically select the inactive slot, restart only the application service, and require both process stability and a bounded application-level readiness signal before commit. On failure, atomically restore the former selector, restart and verify the former app, quarantine the candidate, and preserve evidence. Never destroy the only known-good slot. If neither writable slot validates, select the immutable rescue app and report degraded state.
+
 ---
 
 ## Task 8.5.6 — Timer
@@ -2874,6 +2702,8 @@ It **MUST** invoke the application update orchestrator, not merely the checker.
 The service runs as root only because it needs to activate the application and restart the display service.
 
 Its command surface must remain narrow.
+
+**A95X profile:** run daily with jitter, network-online ordering, a single-instance lock, bounded retry/backoff, and automatic apply policy. The orchestrator performs check, download, verification, inactive-slot staging, activation, health check, and outcome recording. A checker-only timer is not automatic updating. It never reboots or invokes the OS updater.
 
 ---
 
@@ -2901,6 +2731,8 @@ Example:
 
 The app updater must reject incompatible app releases.
 
+**A95X profile:** the signed manifest additionally requires upstream version/tag/full commit, AshipaOS bundle revision, target `a95x-f3-air`, CoreELEC base constraints, architecture/Python/native ABI, signature/key ID, dependency-lock hash, bundle format, and rollback/health policy. Missing, unauthenticated, wrong-channel, downgraded, or incompatible bundles are rejected. Pi/x86_64 manifests retain their own target fields and must not claim A95X compatibility without these fields.
+
 ---
 
 ## Task 8.5.8 — End-to-end application update test
@@ -2923,6 +2755,10 @@ Verify:
 - deliberately broken release rolls back;
 - failed release is not retried indefinitely;
 - newer release can subsequently be installed.
+
+For A95X also test first install; A-to-B and B-to-A updates; invalid signature/key; wrong hash, size, channel, target, CoreELEC/Python/native ABI; downgrade; missing dependency; unsafe traversal/symlink archive; insufficient space; interruption or power loss during download, extraction, activation, commit, and rollback boundaries; corrupt selector/state; crash loop; readiness failure; failed rollback; quarantine/no retry loop and bypass attempt; both writable slots invalid; rescue fallback; and unchanged user configuration/identity.
+
+A95X verification requires `STATIC` and `BUILD` on `github-actions` for feed/manifest/trust and portable updater tests, `VM` on `github-actions` only for portable state-machine behavior, `HARDWARE` on `hardware-lab` for real activation/reboot/rollback/rescue, and `MANUAL` on `human` for UI continuity. Unavailable required runners yield `BLOCKED`; VM evidence cannot pass A95X boot, display, input, or decode gates.
 
 ---
 
@@ -2951,23 +2787,17 @@ verification:
 
 ## Task 9.1 — Amlogic installation documentation
 
-Create:
+Create `docs/amlogic-install.md` for only the supported exact A95X F3 Air unit and the AshipaOS image derived from `CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic` at the pinned 21.3-Omega/fork inputs. The release manifest must provide the exact produced AshipaOS image filename; documentation must not use an unversioned generic filename.
 
-```text
-docs/amlogic-install.md
-```
+The verified installation procedure is:
 
-It **MUST** document only verified procedures.
+1. verify the signed image manifest, image hash, target, and CoreELEC/fork pins;
+2. write the image to removable media;
+3. copy `sm1_s905x3_4g_1gbit.dtb` to the FAT boot-partition root as `dtb.img` and verify its identity/hash;
+4. boot using the same confirmed process used by the working CoreELEC baseline;
+5. if the candidate fails, return to the last known-good 21.3-Omega-based AshipaOS image on removable media.
 
-Include:
-
-- image writing;
-- DTB placement;
-- recovery boot procedure;
-- expected failure behaviour;
-- serial-console diagnostics.
-
-If a step is device-firmware-specific and has not been verified, mark it `PROVISIONAL` rather than presenting it as fact.
+Do not present alternative DTBs, Debian partition layouts, bootloader replacement, eMMC installation, UART availability, serial diagnostics, or recovery-button behavior as confirmed without separate evidence. Do not generalize these instructions to another A95X revision or S905X3 box.
 
 ### Verification
 
@@ -2975,6 +2805,8 @@ If a step is device-firmware-specific and has not been verified, mark it `PROVIS
 verification:
   - class: STATIC
     runner: github-actions
+    target: a95x-f3-air
+    proves: exact image/DTB verification, scoped install steps, and known-good recovery
 ```
 
 ---
@@ -2999,13 +2831,21 @@ On fresh hardware:
 [ ] Jellyfin sees the correct client.
 ```
 
-Amlogic acceptance additionally requires:
+A95X acceptance additionally requires, with baseline facts and integration results recorded separately:
 
 ```text
-[ ] included IR remote tested;
-[ ] 10-bit HEVC tested where applicable;
-[ ] DTB and WiFi facts recorded.
+[ ] exact image and sm1_s905x3_4g_1gbit.dtb-as-dtb.img identity verified;
+[ ] Kodi absent;
+[ ] released full-screen Jellyfin library/browser UI appears automatically;
+[ ] server registration/login succeeds without credentials in evidence;
+[ ] configuration and identity survive reboot;
+[ ] claimed keyboard/CEC/IR/Bluetooth/USB input navigation and playback controls work;
+[ ] display, audio, Ethernet, Wi-Fi, Bluetooth where exercised, storage, and other relied-upon hardware remain operational after replacement;
+[ ] representative media playback succeeds through Jellyfin MPV Shim;
+[ ] each advertised codec, including 10-bit HEVC where claimed, has actual decoder evidence.
 ```
+
+Do not rediscover the DTB or Wi-Fi driver as first-boot work. Visible UI/navigation requires `MANUAL` evidence; device, network, and decoder behavior requires `HARDWARE` evidence on the exact box.
 
 ### Verification
 
@@ -3086,6 +2926,8 @@ Release metadata should also include:
 - container image digest, if used;
 - SBOM reference, if generated.
 
+For A95X also record the CoreELEC repository/tag/full commit, fork commit, DTB filename/hash, no-Kodi dependency-closure and image-scan result, selected runtime bridge, initial/rescue app tag and commit, dependency-lock hash, bundle hash/signature/key ID, and final image hash.
+
 ### Verification
 
 ```yaml
@@ -3107,7 +2949,7 @@ The implementation **MUST**:
 - reset the counter only after successful system readiness;
 - restore the previous SquashFS after the declared failure threshold.
 
-Do not call this a complete A/B boot system.
+Do not call this a complete A/B boot system. This generic `.old` SquashFS rollback applies to Pi/x86_64 only unless the pinned CoreELEC boot/update mechanism proves it for A95X. A95X OS rollback/recovery remains separate from the mandatory application-slot rollback.
 
 Each target must define:
 
@@ -3195,6 +3037,21 @@ clean
 → publish release candidate
 ```
 
+For A95X, use a separate pipeline:
+
+```text
+fetch and verify immutable CoreELEC/fork pin
+→ review/apply the AshipaOS package/overlay delta
+→ exclude Kodi and verify dependency closure
+→ build the selected runtime and signed v3.0.0 rescue bundle
+→ build the CoreELEC-derived image
+→ inspect DTB, package manifest, bundle, metadata, and Kodi absence
+→ sign/hash the image and manifests
+→ run exact-box A95X hardware acceptance
+```
+
+Do not run `debootstrap` or the Debian image assembler for A95X. The generic rootfs pipeline above remains unchanged for Pi/x86_64.
+
 The image assembler **MUST** clean up loop devices and mounts even on failure.
 
 Example cleanup contract:
@@ -3245,6 +3102,8 @@ Test:
 - preservation of user configuration;
 - preservation of WiFi configuration;
 - preservation of AshipaOS client identity.
+
+For A95X, independently test a CoreELEC/OS rebase upgrade, application A-to-B/B-to-A upgrade, application rollback/rescue, persistent configuration and identity, and recovery to the prior supported OS pin. App and OS mechanisms must not share activation or rollback state.
 
 ### Verification
 
@@ -3324,6 +3183,8 @@ Examples:
 
 The generic Amlogic package tree **MUST** fail the test if it contains A95X-specific references.
 
+A95X static tests also validate immutable CoreELEC and app pins, the confirmed DTB, absence of forbidden transitional branch/project language in normative A95X instructions, no box hard-coding in generic application code, application-manifest schema, and mandatory signature metadata.
+
 ---
 
 ## 11.3 Build tests
@@ -3340,6 +3201,8 @@ Verify:
 - release metadata;
 - checksum generation.
 
+For A95X, BUILD tests additionally verify the pinned CoreELEC source build, Kodi exclusion and dependency closure, final image contents and DTB, application bundle dependency closure/native ABI, safe archive handling, SBOM/lock, checksums, signatures, and reproducibility metadata.
+
 ---
 
 ## 11.4 VM tests
@@ -3355,7 +3218,7 @@ Where supported:
 - updater;
 - rollback logic.
 
-Hardware-specific display/decode/input tests **MUST NOT** be falsely marked as passed by VM tests.
+Hardware-specific display/decode/input tests **MUST NOT** be falsely marked as passed by VM tests. VM tests may exercise portable A95X updater state machines and malformed inputs, but cannot pass A95X boot, display, input, network, or decode gates.
 
 ---
 
@@ -3372,13 +3235,7 @@ Each target has an acceptance matrix:
 | x86_64 |  |  |  |  |  |  |  |  |  |  |
 | A95X F3 Air |  |  |  |  |  |  |  |  |  |  |
 
-Amlogic boxes additionally require:
-
-- DTB;
-- serial console;
-- WiFi driver;
-- IR receiver;
-- 10-bit HEVC where applicable.
+For the exact A95X F3 Air, `sm1_s905x3_4g_1gbit.dtb` and baseline Wi-Fi are confirmed inputs; serial console is optional diagnostic infrastructure, not a prerequisite or confirmed fact. Required A95X `HARDWARE`/`MANUAL` evidence covers no-Kodi boot-to-UI, retained hardware/network behavior, navigation, playback and decoder selection, signed application activation/rollback/rescue, and future OS rebase acceptance. Stock CoreELEC baseline results cannot pass these post-replacement gates.
 
 ---
 
@@ -3403,13 +3260,20 @@ Examples:
 
 ### Application update negative tests
 
-- broken Python package;
-- missing dependency;
-- incompatible OS version;
-- failed import;
+- broken bundle or missing dependency;
+- invalid signature, unknown/revoked key, wrong hash, or wrong size;
+- wrong channel, target, CoreELEC/Python/native ABI, or downgrade;
+- unsafe archive traversal or symlink;
+- failed import, configuration load, entrypoint, or readiness signal;
 - crash-looping app;
-- partially written pending directory;
-- corrupted state file.
+- insufficient space;
+- power loss at every download, extraction, activation, commit, and rollback state boundary;
+- partially written inactive slot;
+- corrupt selector or state;
+- both writable slots invalid;
+- failed rollback or rescue selection;
+- quarantine bypass or repeated retry;
+- unchanged user configuration and identity after every failure.
 
 ### settingsd negative tests
 
@@ -3472,6 +3336,8 @@ No transition may destroy the only recoverable image.
 
 ## 12.2 Application update
 
+For Pi/x86_64, retain the generic application activation flow:
+
 ```text
 IDLE
   ↓
@@ -3490,6 +3356,41 @@ IDLE
                ├── success → COMMIT
                └── failure → RESTORE
 ```
+
+For the A95X signed A/B profile:
+
+```text
+IDLE
+  ↓
+CHECK
+  ├── current → IDLE
+  ├── failure → ERROR
+  └── update → DOWNLOAD
+                   ↓
+          VERIFY SIGNED MANIFEST
+                   ↓
+            VERIFY PAYLOAD
+                   ↓
+        STAGE INACTIVE SLOT
+                   ↓
+         OFFLINE VALIDATE
+                   ↓
+          ATOMIC ACTIVATE
+                   ↓
+              RESTART
+                   ↓
+            HEALTH CHECK
+          ├── success → COMMIT
+          └── failure → RESTORE PRIOR SELECTOR/SERVICE
+                              ↓
+                    MARK CANDIDATE FAILED
+                              ↓
+                  FORMER HEALTHY SLOT
+```
+
+Failure before activation leaves the active slot untouched. Failure after activation restores and verifies the prior selector/service and quarantines the candidate. If neither writable slot validates, select the immutable OS-bundled rescue application and report degraded state. No transition may modify persistent user configuration, credentials, identity, cache/downloads, or updater state ownership, or destroy the only known-good application.
+
+Pi/x86_64 retain their target-specific application activation contract, subject to the same no-live-mutation and recovery invariants.
 
 ---
 
@@ -3551,7 +3452,9 @@ A release **MUST NOT** be published unless:
 - evidence archive is retained;
 - upgrade from previous release has been tested where practical.
 
-If hardware evidence is unavailable for a required target, the release is not a release candidate for that target.
+For A95X specifically, release invariants require the exact CoreELEC and Jellyfin pins, confirmed DTB, no-Kodi package/image proof, selected runtime bridge, signed target/ABI-compatible application bundle, app rollback/rescue proof, and complete post-replacement hardware integration evidence. A stable upstream app tag is not automatically an AshipaOS release; its CI-built bundle must pass promotion gates. A CoreELEC rebase candidate cannot replace the supported pin until baseline reconfirmation and all no-Kodi, integration, update, recovery, and decode gates pass.
+
+If hardware evidence is unavailable for a required target, the release is `BLOCKED` and is not a release candidate for that target.
 
 ---
 
@@ -3560,8 +3463,8 @@ If hardware evidence is unavailable for a required target, the release is not a 
 | Layer | Scope | Done when |
 |---|---|---|
 | 0 | Canonical builder environment | Toolchain, repository, and CI are controlled |
-| 0.5 | Amlogic/CoreELEC | Stock baseline boots; AshipaOS replaces Kodi; box facts are separated from branch code |
-| 1 | Debian rootfs | Minimal rootfs builds for explicit target |
+| 0.5 | Amlogic/CoreELEC | Pinned `ashipaek0/CoreELEC` excludes Kodi, boots the exact box via the confirmed DTB into the released Jellyfin UI, preserves required hardware behavior, and proves Jellyfin playback/decoder integration |
+| 1 | Debian rootfs | Minimal rootfs builds for explicit Pi/x86_64 target; skipped by A95X |
 | 2 | Base system | systemd, users, devices and services work |
 | 3 | Display | Wayland/cage/mpv render correctly |
 | 4 | Network | Ethernet/WiFi/provisioning work |
@@ -3573,6 +3476,8 @@ If hardware evidence is unavailable for a required target, the release is not a 
 | 9 | Distribution | Images can be installed and first boot passes |
 | 10 | Hardening/release | Security, rollback, reproducibility and acceptance gates pass |
 
+For A95X, Layers 2–10 supply shared behavioral contracts but use the CoreELEC-specific implementation, package/overlay, boot, update, and verification paths defined by Layer 0.5.
+
 ---
 
 # 15. Refactoring decisions recorded by this guide
@@ -3582,8 +3487,13 @@ If hardware evidence is unavailable for a required target, the release is not a 
 ## Kept
 
 - Layer 0–10 roadmap.
-- Separate Amlogic/CoreELEC pipeline.
-- A95X F3 Air as first Amlogic box.
+- Separate Amlogic/CoreELEC pipeline, with CoreELEC as the permanent A95X OS/hardware base rather than a temporary extraction source.
+- The user's exact A95X F3 Air as the first and only current Amlogic box scope.
+- Confirmed 21.3-Omega source/DTB/hardware baseline, without reopening it as provisional.
+- Kodi exclusion at package-graph time with no fallback.
+- Released upstream Jellyfin MPV Shim built-in UI at initial pin v3.0.0.
+- Pinned-source runtime-bridge discovery instead of assumed cage/Wayland or guessed hardware decode.
+- Signed CI-built A/B app bundles with immutable rescue fallback.
 - Generic Jellyfin package versus box-specific configuration.
 - Separate OS and application update mechanisms.
 - Current `.old` SquashFS rollback model for this release generation.
@@ -3681,9 +3591,7 @@ It **MUST NOT** be silently introduced under the existing `.old` contract.
 
 ### Signed OTA
 
-The manifest schema supports future signatures, but the current generation may ship with integrity-only OTA if explicitly documented.
-
-Signing should be treated as a high-priority release-maturity item.
+The generic manifest schema supports signatures. A95X OS and application release manifests require signatures before promotion; integrity-only payloads are not eligible for automatic A95X release/update.
 
 ---
 
@@ -3711,6 +3619,12 @@ A coding agent implementing this guide **MUST** follow these rules:
 18. Never use a local developer workstation as the authoritative release builder.
 19. Never commit secrets.
 20. When the guide and the repository disagree, stop and reconcile the source of truth before implementing the affected task.
+21. Do not reopen the confirmed A95X 21.3-Omega, DTB, or baseline hardware facts without new contradictory evidence.
+22. Do not use stock CoreELEC success to pass AshipaOS/Jellyfin integration.
+23. Do not apply Debian, cage, Wayland, VAAPI, V4L2-M2M, or guessed `hwdec` instructions to A95X without pinned-source and exact-target evidence.
+24. Do not install Kodi and delete it afterward, or retain it as fallback/recovery.
+25. Do not let production devices build, run `pip`, or resolve application dependencies.
+26. Do not modify Pi/x86_64 paths while implementing an A95X-only task.
 
 ---
 
@@ -3783,6 +3697,39 @@ RELEASE
    ✓ acceptance evidence
    ✓ hardware evidence where hardware runner exists
 ```
+
+For `a95x-f3-air`, completion additionally requires:
+
+```text
+BUILD
+   ✓ canonical CoreELEC fork and app source pinned
+   ✓ reproducible metadata-derived dependency lock/SBOM
+   ✓ Kodi absent from package graph and image
+   ✓ confirmed DTB installed and verified as dtb.img
+   ✓ image and app bundle signed and hash-recorded
+
+BOOT / UI
+   ✓ exact box boots directly into released full-screen Jellyfin browser/player
+   ✓ no Kodi or desktop fallback
+
+HARDWARE INTEGRATION
+   ✓ retained display, audio, Ethernet/Wi-Fi, Bluetooth and input paths used by the product, storage, and other relied-upon CoreELEC hardware work after replacement
+
+MEDIA
+   ✓ Jellyfin playback works
+   ✓ each claimed codec has captured decoder evidence
+
+APP UPDATE
+   ✓ promoted stable feed and signed A/B activation
+   ✓ reboot persistence, rollback, quarantine, newer-release recovery, and rescue fallback
+   ✓ user configuration, credentials, identity, cache/downloads, and updater state survive
+
+OS MAINTENANCE
+   ✓ current CoreELEC pin remains recoverable
+   ✓ any rebase passes baseline reconfirmation, no-Kodi/image, integration, updater, and decode gates independently of app releases
+```
+
+Unavailable required A95X `HARDWARE` or `MANUAL` proof is `BLOCKED`, never passed.
 
 A task that cannot be verified is not a completed task.
 

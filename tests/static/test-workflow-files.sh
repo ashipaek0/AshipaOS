@@ -5,7 +5,7 @@
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 - "$ROOT" <<'PYEOF'
-import sys, os, glob
+import sys, os, glob, re
 
 root = sys.argv[1]
 files = sorted(glob.glob(os.path.join(root, ".github/workflows/*.yml")))
@@ -30,15 +30,49 @@ for p in files:
         assert "jobs:" in text, "missing jobs: %s" % p
         print("sanity-ok (pyyaml unavailable, SKIP parse): %s" % os.path.relpath(p, root))
 
-    if os.path.basename(p) == "build-images.yml":
+    workflow = os.path.basename(p)
+    if workflow in {"pr.yml", "build-images.yml"}:
+        static_start = text.index("  static-tests:")
+        static_end_marker = "  build-x86_64:" if workflow == "build-images.yml" else None
+        static_job = text[static_start:text.index(static_end_marker)] if static_end_marker else text[static_start:]
+        pin_shape = "bash tests/static/test-coreelec-pin.sh"
+        pin_live = "bash build/coreelec/validate-pin.sh"
+        assert pin_shape in static_job, f"{workflow} static-tests must run the CoreELEC pin regression test"
+        assert pin_live in static_job, f"{workflow} static-tests must validate the live authorized CoreELEC fork/ref"
+        assert static_job.index(pin_shape) < static_job.index(pin_live), f"{workflow} must validate pin shape before live fork/ref/source state"
+        if workflow == "pr.yml":
+            assert static_job.index(pin_live) < static_job.index("Smoke test Layer 1"), "PR pin gates must run before smoke tests"
+
+    if workflow == "build-images.yml":
         assert text.count("linux-image-generic") >= 2, "each image job must provide a supermin kernel"
         assert text.count("libguestfs-test-tool") >= 2, "each image job must preflight libguestfs"
         x86 = text[text.index("  build-x86_64:"):text.index("  build-a95x-f3-air:")]
         arm = text[text.index("  build-a95x-f3-air:"):text.index("  create-release:")]
+        for job_name, job in {"x86_64": x86, "A95X": arm}.items():
+            assert re.search(r"(?m)^    needs:\s*static-tests\s*(?:#.*)?$", job), f"{job_name} build must depend on the static-tests pin gate"
         assert "qemu-system-x86" in x86 and "ovmf" in x86, "x86_64 job must install UEFI QEMU dependencies"
         assert "util-linux" in x86, "x86_64 job must install stdbuf provider (util-linux)"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
-        assert x86.index("Build Layer 2") < x86.index("tests/vm/boot-x86_64.sh") < x86.index("Build Layer 3"), "VM gate ordering invalid"
+        assert "layer3-display/scripts/build-display.sh" in x86, "x86_64 display stack missing"
+        assert x86.index("Build Layer 1") < x86.index("layer3-display/scripts/build-display.sh") < x86.index("Build Layer 2"), "display stack must be installed before image creation"
+        assert "layer3-display/scripts/build-display.sh" not in arm, "display stack must remain x86_64-only"
+        assert "layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64" in x86, "x86_64 workflow must apply Layer 4 to the rootfs before image creation"
+        assert "layer4-services/scripts/build-services.sh" not in arm, "Layer 4 x86_64 rootfs policy must not run for ARM"
+        assert x86.index("layer4-services/scripts/build-services.sh") < x86.index("Build Layer 2"), "Layer 4 policy must run before image creation"
+        assert "Gate A95X image contents" in arm and 'image-content-tests.sh "$image"' in arm, "A95X build must run the image-content gate against its produced image"
+        assert "android-tools-mkbootimg" not in arm, "A95X CI must not depend on Ubuntu's broken mkbootimg wrapper"
+        patch_name = "Patch x86_64 Layer 1 debootstrap retry handling"
+        assert patch_name in x86, "x86_64 Layer 1 must validate and patch debootstrap retries"
+        patch = x86[x86.index(patch_name):x86.index("Configure GPG")]
+        assert 'expected_version = "1.0.134ubuntu2"' in patch, "debootstrap version must be pinned"
+        assert 'Path("/usr/share/debootstrap/functions")' in patch, "debootstrap source path must be explicit"
+        assert 'old = \'if ! just_get "$from" "$dest2"; then continue 2; fi\'' in patch, "exact buggy branch must be asserted"
+        assert 'new = \'if ! just_get "$from" "$dest2"; then continue; fi\'' in patch, "retry correction must only change continue control flow"
+        assert "text.count(old) != 1" in patch and "patched.count(new) != 1" in patch, "debootstrap patch must fail closed and assert one replacement"
+        assert "DEBIAN_MIRROR=https://snapshot.debian.org/archive/debian/20240311T000000Z/" in x86, "x86_64 Layer 1 must retain immutable HTTPS snapshot"
+        assert "http://deb.debian.org" not in patch and "--no-check-certificate" not in patch, "retry patch must not add mutable mirrors or weaken TLS"
+        assert patch_name not in arm, "debootstrap retry patch must remain x86_64-only"
+        assert x86.index("Build Layer 2") < x86.index("tests/vm/boot-x86_64.sh") < x86.index("Build Layer 3 (First-Boot Init)"), "VM gate ordering invalid"
         assert "if: always()" in x86 and "output/evidence/vm-x86_64/" in x86, "VM evidence upload must survive failure"
         assert "tests/vm/boot-x86_64.sh" not in arm and "qemu-system-x86" not in arm, "VM gate must remain x86_64-only"
         vm_script = os.path.join(root, "tests/vm/boot-x86_64.sh")
@@ -81,6 +115,12 @@ for p in files:
         marker_installer = marker[marker.index("install_x86_64_boot_marker()"):marker.index("target_enables_boot_status()")]
         assert "ashipaos-boot-success.service" not in marker_installer, "boot marker must not depend on a separate service"
         assert "multi-user.target.wants" not in marker_installer, "boot marker must not use target service wiring"
+        full_build = open(os.path.join(root, "build/scripts/full-build.sh")).read()
+        assert 'build_layer4 "$rootfs_tar" "$target"' in full_build, "full-build must pass the rootfs and target to Layer 4"
+        assert 'build-services.sh" "$rootfs" x86_64' in full_build, "full-build must use the x86_64 rootfs Layer 4 interface"
+        assert 'Layer 4 is x86_64-only, skipping' in full_build, "full-build must skip Layer 4 for ARM targets"
+        assert 'build-services.sh" "$target"' not in full_build, "full-build must not call the obsolete one-argument Layer 4 interface"
+        assert full_build.index('build_layer4 "$rootfs_tar" "$target"') < full_build.index('build_layer2 "$rootfs_tar" "$target"'), "full-build must transform the x86_64 rootfs before Layer 2"
 
 
 print("test-workflow-files: PASS")

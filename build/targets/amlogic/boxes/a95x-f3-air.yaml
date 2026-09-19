@@ -1,30 +1,73 @@
-# Initial hardware facts for the first supported Amlogic box.
-# Per build guide Task 0.5.1: all values UNKNOWN/PROVISIONAL until verified
-# on hardware with recorded evidence. NEVER invent values here.
+# Target-owned facts for the supported A95X F3 Air unit.
+# Stock CoreELEC baseline facts below are CONFIRMED from the pinned source and
+# exact-unit evidence; replacement integration remains explicitly UNKNOWN.
 name: A95X F3 Air
 
 features:
   boot_status: true
 
 status:
-  device_tree: PROVISIONAL
-  wifi: PROVISIONAL
+  device_tree: CONFIRMED
+  wifi: UNKNOWN
   bluetooth: UNKNOWN
-  ir: PROVISIONAL
-  hardware_decode: PROVISIONAL
+  ir: UNKNOWN
+  hardware_decode: UNKNOWN
 
 soc:
   value: S905X3
-  status: PROVISIONAL
+  status: CONFIRMED
 
+# Required by the current box schema. The old provisional Amlogic-ne claim is
+# removed; the CoreELEC source/build tuple is recorded below instead.
 kernel_branch:
-  value: Amlogic-ne
-  status: PROVISIONAL
-
-device_tree:
   value: null
   status: UNKNOWN
-  evidence: []
+
+device_tree:
+  value: sm1_s905x3_4g_1gbit.dtb
+  install_as: dtb.img
+  partition: fat-boot-root
+  status: CONFIRMED
+  evidence:
+    - class: MANUAL
+      runner: human
+      target: a95x-f3-air
+      source: CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic baseline
+
+# This is target-owned baseline metadata, not a claim about completed
+# AshipaOS replacement integration.
+coreelec_baseline:
+  status: CONFIRMED
+  repository: https://github.com/ashipaek0/CoreELEC.git
+  upstream_repository: https://github.com/CoreELEC/CoreELEC.git
+  upstream_source_line: coreelec-21
+  tag: 21.3-Omega
+  commit: fc61125e8900ab0c2593a29b615980ed0cd5b939
+  source_archive_sha256: c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a
+  build:
+    project: Amlogic-ce
+    device: Amlogic-ng
+    arch: arm
+    official: yes
+  options:
+    kernel_images: [Image.lzo, kernel.img]
+    displayserver: no
+    opengles: opengl-meson
+    alsa_support: yes
+    kodiplayer_driver: libamcodec
+    amremote_support: yes
+  runtime:
+    python: 3.11.9
+    ffmpeg: 6.0.1
+    mpv_drmprime:
+      version: 0.38.0
+      capabilities: [DRM, GBM, EGL-DRM]
+  integration:
+    kodi: excluded_by_contract
+    direct_drm_gbm_mpv_drmprime: candidate_pending_probes
+    final_bridge: UNKNOWN
+    compositor: UNKNOWN
+    hwdec: UNKNOWN
 
 wifi:
   driver: null

@@ -255,12 +255,45 @@ test_a95x_inputs() {
     echo PASS
 }
 
-# SB02: assembly must preserve MBR bytes 446..509 and use stock offsets.
+# SB02: the verified SD contract leaves the pre-partition gap zero-filled;
+# stock USB-burning payloads are provenance-only, not raw image writes.
 test_a95x_assembly() {
-    local file="$1"
-    grep -q 'bs=1 count=442' "$file" && grep -q 'bs=512 skip=1 seek=1' "$file" && \
-        grep -q 'label: dos' "$file" && grep -q 'efi_start=8192' "$file" && \
-        ! grep -q 'bl301.bin\\|bl31.img' "$file" && echo PASS || echo FAIL
+    local file="$1" config="$2"
+    python3 - "$file" "$config" <<'PY'
+import sys
+from pathlib import Path
+
+script = Path(sys.argv[1]).read_text()
+config = Path(sys.argv[2]).read_text()
+
+# No aml_sdc_burn.UBOOT/ddr-usb.bin write may reintroduce the USB-burning path.
+assert 'bs=1 count=442' not in script
+assert 'bs=512 skip=1 seek=1' not in script
+assert 'aml_sdc_burn.UBOOT" of="$image"' not in script
+assert 'ddr-usb.bin" of="$image"' not in script
+
+# Preserve the observed DOS/MBR layout and zero-gap contract.
+assert 'label: dos' in script and 'efi_start=8192' in script
+assert 'start_sector: 1' in config and 'end_sector: 8191' in config
+assert 'contents: zero' in config and 'raw_sd_payload_writes: false' in config
+
+# Match the inspected CoreELEC CFGLOAD semantics, including the observed
+# bootm sequence; do not replace it with a direct/alternate boot command.
+assert 'defenv' in script and 'autoscr ${loadaddr}' in script
+cfgload = script[script.index('cat >"$WORK_DIR/CFGLOAD.txt"'):script.index('mkimage -A arm64 -T script -C none -n A95X-AUTOSCRIPT')]
+expected = [
+    'fatload \\${device} \\${devnr}:\\${partnr} \\${loadaddr} KERNEL.IMG',
+    'fatload \\${device} \\${devnr}:\\${partnr} \\${dtb_mem_addr} dtb.img',
+    'bootm \\${loadaddr}',
+    'bootm start', 'bootm loados', 'bootm prep', 'bootm go',
+]
+positions = [cfgload.index(item) for item in expected]
+assert positions == sorted(positions)
+assert 'bootm 0x01000000 - 0x10000000' not in cfgload
+
+assert 'bl301.bin\\|bl31.img' not in script
+print('PASS')
+PY
 }
 
 echo "Running Layer 2 Static Tests..."
@@ -305,7 +338,7 @@ if [[ -f "$CONFIG_FILE" ]]; then
     test_result "SI01: Image size configurable" "$(test_image_size_config "$CONFIG_FILE")"
     test_result "SI02: Multiple architectures supported" "$(test_multi_arch "$CONFIG_FILE")"
     test_result "SB01: Stock A95X inputs" "$(test_a95x_inputs)"
-    test_result "SB02: MBR-safe stock assembly" "$(test_a95x_assembly "$BUILD_SCRIPT")"
+    test_result "SB02: zero-gap SD assembly without raw USB writes" "$(test_a95x_assembly "$BUILD_SCRIPT" "$CONFIG_FILE")"
 else
     echo "✗ Configuration file not found"
     ((FAILED++))

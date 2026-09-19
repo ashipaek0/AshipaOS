@@ -1,0 +1,20 @@
+[Unit]
+Description=AshipaOS x86_64 Wayland display session
+Wants=seatd.service
+After=seatd.service systemd-user-sessions.service
+ConditionPathExists=/usr/bin/cage
+
+[Service]
+Type=simple
+User=ashipa
+Group=ashipa
+SupplementaryGroups=video render seat
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=/usr/bin/install -d -o ashipa -g ashipa -m 0700 /run/user/%U
+ExecStart=/usr/libexec/ashipaos-display
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

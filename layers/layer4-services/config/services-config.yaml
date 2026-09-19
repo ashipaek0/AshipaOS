@@ -1,32 +1,29 @@
-# Layer 4: Core System Services Configuration
+# Layer 4: deterministic systemd core-service policy for x86_64.
+# Package installation and source configuration remain owned by Layer 1/3.
 # Verification Class: BUILD, VM
 
+target: x86_64
 services:
   enabled:
-    - ssh
-    - networking
-    - systemd-journald
-    - systemd-logind
-    - systemd-networkd
-    - systemd-resolved
-    - cron
-    - dbus
-    - getty@tty1
-    
+    - systemd-journald.service
+    - systemd-logind.service
+    - systemd-networkd.service
+    - getty@tty1.service
   disabled:
-    - bluetooth
-    - cups
-    - ModemManager
+    - bluetooth.service
+    - cups.service
+    - ModemManager.service
 
 default_target: multi-user.target
 
-presets:
-  policy: enable
-  override_file: /etc/systemd/presets/ashipaos.preset
+policy:
+  preset_file: /etc/systemd/system-preset/ashipaos.preset
+  disable_unlisted: true
 
 testing:
   verify_with_systemd_analyze: true
   required_services:
-    - ssh
-    - networking
-    - dbus
+    - systemd-journald.service
+    - systemd-logind.service
+    - systemd-networkd.service
+    - getty@tty1.service

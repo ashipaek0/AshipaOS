@@ -32,7 +32,11 @@ declare -A KERNEL_PACKAGES=(
 INITRAMFS_PACKAGE="initramfs-tools"
 COREUTILS_PACKAGE="coreutils"
 BUSYBOX_PACKAGE="busybox"
+CA_CERTIFICATES_PACKAGE="ca-certificates"
 REPO_ROOT="$(cd "$LAYER1_DIR/../.." && pwd)"
+# The archive and its containing directory must remain writable by the user
+# who invoked sudo so the unprivileged downstream layers can use temp files.
+source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 
 usage() {
     cat <<EOF
@@ -139,7 +143,7 @@ install_kernel_and_initramfs() {
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
         apt-get -o DPkg::Options::=--force-confold update
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE"
+        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE"
 
     # Kernel postinst normally creates these. Explicitly finish generation so both
     # native and debootstrap --foreign builds have the same deterministic gate.
@@ -210,8 +214,12 @@ create_rootfs() {
     minimize_rootfs "$rootfs"
     validate_kernel_initramfs "$rootfs" "$debian_arch" "${KERNEL_PACKAGES[$debian_arch]}"
     mkdir -p "$(dirname "$output_file")"
-    tar -C "$rootfs" -czf "$output_file" .
+    tar -C "$rootfs" \
+        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
+        -czf "$output_file" .
     [[ -s "$output_file" ]] || error "Rootfs tarball is empty: $output_file"
+    rootfs_output_owner "$output_file" "$(dirname "$output_file")" \
+        || error "Could not restore rootfs output ownership"
     generate_evidence "$product_arch" "$debian_arch" "$output_file" "$rootfs"
     log "Rootfs created successfully: $output_file ($(du -h "$output_file" | cut -f1))"
 }
