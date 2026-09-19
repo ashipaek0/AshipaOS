@@ -30,4 +30,5 @@ for needle in 'workflow_dispatch' 'pull_request' 'Static and negative gates (bef
 if grep -E '^\s*uses: actions/[^@]+@(main|master|v[0-9])' "$WF" >/dev/null; then fail 'workflow uses mutable action ref'; fi
 if grep -q 'build-images.yml\|build-x86\|build-pi\|layers/layer' "$WF"; then fail 'workflow is not isolated'; fi
 if grep -qE 'losetup|mount |chroot|sudo ' "$BUILD" "$INSPECT"; then fail 'privileged/local image operation present'; fi
+bash "$ROOT/tests/static/test-coreelec-ce2a-bind-paths.sh" || fail 'relative Docker bind-path regression'
 echo 'test-coreelec-ce2a: PASS'

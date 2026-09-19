@@ -7,8 +7,9 @@ if [[ "${1:-}" == "--ci" ]]; then ci=true; shift; fi
 $ci || { echo "CE-2A BUILD is blocked outside GitHub Actions; pass --ci explicitly in CI" >&2; exit 78; }
 [[ "${CI:-}" == true ]] || { echo "CE-2A BUILD requires CI=true" >&2; exit 78; }
 [[ $# -eq 3 ]] || usage
-PIN=$1; WORKSPACE=$2; EVIDENCE=$3
-mkdir -p "$WORKSPACE" "$EVIDENCE"
+PIN=$(realpath "$1")
+mkdir -p "$2" "$3"
+WORKSPACE=$(realpath "$2"); EVIDENCE=$(realpath "$3")
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 export PIN WORKSPACE EVIDENCE ROOT
 mapfile -t v < <(python3 - <<'PY'
