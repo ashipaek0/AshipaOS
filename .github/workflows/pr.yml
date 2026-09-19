@@ -25,6 +25,12 @@ jobs:
               bash "${layer}tests/static-tests.sh"
             fi
           done
+
+      - name: Validate immutable CoreELEC pin shape
+        run: bash tests/static/test-coreelec-pin.sh
+
+      - name: Validate immutable CoreELEC pin against authorized fork
+        run: bash build/coreelec/validate-pin.sh
       
       - name: Validate JSON schemas
         run: |

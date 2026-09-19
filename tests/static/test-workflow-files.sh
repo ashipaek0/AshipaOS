@@ -5,7 +5,7 @@
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 - "$ROOT" <<'PYEOF'
-import sys, os, glob
+import sys, os, glob, re
 
 root = sys.argv[1]
 files = sorted(glob.glob(os.path.join(root, ".github/workflows/*.yml")))
@@ -30,11 +30,26 @@ for p in files:
         assert "jobs:" in text, "missing jobs: %s" % p
         print("sanity-ok (pyyaml unavailable, SKIP parse): %s" % os.path.relpath(p, root))
 
-    if os.path.basename(p) == "build-images.yml":
+    workflow = os.path.basename(p)
+    if workflow in {"pr.yml", "build-images.yml"}:
+        static_start = text.index("  static-tests:")
+        static_end_marker = "  build-x86_64:" if workflow == "build-images.yml" else None
+        static_job = text[static_start:text.index(static_end_marker)] if static_end_marker else text[static_start:]
+        pin_shape = "bash tests/static/test-coreelec-pin.sh"
+        pin_live = "bash build/coreelec/validate-pin.sh"
+        assert pin_shape in static_job, f"{workflow} static-tests must run the CoreELEC pin regression test"
+        assert pin_live in static_job, f"{workflow} static-tests must validate the live authorized CoreELEC fork/ref"
+        assert static_job.index(pin_shape) < static_job.index(pin_live), f"{workflow} must validate pin shape before live fork/ref/source state"
+        if workflow == "pr.yml":
+            assert static_job.index(pin_live) < static_job.index("Smoke test Layer 1"), "PR pin gates must run before smoke tests"
+
+    if workflow == "build-images.yml":
         assert text.count("linux-image-generic") >= 2, "each image job must provide a supermin kernel"
         assert text.count("libguestfs-test-tool") >= 2, "each image job must preflight libguestfs"
         x86 = text[text.index("  build-x86_64:"):text.index("  build-a95x-f3-air:")]
         arm = text[text.index("  build-a95x-f3-air:"):text.index("  create-release:")]
+        for job_name, job in {"x86_64": x86, "A95X": arm}.items():
+            assert re.search(r"(?m)^    needs:\s*static-tests\s*(?:#.*)?$", job), f"{job_name} build must depend on the static-tests pin gate"
         assert "qemu-system-x86" in x86 and "ovmf" in x86, "x86_64 job must install UEFI QEMU dependencies"
         assert "util-linux" in x86, "x86_64 job must install stdbuf provider (util-linux)"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"

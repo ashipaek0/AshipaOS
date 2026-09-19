@@ -38,6 +38,12 @@ jobs:
             fi
           done
 
+      - name: Validate immutable CoreELEC pin shape
+        run: bash tests/static/test-coreelec-pin.sh
+
+      - name: Validate immutable CoreELEC pin against authorized fork
+        run: bash build/coreelec/validate-pin.sh
+
   build-x86_64:
     needs: static-tests
     runs-on: ubuntu-latest
