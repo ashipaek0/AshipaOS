@@ -70,10 +70,19 @@ if [ -n "$FORK_METADATA_FILE" ]; then
 else
   metadata_source="$(mktemp)"
   trap 'rm -f "$metadata_source"' EXIT
-  curl --fail --silent --show-error \
-    --header 'Accept: application/vnd.github+json' \
-    --output "$metadata_source" \
-    "https://api.github.com/repos/$expected_full_name"
+  github_token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  curl_args=(
+    --fail
+    --silent
+    --show-error
+    --header 'Accept: application/vnd.github+json'
+    --output "$metadata_source"
+  )
+  if [ -n "$github_token" ]; then
+    curl_args+=(--header "Authorization: Bearer ${github_token}")
+  fi
+  # Keep the token in curl's header handling; never print it or include it in a URL.
+  curl "${curl_args[@]}" "https://api.github.com/repos/$expected_full_name"
 fi
 
 python3 - "$metadata_source" "$expected_full_name" "$expected_parent" <<'PYEOF'

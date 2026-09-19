@@ -98,6 +98,18 @@ PYEOF
   exit 1
 }
 
+# GitHub API authentication must be header-only, optional locally, and never logged.
+validator_text="$(<"$VALIDATOR")"
+grep -Fq 'GITHUB_TOKEN:-${GH_TOKEN:-}' <<<"$validator_text"
+if grep -Fq 'Authorization: Bearer ***' <<<"$validator_text"; then
+  echo "validator contains a redacted Authorization header" >&2
+  exit 1
+fi
+if grep -Eq 'echo[^\n]*(GITHUB_TOKEN|GH_TOKEN|github_token)|printf[^\n]*(GITHUB_TOKEN|GH_TOKEN|github_token)' <<<"$validator_text"; then
+  echo "validator logs a GitHub token" >&2
+  exit 1
+fi
+
 fake_dir="$(mktemp -d)"
 trap 'rm -rf "$fake_dir"' EXIT
 cat >"$fake_dir/git" <<'EOF'
@@ -115,6 +127,26 @@ case "${FAKE_GIT_MODE:-match}" in
 esac
 EOF
 chmod +x "$fake_dir/git"
+cat >"$fake_dir/curl" <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+: "${CURL_CAPTURE:?}"
+printf '%s\n' "$@" >"$CURL_CAPTURE"
+if [ "${CURL_FAIL:-0}" = 1 ]; then
+  exit 22
+fi
+output=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = --output ]; then
+    output="$2"
+    shift 2
+  else
+    shift
+  fi
+done
+cat "$CURL_METADATA" >"$output"
+EOF
+chmod +x "$fake_dir/curl"
 cat >"$fake_dir/fork.json" <<'EOF'
 {
   "full_name": "ashipaek0/CoreELEC",
@@ -124,6 +156,29 @@ cat >"$fake_dir/fork.json" <<'EOF'
 EOF
 
 PATH="$fake_dir:$PATH" COREELEC_FORK_METADATA_FILE="$fake_dir/fork.json" FAKE_GIT_MODE=match "$VALIDATOR" "$PIN" >/dev/null
+PATH="$fake_dir:$PATH" CURL_CAPTURE="$fake_dir/curl-auth.txt" CURL_METADATA="$fake_dir/fork.json" \
+  GITHUB_TOKEN='token-for-test' GH_TOKEN='should-not-win' FAKE_GIT_MODE=match \
+    "$VALIDATOR" "$PIN" >"$fake_dir/auth-output.txt" 2>&1
+grep -Fqx 'Authorization: Bearer token-for-test' "$fake_dir/curl-auth.txt"
+if grep -Fq 'should-not-win' "$fake_dir/curl-auth.txt"; then
+  echo "validator selected GH_TOKEN over GITHUB_TOKEN" >&2
+  exit 1
+fi
+if grep -Fq 'token-for-test' "$fake_dir/auth-output.txt"; then
+  echo "validator exposed the GitHub token in output" >&2
+  exit 1
+fi
+PATH="$fake_dir:$PATH" CURL_CAPTURE="$fake_dir/curl-unauth.txt" CURL_METADATA="$fake_dir/fork.json" \
+  env -u GITHUB_TOKEN -u GH_TOKEN FAKE_GIT_MODE=match "$VALIDATOR" "$PIN" >/dev/null
+if grep -Fq 'Authorization:' "$fake_dir/curl-unauth.txt"; then
+  echo "validator sent an Authorization header without a token" >&2
+  exit 1
+fi
+if PATH="$fake_dir:$PATH" CURL_CAPTURE="$fake_dir/curl-http-error.txt" CURL_METADATA="$fake_dir/fork.json" \
+  CURL_FAIL=1 env -u GITHUB_TOKEN -u GH_TOKEN FAKE_GIT_MODE=match "$VALIDATOR" "$PIN" >/dev/null 2>&1; then
+  echo "validator accepted a GitHub API HTTP failure" >&2
+  exit 1
+fi
 if PATH="$fake_dir:$PATH" COREELEC_FORK_METADATA_FILE="$fake_dir/fork.json" FAKE_GIT_MODE=mismatch "$VALIDATOR" "$PIN" >/dev/null 2>&1; then
   echo "validator accepted a mismatched fork tag" >&2
   exit 1

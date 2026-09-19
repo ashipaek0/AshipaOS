@@ -23,6 +23,8 @@ jobs:
           bash tests/negative/test-coreelec-ce2a.sh
           bash -n build/coreelec/ce2a-build.sh build/coreelec/ce2a-inspect-image.sh
       - name: Validate pinned source metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash build/coreelec/validate-pin.sh build/coreelec/pin.json
       - name: Build pinned CoreELEC Generic image (CI only)
         env:
