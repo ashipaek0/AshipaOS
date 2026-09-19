@@ -41,7 +41,7 @@ grep -Fxq 'PROJECT=Amlogic-ce' "$WORKSPACE/source/.config" 2>/dev/null || true
 image="ce2a-builder:${commit:0:12}"
 docker build --pull=false --build-arg "BASE_IMAGE=$base_ref" --tag "$image" --file "$WORKSPACE/source/$dockerfile_rel" "$WORKSPACE/source"
 chmod -R a+rwX "$WORKSPACE/source"
-docker run --rm --init --user docker -w /build -e PROJECT=Amlogic-ce -e DEVICE=Amlogic-ng -e ARCH=arm -e OFFICIAL=yes -v "$WORKSPACE/source:/build" "$image" bash -lc 'PROJECT=Amlogic-ce DEVICE=Amlogic-ng ARCH=arm OFFICIAL=yes make image'
+docker run --rm --init --user docker -w /build -e PROJECT=Amlogic-ce -e DEVICE=Amlogic-ng -e ARCH=arm -e OFFICIAL=yes -e CUSTOM_GIT_HASH="$commit" -v "$WORKSPACE/source:/build" "$image" bash -lc 'PROJECT=Amlogic-ce DEVICE=Amlogic-ng ARCH=arm OFFICIAL=yes make image'
 # Make the runner-readable
 # output explicit before host-side inspection and evidence collection.
 chmod -R a+rX "$WORKSPACE/source/target"
