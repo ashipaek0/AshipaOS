@@ -254,9 +254,20 @@ result["passed"] = (result["target_tags_ok"] and bool(result["libmpv"]) and resu
 print(json.dumps(result))
 '''
         completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target), str(app_root),
-                                    python_tag, abi_tag, platform_tag], check=True,
+                                    python_tag, abi_tag, platform_tag], check=False,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        evidence.update(json.loads(completed.stdout))
+        if completed.returncode != 0:
+            evidence.update({"passed": False, "error": "isolated probe interpreter failed",
+                             "probe_returncode": completed.returncode,
+                             "probe_stdout": completed.stdout,
+                             "probe_stderr": completed.stderr})
+            return evidence
+        try:
+            evidence.update(json.loads(completed.stdout))
+        except json.JSONDecodeError as exc:
+            evidence.update({"passed": False, "error": "isolated probe returned invalid JSON",
+                             "probe_stdout": completed.stdout, "probe_stderr": completed.stderr,
+                             "probe_json_error": str(exc)})
     evidence["target_python"] = target_python
     return evidence
 
