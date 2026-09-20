@@ -47,6 +47,9 @@ jobs:
       - name: Validate immutable CoreELEC pin against authorized fork
         run: bash build/coreelec/validate-pin.sh
 
+      - name: Test Layer 5 dependency resolver regressions
+        run: bash tests/static/test-layer5-dependency-resolver.sh
+
   build-x86_64:
     needs: static-tests
     runs-on: ubuntu-latest
@@ -140,6 +143,21 @@ jobs:
         run: |
           sudo env DEBIAN_MIRROR=https://snapshot.debian.org/archive/debian/20240311T000000Z/ \
             bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
+
+      - name: Resolve and probe Layer 5 dependency closure (x86_64)
+        run: |
+          set -Eeuo pipefail
+          python3 layers/layer5-application/scripts/resolve-dependencies.py \
+            --output output/evidence/layer5-dependency-resolution.json
+
+      - name: Upload Layer 5 dependency evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ashipaos-layer5-dependency-evidence-${{ github.run_id }}
+          path: output/evidence/layer5-*
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Build Layer 3 Display (x86_64 only)
         run: |
