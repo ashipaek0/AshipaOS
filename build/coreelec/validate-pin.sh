@@ -79,7 +79,7 @@ else
     --output "$metadata_source"
   )
   if [ -n "$github_token" ]; then
-    curl_args+=(--header "Authorization: Bearer ${github_token}")
+    curl_args+=(--header "Authorization: Bearer $github_token")
   fi
   # Keep the token in curl's header handling; never print it or include it in a URL.
   curl "${curl_args[@]}" "https://api.github.com/repos/$expected_full_name"

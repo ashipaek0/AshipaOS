@@ -101,6 +101,7 @@ PYEOF
 # GitHub API authentication must be header-only, optional locally, and never logged.
 validator_text="$(<"$VALIDATOR")"
 grep -Fq 'GITHUB_TOKEN:-${GH_TOKEN:-}' <<<"$validator_text"
+grep -Fq 'curl_args+=(--header "Authorization: Bearer $github_token")' <<<"$validator_text"
 if grep -Fq 'Authorization: Bearer ***' <<<"$validator_text"; then
   echo "validator contains a redacted Authorization header" >&2
   exit 1
@@ -158,16 +159,18 @@ EOF
 PATH="$fake_dir:$PATH" COREELEC_FORK_METADATA_FILE="$fake_dir/fork.json" FAKE_GIT_MODE=match "$VALIDATOR" "$PIN" >/dev/null
 PATH="$fake_dir:$PATH" CURL_CAPTURE="$fake_dir/curl-auth.txt" CURL_METADATA="$fake_dir/fork.json" \
   GITHUB_TOKEN='token-for-test' GH_TOKEN='should-not-win' FAKE_GIT_MODE=match \
-    "$VALIDATOR" "$PIN" >"$fake_dir/auth-output.txt" 2>&1
+    "$VALIDATOR" "$PIN" >"$fake_dir/auth-stdout.txt" 2>"$fake_dir/auth-stderr.txt"
 grep -Fqx 'Authorization: Bearer token-for-test' "$fake_dir/curl-auth.txt"
 if grep -Fq 'should-not-win' "$fake_dir/curl-auth.txt"; then
   echo "validator selected GH_TOKEN over GITHUB_TOKEN" >&2
   exit 1
 fi
-if grep -Fq 'token-for-test' "$fake_dir/auth-output.txt"; then
-  echo "validator exposed the GitHub token in output" >&2
-  exit 1
-fi
+for output in "$fake_dir/auth-stdout.txt" "$fake_dir/auth-stderr.txt"; do
+  if grep -Fq 'token-for-test' "$output"; then
+    echo "validator exposed the GitHub token in $output" >&2
+    exit 1
+  fi
+done
 PATH="$fake_dir:$PATH" CURL_CAPTURE="$fake_dir/curl-unauth.txt" CURL_METADATA="$fake_dir/fork.json" \
   env -u GITHUB_TOKEN -u GH_TOKEN FAKE_GIT_MODE=match "$VALIDATOR" "$PIN" >/dev/null
 if grep -Fq 'Authorization:' "$fake_dir/curl-unauth.txt"; then
