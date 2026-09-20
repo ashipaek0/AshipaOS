@@ -235,9 +235,12 @@ def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
             paths.append(str(path))
         subprocess.run([target_python, "-m", "pip", "install", "--no-index", "--no-deps", "--only-binary=:all:",
                         "--target", str(target), *paths], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        script = r'''import ctypes, ctypes.util, importlib, json, pathlib, sys, sysconfig
+        script = r'''import ctypes, ctypes.util, importlib, json, os, pathlib, sys, sysconfig
 expected_python, expected_abi, expected_platform = sys.argv[2:5]
 target_root, source_root = sys.argv[1:3]
+target_library_path = os.environ.get("ASHIPAOS_TARGET_LD_LIBRARY_PATH")
+if target_library_path:
+    os.environ["LD_LIBRARY_PATH"] = target_library_path
 stdlib_paths = [path for path in sys.path if path and
                 "site-packages" not in path and "dist-packages" not in path]
 sys.path[:] = [target_root, source_root, *stdlib_paths]
@@ -271,7 +274,7 @@ print(json.dumps(result))
 '''
         library_paths = [rootfs_root / "lib/x86_64-linux-gnu", rootfs_root / "usr/lib/x86_64-linux-gnu"]
         probe_env = os.environ.copy()
-        probe_env["LD_LIBRARY_PATH"] = ":".join(str(path) for path in library_paths if path.is_dir())
+        probe_env["ASHIPAOS_TARGET_LD_LIBRARY_PATH"] = ":".join(str(path) for path in library_paths if path.is_dir())
         completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target), str(app_root),
                                     python_tag, abi_tag, platform_tag], check=False,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
