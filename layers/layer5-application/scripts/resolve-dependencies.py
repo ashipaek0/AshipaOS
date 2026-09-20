@@ -225,7 +225,9 @@ def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
         script = r'''import ctypes, ctypes.util, importlib, json, pathlib, sys, sysconfig
 expected_python, expected_abi, expected_platform = sys.argv[2:5]
 target_root, source_root = sys.argv[1:3]
-sys.path[:] = [target_root, source_root]
+stdlib_paths = [path for path in sys.path if path and
+                "site-packages" not in path and "dist-packages" not in path]
+sys.path[:] = [target_root, source_root, *stdlib_paths]
 def origin_is_isolated(origin, allowed_roots):
     if not origin: return True
     path = pathlib.Path(origin).resolve()
