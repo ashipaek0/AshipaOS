@@ -73,6 +73,9 @@ with tempfile.TemporaryDirectory() as td:
     with mock.patch("ctypes.util.find_library", return_value="libmpv.so"), mock.patch.dict(sys.modules, {"mpv": object(), "requests": object()}):
         evidence = resolver.probe_abi("cp311", "cp311", "manylinux_2_17_x86_64")
     assert evidence["passed"] is False and "verified artifacts" in evidence["error"]
+    resolver_source = (root / "layers/layer5-application/scripts/resolve-dependencies.py").read_text()
+    assert "sys.argv[3:6]" in resolver_source
+    assert "target_libmpv" in resolver_source
     assert resolver.origin_is_isolated("/usr/lib/python3/dist-packages/requests/__init__.py", (pathlib.Path("/tmp/target"),)) is False
     assert resolver.origin_is_isolated("/tmp/target/requests/__init__.py", (pathlib.Path("/tmp/target"),)) is True
 print("layer5-dependency-resolver: closure/normalization/ABI isolation regressions: PASS")

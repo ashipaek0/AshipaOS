@@ -236,11 +236,17 @@ def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
         subprocess.run([target_python, "-m", "pip", "install", "--no-index", "--no-deps", "--only-binary=:all:",
                         "--target", str(target), *paths], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         script = r'''import ctypes, ctypes.util, importlib, json, os, pathlib, sys, sysconfig
-expected_python, expected_abi, expected_platform = sys.argv[2:5]
+expected_python, expected_abi, expected_platform = sys.argv[3:6]
 target_root, source_root = sys.argv[1:3]
 target_library_path = os.environ.get("ASHIPAOS_TARGET_LD_LIBRARY_PATH")
 if target_library_path:
     os.environ["LD_LIBRARY_PATH"] = target_library_path
+library_dirs = [pathlib.Path(path) for path in (target_library_path or "").split(":") if path]
+target_libmpv = next((str(candidate) for directory in library_dirs
+                      for candidate in sorted(directory.glob("libmpv.so*")) if candidate.is_file()), None)
+if target_libmpv:
+    original_find_library = ctypes.util.find_library
+    ctypes.util.find_library = lambda name: target_libmpv if name == "mpv" else original_find_library(name)
 stdlib_paths = [path for path in sys.path if path and
                 "site-packages" not in path and "dist-packages" not in path]
 sys.path[:] = [target_root, source_root, *stdlib_paths]
@@ -248,7 +254,7 @@ def origin_is_isolated(origin, allowed_roots):
     if not origin: return True
     path = pathlib.Path(origin).resolve()
     return any(path.is_relative_to(root.resolve()) for root in allowed_roots)
-result = {"imports": {}, "libmpv": ctypes.util.find_library("mpv"), "native": [], "native_paths_ok": True,
+result = {"imports": {}, "libmpv": target_libmpv or ctypes.util.find_library("mpv"), "native": [], "native_paths_ok": True,
           "target_implementation": sys.implementation.name, "target_soabi": sysconfig.get_config_var("SOABI"),
           "target_machine": __import__("platform").machine()}
 result["target_tags_ok"] = (result["target_implementation"] == "cpython" and
