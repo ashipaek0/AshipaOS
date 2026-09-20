@@ -15,7 +15,12 @@ ROOTFS=""
 source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 log() { printf '[L5-SETTINGSD] %s\n' "$*"; }
 error() { printf '[L5-SETTINGSD ERROR] %s\n' "$*" >&2; exit 1; }
-cleanup() { [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]] && rm -rf -- "$TEMP_DIR"; }
+cleanup() {
+    if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
+        rm -rf -- "$TEMP_DIR"
+    fi
+    return 0
+}
 trap cleanup EXIT
 validate_config() {
     [[ -f "$CONFIG_FILE" ]] || error "Config not found: $CONFIG_FILE"

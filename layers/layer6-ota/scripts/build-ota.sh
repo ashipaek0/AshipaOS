@@ -15,7 +15,12 @@ ROOTFS=""
 source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 log() { printf '[L6-OTA] %s\n' "$*"; }
 error() { printf '[L6-OTA ERROR] %s\n' "$*" >&2; exit 1; }
-cleanup() { [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]] && rm -rf -- "$TEMP_DIR"; }
+cleanup() {
+    if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
+        rm -rf -- "$TEMP_DIR"
+    fi
+    return 0
+}
 trap cleanup EXIT
 validate_config() {
     [[ -f "$CONFIG_FILE" ]] || error "Config not found: $CONFIG_FILE"
@@ -56,7 +61,12 @@ main() {
     else
         TARGET="${1:-x86_64}"
         [[ "$TARGET" == x86_64 ]] && error "x86_64 Layer 6 requires a rootfs tarball"
-        validate_config; mkdir -p "$OUTPUT_DIR/ota"; generate_ota_manifest "$OUTPUT_DIR/ota"; sha256sum "$OUTPUT_DIR/ota/manifest.json" > "$OUTPUT_DIR/ota/manifest.json.sha256"
+        validate_config
+        mkdir -p "$OUTPUT_DIR/ota"
+        cat > "$OUTPUT_DIR/ota/manifest.json" <<'MANIFESTEOF'
+{"version":"1.0","slots":{"a":"active","b":"inactive"},"update_policy":"A/B"}
+MANIFESTEOF
+        sha256sum "$OUTPUT_DIR/ota/manifest.json" > "$OUTPUT_DIR/ota/manifest.json.sha256"
     fi
     generate_evidence; log "Layer 6 complete"
 }
