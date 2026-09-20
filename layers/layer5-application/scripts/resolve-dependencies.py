@@ -278,7 +278,8 @@ result["passed"] = (result["target_tags_ok"] and bool(result["libmpv"]) and resu
                     all(value == "OK" for value in result["imports"].values()))
 print(json.dumps(result))
 '''
-        library_paths = [rootfs_root / "lib/x86_64-linux-gnu", rootfs_root / "usr/lib/x86_64-linux-gnu"]
+        library_paths = sorted({candidate.parent for candidate in rootfs_root.rglob("*.so*")
+                                if candidate.is_file()})
         rootfs_libmpv = next((candidate for candidate in sorted(rootfs_root.rglob("libmpv.so*"))
                               if candidate.is_file()), None)
         if rootfs_libmpv is not None:
