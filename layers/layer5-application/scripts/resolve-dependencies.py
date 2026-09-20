@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import pathlib
@@ -50,16 +51,39 @@ def source_metadata(archive: pathlib.Path, expected_hash: str = SOURCE_SHA256) -
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
         with tarfile.open(archive, "r:gz") as tar:
-            tar.extractall(root)
+            members = tar.getmembers()
+            for member in members:
+                destination = (root / member.name).resolve()
+                if not str(destination).startswith(str(root.resolve()) + "/"):
+                    raise ValueError("source archive contains an unsafe path")
+            tar.extractall(root, members=members)
         projects = list(root.glob("*/pyproject.toml"))
         if len(projects) != 1:
             raise ValueError("pinned source archive does not contain exactly one pyproject.toml")
         import tomllib
-        text = projects[0].read_text(encoding="utf-8")
+        project_file = projects[0]
+        text = project_file.read_text(encoding="utf-8")
         data = tomllib.loads(text)
+        constants_file = project_file.parent / "jellyfin_mpv_shim" / "constants.py"
+        if not constants_file.is_file():
+            raise ValueError("pinned source archive is missing declared constants.py")
+        constants = ast.parse(constants_file.read_text(encoding="utf-8"), filename=str(constants_file))
+        declared_version = None
+        for node in constants.body:
+            if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "CLIENT_VERSION" for target in node.targets):
+                if not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
+                    raise ValueError("CLIENT_VERSION is not a literal string")
+                declared_version = node.value.value
+                break
+        if declared_version is None:
+            raise ValueError("pinned source archive does not declare CLIENT_VERSION")
     project = data.get("project", {})
     build = data.get("build-system", {})
-    if project.get("name") != "jellyfin-mpv-shim" or project.get("version") != "3.0.0":
+    dynamic = project.get("dynamic")
+    setuptools_dynamic = data.get("tool", {}).get("setuptools", {}).get("dynamic", {})
+    if dynamic != ["version"] or setuptools_dynamic.get("version", {}).get("attr") != "jellyfin_mpv_shim.constants.CLIENT_VERSION":
+        raise ValueError("pinned source metadata does not use the declared dynamic version")
+    if project.get("name") != "jellyfin-mpv-shim" or declared_version != "3.0.0":
         raise ValueError("pinned source metadata name/version mismatch (tag/commit mismatch)")
     if project.get("requires-python") != ">=3.9":
         raise ValueError("upstream Python requirement differs")
@@ -69,7 +93,7 @@ def source_metadata(archive: pathlib.Path, expected_hash: str = SOURCE_SHA256) -
         raise ValueError("upstream build requirements differ")
     if any(re.search(rf"(?i)\b{re.escape(name)}\b", text) for name in FORBIDDEN):
         raise ValueError("forbidden package python3-mpv appears in pinned metadata")
-    return {"name": project["name"], "version": project["version"], "requirements": REQUIRED,
+    return {"name": project["name"], "version": declared_version, "requirements": REQUIRED,
             "build_requirements": BUILD, "pyproject_sha256": hashlib.sha256(text.encode()).hexdigest(),
             "source_sha256": actual, "source_commit": SOURCE_COMMIT}
 
@@ -79,7 +103,7 @@ def report_artifacts(report: dict[str, Any], python_tag: str, abi_tag: str, plat
     installs = report.get("install")
     if not isinstance(installs, list) or not installs:
         raise ValueError("pip resolver report has no install entries; closure is unresolved")
-    required_names = {requirement_name(item) for item in (required or REQUIRED + BUILD)}
+    required_names = {requirement_name(item) for item in (required or REQUIRED)}
     artifacts: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in installs:
@@ -129,19 +153,46 @@ def sysconfig_soabi() -> str | None:
     return sysconfig.get_config_var("SOABI")
 
 
+def origin_is_isolated(origin: str, allowed_roots: tuple[pathlib.Path, ...]) -> bool:
+    if not origin:
+        return True
+    path = pathlib.Path(origin).resolve()
+    return any(path.is_relative_to(root.resolve()) for root in allowed_roots)
+
+
 def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
               artifacts: list[dict[str, str]] | None = None,
               verified_dir: pathlib.Path | None = None,
+              source_archive: pathlib.Path | None = None,
+              source_sha256: str | None = None,
               target_python: str = sys.executable) -> dict[str, Any]:
     evidence: dict[str, Any] = {"python": platform.python_version(), "implementation": sys.implementation.name,
         "python_tag": python_tag, "abi_tag": abi_tag, "platform_tag": platform_tag,
         "machine": platform.machine(), "soabi": sysconfig_soabi(), "imports": {}, "isolated": True}
-    if not artifacts or verified_dir is None:
-        evidence.update({"passed": False, "error": "isolated probe requires verified downloaded artifacts"})
+    if not artifacts or verified_dir is None or source_archive is None or source_sha256 is None:
+        evidence.update({"passed": False, "error": "isolated probe requires verified dependency artifacts and application source"})
         return evidence
     with tempfile.TemporaryDirectory() as tmp:
         target = pathlib.Path(tmp) / "target"
         target.mkdir()
+        source_root = pathlib.Path(tmp) / "source"
+        source_root.mkdir()
+        if sha256(source_archive) != source_sha256:
+            evidence.update({"passed": False, "error": "verified application source is missing or changed"})
+            return evidence
+        with tarfile.open(source_archive, "r:gz") as tar:
+            members = tar.getmembers()
+            for member in members:
+                destination = (source_root / member.name).resolve()
+                if not str(destination).startswith(str(source_root.resolve()) + "/"):
+                    evidence.update({"passed": False, "error": "application source archive contains an unsafe path"})
+                    return evidence
+            tar.extractall(source_root, members=members)
+        source_projects = list(source_root.glob("*/jellyfin_mpv_shim/__init__.py"))
+        if len(source_projects) != 1:
+            evidence.update({"passed": False, "error": "verified application source does not contain exactly one package"})
+            return evidence
+        app_root = source_projects[0].parent.parent
         paths = []
         for item in artifacts:
             path = verified_dir / item["filename"]
@@ -151,27 +202,38 @@ def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
             paths.append(str(path))
         subprocess.run([target_python, "-m", "pip", "install", "--no-index", "--no-deps", "--only-binary=:all:",
                         "--target", str(target), *paths], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        script = r'''import ctypes, ctypes.util, importlib, json, sys, sysconfig
+        script = r'''import ctypes, ctypes.util, importlib, json, pathlib, sys, sysconfig
 expected_python, expected_abi, expected_platform = sys.argv[2:5]
-sys.path.insert(0, sys.argv[1])
-result = {"imports": {}, "libmpv": ctypes.util.find_library("mpv"), "native": [],
+target_root, source_root = sys.argv[1:3]
+sys.path[:] = [target_root, source_root]
+def origin_is_isolated(origin, allowed_roots):
+    if not origin: return True
+    path = pathlib.Path(origin).resolve()
+    return any(path.is_relative_to(root.resolve()) for root in allowed_roots)
+result = {"imports": {}, "libmpv": ctypes.util.find_library("mpv"), "native": [], "native_paths_ok": True,
           "target_implementation": sys.implementation.name, "target_soabi": sysconfig.get_config_var("SOABI"),
           "target_machine": __import__("platform").machine()}
 result["target_tags_ok"] = (result["target_implementation"] == "cpython" and
                              expected_python.startswith("cp") and expected_abi in (result["target_soabi"] or "") and
                              result["target_machine"] in ("x86_64", "amd64"))
-for module in ("mpv", "jellyfin_apiclient_python", "mpv_jsonipc", "requests", "PIL"):
+for module in ("jellyfin_mpv_shim", "mpv", "jellyfin_apiclient_python", "mpv_jsonipc", "requests", "PIL"):
     try:
         loaded = importlib.import_module(module)
         result["imports"][module] = "OK"
         origin = getattr(loaded, "__file__", "")
-        if origin and origin.endswith((".so", ".pyd")): result["native"].append(origin)
+        allowed = (pathlib.Path(target_root), pathlib.Path(source_root))
+        if not origin_is_isolated(origin, allowed):
+            raise RuntimeError(f"host-masked import: {origin}")
+        if origin and origin.endswith((".so", ".pyd")):
+            result["native"].append(origin)
+            result["native_paths_ok"] = result["native_paths_ok"] and origin_is_isolated(origin, allowed)
     except Exception as exc: result["imports"][module] = f"FAIL: {type(exc).__name__}: {exc}"
 if result["libmpv"]: ctypes.CDLL(result["libmpv"])
-result["passed"] = result["target_tags_ok"] and bool(result["libmpv"]) and all(value == "OK" for value in result["imports"].values())
+result["passed"] = (result["target_tags_ok"] and bool(result["libmpv"]) and result["native_paths_ok"] and
+                    all(value == "OK" for value in result["imports"].values()))
 print(json.dumps(result))
 '''
-        completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target),
+        completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target), str(app_root),
                                     python_tag, abi_tag, platform_tag], check=True,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         evidence.update(json.loads(completed.stdout))
@@ -209,20 +271,29 @@ def main(argv: list[str]) -> int:
                 with urllib.request.urlopen(SOURCE_URL, timeout=120) as response, source.open("wb") as out: shutil.copyfileobj(response, out)
             meta = source_metadata(source)
             evidence["source"] = meta
-            report = root / "pip-report.json"
-            requirements = root / "requirements.txt"
-            requirements.write_text("\n".join(meta["build_requirements"] + meta["requirements"]) + "\n", encoding="utf-8")
-            subprocess.run([args.pip, "-m", "pip", "install", "--dry-run", "--ignore-installed", "--no-cache-dir", "--only-binary=:all:",
-                            "--report", str(report), "--python-version", "3.11", "--implementation", "cp", "--abi", "cp311",
-                            "--platform", "manylinux_2_17_x86_64", "-r", str(requirements)], check=True)
-            report_data = json.loads(report.read_text(encoding="utf-8"))
+            reports: dict[str, dict[str, Any]] = {}
+            for kind, requirements_list in (("runtime", meta["requirements"]), ("build", meta["build_requirements"])):
+                report = root / f"pip-report-{kind}.json"
+                requirements = root / f"requirements-{kind}.txt"
+                requirements.write_text("\n".join(requirements_list) + "\n", encoding="utf-8")
+                subprocess.run([args.pip, "-m", "pip", "install", "--dry-run", "--ignore-installed", "--no-cache-dir", "--only-binary=:all:",
+                                "--report", str(report), "--python-version", "3.11", "--implementation", "cp", "--abi", "cp311",
+                                "--platform", "manylinux_2_17_x86_64", "-r", str(requirements)], check=True)
+                reports[kind] = json.loads(report.read_text(encoding="utf-8"))
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            (args.output.parent / "resolver-report.json").write_text(json.dumps(report_data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            artifacts = report_artifacts(report_data, "cp311", "cp311", "manylinux_2_17_x86_64", meta["build_requirements"] + meta["requirements"])
-            evidence["resolver_report"], evidence["artifacts"] = report_data, artifacts
+            (args.output.parent / "resolver-report.json").write_text(json.dumps(reports["runtime"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            runtime_artifacts = report_artifacts(reports["runtime"], "cp311", "cp311", "manylinux_2_17_x86_64", meta["requirements"])
+            build_artifacts = report_artifacts(reports["build"], "cp311", "cp311", "manylinux_2_17_x86_64", meta["build_requirements"])
+            by_name = {item["name"]: item for item in runtime_artifacts}
+            by_name.update({item["name"]: item for item in build_artifacts})
+            artifacts = list(by_name.values())
+            evidence["resolver_report"], evidence["artifacts"] = reports["runtime"], runtime_artifacts
+            evidence["build_requirements"] = {"requirements": meta["build_requirements"], "resolver_report": reports["build"],
+                                                "artifacts": build_artifacts}
             verified = root / "verified-artifacts"
             verify_downloads(artifacts, verified)
-            evidence["abi"] = probe_abi("cp311", "cp311", "manylinux_2_17_x86_64", artifacts, verified, args.pip)
+            evidence["abi"] = probe_abi("cp311", "cp311", "manylinux_2_17_x86_64", artifacts, verified,
+                                         source, meta["source_sha256"], args.pip)
             (args.output.parent / "native-import-evidence.json").write_text(json.dumps(evidence["abi"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
             if not evidence["abi"].get("passed"):
                 raise ValueError("target Python/libmpv/import ABI probe failed")
