@@ -157,8 +157,11 @@ jobs:
       - name: Resolve and probe Layer 5 dependency closure (x86_64)
         run: |
           set -Eeuo pipefail
+          sudo bash layers/layer3-display/scripts/build-display.sh output/rootfs-x86_64.tar.gz x86_64
+          bash layers/layer3-display/tests/check-debian-packages.sh
           python3.11 layers/layer5-application/scripts/resolve-dependencies.py \
             --pip python3.11 \
+            --rootfs output/rootfs-x86_64.tar.gz \
             --output output/evidence/layer5-dependency-resolution.json
 
       - name: Upload Layer 5 dependency evidence
@@ -169,11 +172,6 @@ jobs:
           path: output/evidence/layer5-*
           if-no-files-found: warn
           retention-days: 90
-
-      - name: Build Layer 3 Display (x86_64 only)
-        run: |
-          sudo bash layers/layer3-display/scripts/build-display.sh output/rootfs-x86_64.tar.gz x86_64
-          bash layers/layer3-display/tests/check-debian-packages.sh
 
       - name: Build Layer 4 (System Services, x86_64 rootfs policy)
         run: |

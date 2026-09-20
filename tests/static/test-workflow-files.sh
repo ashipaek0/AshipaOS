@@ -58,6 +58,7 @@ for p in files:
         assert "python-version: '3.11'" in x86, "x86_64 resolver job must provision Python 3.11"
         assert "python3.11 -m pip install" in x86 and "packaging==26.3" in x86, "x86_64 resolver must install packaging into target Python"
         assert "--pip python3.11" in x86, "x86_64 resolver must probe with Python 3.11"
+        assert "--rootfs output/rootfs-x86_64.tar.gz" in x86, "x86_64 resolver must probe against the assembled target rootfs"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
         assert "layer3-display/scripts/build-display.sh" in x86, "x86_64 display stack missing"
         assert "layer5-application/scripts/build-application.sh" in x86, "x86_64 application bundle missing"

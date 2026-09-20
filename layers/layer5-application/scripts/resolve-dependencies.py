@@ -6,6 +6,7 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 import pathlib
 import platform
 import re
@@ -185,18 +186,30 @@ def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
               verified_dir: pathlib.Path | None = None,
               source_archive: pathlib.Path | None = None,
               source_sha256: str | None = None,
+              rootfs_archive: pathlib.Path | None = None,
               target_python: str = sys.executable) -> dict[str, Any]:
     evidence: dict[str, Any] = {"python": platform.python_version(), "implementation": sys.implementation.name,
         "python_tag": python_tag, "abi_tag": abi_tag, "platform_tag": platform_tag,
         "machine": platform.machine(), "soabi": sysconfig_soabi(), "imports": {}, "isolated": True}
-    if not artifacts or verified_dir is None or source_archive is None or source_sha256 is None:
-        evidence.update({"passed": False, "error": "isolated probe requires verified dependency artifacts and application source"})
+    if (not artifacts or verified_dir is None or source_archive is None or
+            source_sha256 is None or rootfs_archive is None):
+        evidence.update({"passed": False, "error": "isolated probe requires verified artifacts, application source, and target rootfs"})
         return evidence
     with tempfile.TemporaryDirectory() as tmp:
         target = pathlib.Path(tmp) / "target"
         target.mkdir()
         source_root = pathlib.Path(tmp) / "source"
         source_root.mkdir()
+        rootfs_root = pathlib.Path(tmp) / "rootfs"
+        rootfs_root.mkdir()
+        with tarfile.open(rootfs_archive, "r:gz") as rootfs_tar:
+            members = rootfs_tar.getmembers()
+            for member in members:
+                destination = (rootfs_root / member.name).resolve()
+                if not str(destination).startswith(str(rootfs_root.resolve()) + "/"):
+                    evidence.update({"passed": False, "error": "target rootfs archive contains an unsafe path"})
+                    return evidence
+            rootfs_tar.extractall(rootfs_root, members=members)
         if sha256(source_archive) != source_sha256:
             evidence.update({"passed": False, "error": "verified application source is missing or changed"})
             return evidence
@@ -236,9 +249,10 @@ result = {"imports": {}, "libmpv": ctypes.util.find_library("mpv"), "native": []
           "target_implementation": sys.implementation.name, "target_soabi": sysconfig.get_config_var("SOABI"),
           "target_machine": __import__("platform").machine()}
 result["target_tags_ok"] = (result["target_implementation"] == "cpython" and
-                             expected_python.startswith("cp") and expected_abi in (result["target_soabi"] or "") and
+                             expected_python.startswith("cp") and
+                             expected_abi[2:] in (result["target_soabi"] or "") and
                              result["target_machine"] in ("x86_64", "amd64"))
-for module in ("jellyfin_mpv_shim", "mpv", "jellyfin_apiclient_python", "mpv_jsonipc", "requests", "PIL"):
+for module in ("jellyfin_mpv_shim", "mpv", "jellyfin_apiclient_python", "python_mpv_jsonipc", "requests", "PIL"):
     try:
         loaded = importlib.import_module(module)
         result["imports"][module] = "OK"
@@ -255,9 +269,13 @@ result["passed"] = (result["target_tags_ok"] and bool(result["libmpv"]) and resu
                     all(value == "OK" for value in result["imports"].values()))
 print(json.dumps(result))
 '''
+        library_paths = [rootfs_root / "lib/x86_64-linux-gnu", rootfs_root / "usr/lib/x86_64-linux-gnu"]
+        probe_env = os.environ.copy()
+        probe_env["LD_LIBRARY_PATH"] = ":".join(str(path) for path in library_paths if path.is_dir())
         completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target), str(app_root),
                                     python_tag, abi_tag, platform_tag], check=False,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                   env=probe_env)
         if completed.returncode != 0:
             evidence.update({"passed": False, "error": "isolated probe interpreter failed",
                              "probe_returncode": completed.returncode,
@@ -292,6 +310,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--source", type=pathlib.Path)
+    parser.add_argument("--rootfs", type=pathlib.Path)
     parser.add_argument("--pip", default=sys.executable)
     args = parser.parse_args(argv)
     evidence: dict[str, Any] = {"schema": "ashipaos.jellyfin-mpv-shim.resolution-evidence.v1", "status": "BLOCKED",
@@ -326,7 +345,7 @@ def main(argv: list[str]) -> int:
             verified = root / "verified-artifacts"
             verify_downloads(artifacts, verified)
             evidence["abi"] = probe_abi("cp311", "cp311", "manylinux_2_17_x86_64", artifacts, verified,
-                                         source, meta["source_sha256"], args.pip)
+                                         source, meta["source_sha256"], args.rootfs, args.pip)
             (args.output.parent / "native-import-evidence.json").write_text(json.dumps(evidence["abi"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
             if not evidence["abi"].get("passed"):
                 raise ValueError("target Python/libmpv/import ABI probe failed")
