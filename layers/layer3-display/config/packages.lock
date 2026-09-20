@@ -17,6 +17,7 @@
     "wayland-protocols": {"version": "1.31-1", "architecture": "all", "filename": "wayland-protocols_1.31-1_all.deb", "sha256": "562996db023320a80dad09a7aeb074186d9f3ec80d36f672e24596813bb4a580"},
     "cage": {"version": "0.1.4-4", "architecture": "amd64", "filename": "cage_0.1.4-4_amd64.deb", "sha256": "645c605def426834754aa7d342dc4ec8ee5a005286703b56a520713ea819b74c"},
     "seatd": {"version": "0.7.0-6", "architecture": "amd64", "filename": "seatd_0.7.0-6_amd64.deb", "sha256": "65a368a20915a012907a0b7d1d3a7b617b5a6a75dd74227b2dfd700c43cef90c"},
-    "mpv": {"version": "0.35.1-4", "architecture": "amd64", "filename": "mpv_0.35.1-4_amd64.deb", "sha256": "338eb85ccfe0faeeb98841ef403e40893bec2e87186bfc7d4f02359a14dd9253"}
+    "mpv": {"version": "0.35.1-4", "architecture": "amd64", "filename": "mpv_0.35.1-4_amd64.deb", "sha256": "338eb85ccfe0faeeb98841ef403e40893bec2e87186bfc7d4f02359a14dd9253"},
+    "libmpv2": {"version": "0.35.1-4", "architecture": "amd64", "filename": "libmpv2_0.35.1-4_amd64.deb", "sha256": "fac5bfd2a518b6ea7fc295c0e095521555013aca4b336b3c338705514eb3e49a"}
     }
   }

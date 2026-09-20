@@ -50,7 +50,7 @@ import json, sys
 lock = json.load(open(sys.argv[1], encoding="utf-8"))
 assert lock["source"]["uri"].startswith("https://snapshot.debian.org/archive/debian/")
 assert lock["source"]["suite"] == "bookworm"
-assert set(lock["packages"]) == {"libdrm2", "libegl1", "libgl1-mesa-dri", "libgles2", "mesa-vulkan-drivers", "libwayland-client0", "libwayland-server0", "wayland-protocols", "cage", "seatd", "mpv"}
+assert set(lock["packages"]) == {"libdrm2", "libegl1", "libgl1-mesa-dri", "libgles2", "mesa-vulkan-drivers", "libwayland-client0", "libwayland-server0", "wayland-protocols", "cage", "seatd", "mpv", "libmpv2"}
 for name, item in lock["packages"].items():
     assert item["version"] and item["architecture"] in {"amd64", "all"}
     assert len(item["sha256"]) == 64

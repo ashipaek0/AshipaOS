@@ -133,7 +133,7 @@ install_locked_packages() {
         lock_names+=("$name")
         printf '%s %s (%s)\n' "$name" "$version" "$architecture"
     done < <(load_lock)
-    ((${#specs[@]} == 11)) || error "packages.lock must contain exactly 11 display packages"
+    ((${#specs[@]} == 12)) || error "packages.lock must contain exactly 12 display packages"
 
     prepare_apt_state "$rootfs"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" update
