@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq shellcheck util-linux
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq shellcheck util-linux python3-packaging
 
       - name: Run static tests
         run: |
@@ -74,6 +74,7 @@ jobs:
             jq \
             shellcheck \
             util-linux \
+            python3-packaging \
             grub-efi-amd64-bin \
             grub-efi-amd64-signed \
             efibootmgr

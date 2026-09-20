@@ -17,6 +17,9 @@ import tempfile
 import urllib.request
 from typing import Any
 
+from packaging.tags import Tag, compatible_tags, cpython_tags
+from packaging.utils import parse_wheel_filename
+
 SOURCE_URL = "https://github.com/jellyfin/jellyfin-mpv-shim/archive/9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315.tar.gz"
 SOURCE_SHA256 = "c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731"
 SOURCE_COMMIT = "9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315"
@@ -98,6 +101,32 @@ def source_metadata(archive: pathlib.Path, expected_hash: str = SOURCE_SHA256) -
             "source_sha256": actual, "source_commit": SOURCE_COMMIT}
 
 
+def target_wheel_tags(python_tag: str, abi_tag: str, platform_tag: str) -> set[Tag]:
+    """Return packaging's supported tags for the declared target."""
+    if not re.fullmatch(r"cp[0-9]+", python_tag) or not re.fullmatch(r"cp[0-9]+", abi_tag):
+        raise ValueError("target Python/ABI declarations are malformed")
+    if not re.fullmatch(r"[A-Za-z0-9_]+", platform_tag):
+        raise ValueError("target platform declaration is malformed")
+    version = (int(python_tag[2:]) // 100, int(python_tag[2:]) % 100)
+    tags = set(cpython_tags(python_version=version, abis=[abi_tag], platforms=[platform_tag]))
+    tags.update(compatible_tags(python_version=version, interpreter="cp", platforms=[platform_tag]))
+    return tags
+
+
+def wheel_is_compatible(filename: str, python_tag: str, abi_tag: str, platform_tag: str,
+                        metadata_name: str, metadata_version: str) -> None:
+    if not filename.endswith(".whl"):
+        raise ValueError(f"artifact has malformed wheel filename: {filename}")
+    try:
+        wheel_name, wheel_version, _build, wheel_tags = parse_wheel_filename(filename)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"artifact has malformed wheel filename: {filename}") from exc
+    if normalized_name(str(wheel_name)) != normalized_name(metadata_name) or str(wheel_version) != metadata_version:
+        raise ValueError(f"wheel filename metadata mismatch: {filename}")
+    if not wheel_tags.intersection(target_wheel_tags(python_tag, abi_tag, platform_tag)):
+        raise ValueError(f"artifact is incompatible with target ABI/platform: {filename}")
+
+
 def report_artifacts(report: dict[str, Any], python_tag: str, abi_tag: str, platform_tag: str,
                      required: list[str] | None = None) -> list[dict[str, str]]:
     installs = report.get("install")
@@ -122,19 +151,10 @@ def report_artifacts(report: dict[str, Any], python_tag: str, abi_tag: str, plat
         digest = hashes.get("sha256") if isinstance(hashes, dict) else None
         if not url.startswith("https://") or not filename or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
             raise ValueError(f"artifact lacks verified HTTPS URL/SHA-256: {metadata.get('name')}")
-        if filename.endswith(".whl"):
-            tags = filename[:-4].rsplit("-", 3)
-            if len(tags) != 4:
-                raise ValueError(f"artifact has malformed wheel filename: {filename}")
-            _, wheel_python, wheel_abi, wheel_platform = tags
-            python_ok = wheel_python in {python_tag, "py3"}
-            abi_ok = wheel_abi in {abi_tag, "abi3", "none"}
-            platform_ok = wheel_platform in {platform_tag, "any"}
-            if not (python_ok and abi_ok and platform_ok):
-                raise ValueError(f"artifact is incompatible with target ABI: {filename}")
         name, version = metadata.get("name"), metadata.get("version")
         if not isinstance(name, str) or not isinstance(version, str) or not name or not version:
             raise ValueError("resolver report artifact lacks name/version")
+        wheel_is_compatible(filename, python_tag, abi_tag, platform_tag, name, version)
         canonical = normalized_name(name)
         if canonical in seen:
             raise ValueError(f"resolver report contains duplicate artifact: {name}")

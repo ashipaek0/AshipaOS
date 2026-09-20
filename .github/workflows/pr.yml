@@ -12,7 +12,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck dosfstools u-boot-tools
+          sudo apt-get install -y debootstrap qemu-user-static binfmt-support parted kpartx gpg jq shellcheck dosfstools u-boot-tools python3-packaging
 
       - name: Run static tests
         run: |

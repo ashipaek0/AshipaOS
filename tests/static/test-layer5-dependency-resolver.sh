@@ -36,6 +36,11 @@ with tempfile.TemporaryDirectory() as td:
     required = ["python-mpv", "jellyfin-apiclient-python", "python-mpv-jsonipc", "requests", "pillow"]
     complete = {"install": [item(name) for name in required]}
     assert len(resolver.report_artifacts(complete, "cp311", "cp311", "manylinux_2_17_x86_64")) == len(required)
+    synthetic_any = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-cp311-cp311-any.whl")]}
+    try: resolver.report_artifacts(synthetic_any, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError("synthetic cp311-cp311-any tag accepted")
+    except ValueError as e: assert "incompatible" in str(e)
+    pure_python = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-py3-none-any.whl")]}
+    assert len(resolver.report_artifacts(pure_python, "cp311", "cp311", "manylinux_2_17_x86_64")) == len(required)
     incomplete = {"install": [item(name) for name in required[:-1]]}
     try: resolver.report_artifacts(incomplete, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError("incomplete report accepted")
     except ValueError as e: assert "incomplete" in str(e) and "pillow" in str(e)
@@ -44,12 +49,27 @@ with tempfile.TemporaryDirectory() as td:
     missing_package = archive(base, package=False)
     try: resolver.source_metadata(missing_package, resolver.sha256(missing_package)); raise AssertionError("missing app package accepted")
     except ValueError as e: assert "constants.py" in str(e)
-    duplicate = {"install": [*complete["install"], item("python-mpv", "python_mpv-2.0-py3-none-any.whl")]}
+    duplicate = {"install": [*complete["install"], item("python-mpv", "python_mpv-1.0-py3-none-any.whl")]}
     try: resolver.report_artifacts(duplicate, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError("duplicate report accepted")
     except ValueError as e: assert "duplicate" in str(e)
-    bad_abi = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-cp310-cp310-manylinux_2_17_x86_64.whl")]}
+    compound = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-cp310.cp311-cp310.cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl")]}
+    assert len(resolver.report_artifacts(compound, "cp311", "cp311", "manylinux_2_17_x86_64")) == len(required)
+    incompatible_alternative = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_16_x86_64.whl")]}
+    try: resolver.report_artifacts(incompatible_alternative, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError("incompatible platform alternative accepted")
+    except ValueError as e: assert "incompatible" in str(e)
+    for malformed in ("pillow-1.0-cp311-cp311-manylinux_2_17_x86_64.whl.bak", "Pillow-12.2.0-cp311-cp311.whl", "Pillow-12.2.0-cp311-cp311-manylinux_2_17_x86_64.extra.whl"):
+        malformed_report = {"install": [item(name) for name in required[:-1]] + [item("pillow", malformed)]}
+        try: resolver.report_artifacts(malformed_report, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError(f"malformed wheel accepted: {malformed}")
+        except ValueError as e: assert "wheel" in str(e).lower() or "incompatible" in str(e).lower()
+    bad_python = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-cp310-cp311-manylinux_2_17_x86_64.whl")]}
+    try: resolver.report_artifacts(bad_python, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError("Python mutant accepted")
+    except ValueError as e: assert "incompatible" in str(e)
+    bad_abi = {"install": [item(name) for name in required[:-1]] + [item("pillow", "pillow-1.0-cp311-cp310-manylinux_2_17_x86_64.whl")]}
     try: resolver.report_artifacts(bad_abi, "cp311", "cp311", "manylinux_2_17_x86_64"); raise AssertionError("ABI mutant accepted")
-    except ValueError as e: assert "ABI" in str(e)
+    except ValueError as e: assert "incompatible" in str(e)
+    for target in (("python311", "cp311", "manylinux_2_17_x86_64"), ("cp311", "cp311", "manylinux_2_17_x86_64.bad")):
+        try: resolver.target_wheel_tags(*target); raise AssertionError("malformed target declaration accepted")
+        except ValueError as e: assert "target" in str(e)
     with mock.patch("ctypes.util.find_library", return_value="libmpv.so"), mock.patch.dict(sys.modules, {"mpv": object(), "requests": object()}):
         evidence = resolver.probe_abi("cp311", "cp311", "manylinux_2_17_x86_64")
     assert evidence["passed"] is False and "verified dependency artifacts" in evidence["error"]

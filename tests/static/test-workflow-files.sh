@@ -37,6 +37,7 @@ for p in files:
         static_job = text[static_start:text.index(static_end_marker)] if static_end_marker else text[static_start:]
         pin_shape = "bash tests/static/test-coreelec-pin.sh"
         pin_live = "bash build/coreelec/validate-pin.sh"
+        assert "python3-packaging" in static_job, f"{workflow} static-tests must declare packaging for resolver/static Python tests"
         assert pin_shape in static_job, f"{workflow} static-tests must run the CoreELEC pin regression test"
         assert pin_live in static_job, f"{workflow} static-tests must validate the live authorized CoreELEC fork/ref"
         assert static_job.index(pin_shape) < static_job.index(pin_live), f"{workflow} must validate pin shape before live fork/ref/source state"
@@ -52,6 +53,7 @@ for p in files:
             assert re.search(r"(?m)^    needs:\s*static-tests\s*(?:#.*)?$", job), f"{job_name} build must depend on the static-tests pin gate"
         assert "qemu-system-x86" in x86 and "ovmf" in x86, "x86_64 job must install UEFI QEMU dependencies"
         assert "util-linux" in x86, "x86_64 job must install stdbuf provider (util-linux)"
+        assert "python3-packaging" in x86, "x86_64 resolver job must install python3-packaging"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
         assert "layer3-display/scripts/build-display.sh" in x86, "x86_64 display stack missing"
         assert "layer5-application/scripts/build-application.sh" in x86, "x86_64 application bundle missing"
