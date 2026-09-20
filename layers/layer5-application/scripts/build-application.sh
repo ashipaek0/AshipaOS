@@ -94,6 +94,7 @@ ashipa_gid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS_DIR/etc/group")
 chown -R "$ashipa_uid:$ashipa_gid" "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim"
 chmod 0700 "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim/slots"
 
+OUT="$TMP/rootfs.tar.gz"
 tar -C "$ROOTFS_DIR" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' -czf "$OUT" .
 mv -f "$OUT" "$INPUT"
 rootfs_output_owner "$INPUT" "$(dirname "$INPUT")"

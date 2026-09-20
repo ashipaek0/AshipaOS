@@ -15,6 +15,17 @@ grep -q 'tomllib' "$SCRIPT"
 grep -q 'build-system' "$SCRIPT"
 grep -qi 'metadata-only' "$SCRIPT"
 grep -q 'rootfs_output_owner' "$SCRIPT"
+python3 - "$SCRIPT" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+script = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert re.search(r'^ROOTFS_DIR="\$TMP/rootfs"$', script, re.MULTILINE), "Layer 5 must define ROOTFS_DIR under TMP"
+assert re.search(r'^OUT="\$TMP/[^"]+"$', script, re.MULTILINE), "Layer 5 must define temporary OUT under TMP"
+assert ' -czf "$OUT" .' in script, "Layer 5 repack must write to OUT"
+assert 'mv -f "$OUT" "$INPUT"' in script, "Layer 5 must replace INPUT from OUT"
+PY
 grep -q 'REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"' "$SCRIPT"
 grep -q 'source "$REPO_ROOT/scripts/rootfs-ownership.sh"' "$SCRIPT"
 grep -q 'active metadata ownership' "$LAUNCHER"
