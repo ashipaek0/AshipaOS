@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# x86_64 Layer 3 display session; no test video is embedded.
+# Layer 3 owns the compositor/session; Layer 5 owns the application launcher.
 set -Eeuo pipefail
 
-asset="${ASHIPAOS_DISPLAY_ASSET:-/usr/share/ashipaos/display/test-video.mp4}"
-if [[ -f "$asset" ]]; then
-    exec /usr/bin/cage -- /usr/bin/mpv --no-terminal --vo=gpu --gpu-api=auto "$asset"
-fi
-
-printf '%s\n' "ashipaos-display: playback asset unavailable; runtime playback gate BLOCKED" >&2
-# Keep the compositor/session contract testable without inventing a media binary.
-exec /usr/bin/cage -- /usr/bin/mpv --no-terminal --idle=yes --vo=gpu --gpu-api=auto
+command -v /usr/libexec/ashipaos-jellyfin-mpv-shim >/dev/null 2>&1 \
+    || { printf '%s\n' 'ashipaos-display: validated Jellyfin MPV Shim launcher unavailable' >&2; exit 1; }
+exec /usr/bin/cage -- /usr/libexec/ashipaos-jellyfin-mpv-shim

@@ -16,10 +16,9 @@ packages:
   - cage
   - seatd
   - mpv
-  - python3-mpv
 playback:
-  asset: /usr/share/ashipaos/display/test-video.mp4
-  status: BLOCKED_UNTIL_REPRODUCIBLE_ASSET
+  launcher: /usr/libexec/ashipaos-jellyfin-mpv-shim
+  status: LAYER5_APPLICATION
 verification:
   qemu_software_runtime: separate_from_physical_gpu
   physical_display_gpu: HARDWARE

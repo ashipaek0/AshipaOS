@@ -1,0 +1,22 @@
+{
+  "schema": "ashipaos.jellyfin-mpv-shim.dependency-lock.v1",
+  "status": "UNRESOLVED",
+  "reason": "Exact target-compatible wheel closure requires CI resolution; no versions or hashes are invented here.",
+  "python_requires": ">=3.9",
+  "upstream_build_requirements": ["setuptools>=77", "wheel"],
+  "mandatory_requirements_from_upstream": [
+    "python-mpv>=1.0.8",
+    "jellyfin-apiclient-python>=1.18.0",
+    "python-mpv-jsonipc>=1.4.0",
+    "requests",
+    "pillow"
+  ],
+  "excluded_extras": ["systray", "gui", "discord", "pywin32"],
+  "forbidden_debian_package": "python3-mpv",
+  "resolution": {
+    "command": "python3 -m pip install --dry-run --report <report.json> --only-binary=:all: ...",
+    "must_record": ["name", "version", "sha256", "filename", "python_tag", "abi_tag", "platform_tag"],
+    "must_fail_without": ["target-compatible wheels", "hashes for every artifact", "python-mpv ABI evidence"]
+  },
+  "sbom": "dependency-sbom.json"
+}

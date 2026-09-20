@@ -143,6 +143,11 @@ jobs:
         run: |
           bash layers/layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64
 
+      - name: Build Layer 5 Application (x86_64 only)
+        run: |
+          sudo --preserve-env=SUDO_UID,SUDO_GID \
+            bash layers/layer5-application/scripts/build-application.sh output/rootfs-x86_64.tar.gz x86_64
+
       - name: Build Layer 2 (Disk Image)
         run: |
           export LIBGUESTFS_BACKEND=direct

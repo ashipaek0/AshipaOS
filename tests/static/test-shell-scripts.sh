@@ -13,6 +13,7 @@ done < <(find "$ROOT" -path "$ROOT/.git" -prune -o -name '*.sh' -print)
 rootfs_repack_scripts=(
   "$ROOT/layers/layer1-rootfs/scripts/build-rootfs.sh"
   "$ROOT/layers/layer3-display/scripts/build-display.sh"
+  "$ROOT/layers/layer5-application/scripts/build-application.sh"
   "$ROOT/layers/layer4-services/scripts/build-services.sh"
   "$ROOT/scripts/setup-build-environment.sh"
 )

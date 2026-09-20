@@ -6,6 +6,8 @@ dist/
 # Evidence and build logs
 layers/*/evidence/
 build-evidence*.json
+!layers/layer5-application/evidence/
+!layers/layer5-application/evidence/build-evidence.json
 
 # Compressed images and packages
 *.img.gz

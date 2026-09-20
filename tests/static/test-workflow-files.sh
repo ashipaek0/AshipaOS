@@ -54,8 +54,12 @@ for p in files:
         assert "util-linux" in x86, "x86_64 job must install stdbuf provider (util-linux)"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
         assert "layer3-display/scripts/build-display.sh" in x86, "x86_64 display stack missing"
-        assert x86.index("Build Layer 1") < x86.index("layer3-display/scripts/build-display.sh") < x86.index("Build Layer 2"), "display stack must be installed before image creation"
+        assert "layer5-application/scripts/build-application.sh" in x86, "x86_64 application bundle missing"
+        assert "sudo --preserve-env=SUDO_UID,SUDO_GID \\\n            bash layers/layer5-application/scripts/build-application.sh" in x86, "Layer 5 rootfs mutation must run privileged"
+        assert "rootfs_output_owner" in open(os.path.join(root, "layers/layer5-application/scripts/build-application.sh")).read(), "Layer 5 must restore output ownership"
+        assert x86.index("Build Layer 1") < x86.index("layer3-display/scripts/build-display.sh") < x86.index("layer5-application/scripts/build-application.sh") < x86.index("Build Layer 2"), "display/application stack must be installed before image creation"
         assert "layer3-display/scripts/build-display.sh" not in arm, "display stack must remain x86_64-only"
+        assert "layer5-application/scripts/build-application.sh" not in arm, "application bundle must remain x86_64-only"
         assert "layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64" in x86, "x86_64 workflow must apply Layer 4 to the rootfs before image creation"
         assert "layer4-services/scripts/build-services.sh" not in arm, "Layer 4 x86_64 rootfs policy must not run for ARM"
         assert x86.index("layer4-services/scripts/build-services.sh") < x86.index("Build Layer 2"), "Layer 4 policy must run before image creation"
@@ -116,11 +120,18 @@ for p in files:
         assert "ashipaos-boot-success.service" not in marker_installer, "boot marker must not depend on a separate service"
         assert "multi-user.target.wants" not in marker_installer, "boot marker must not use target service wiring"
         full_build = open(os.path.join(root, "build/scripts/full-build.sh")).read()
+        assert 'run_privileged() {' in full_build, "full-build must define an explicit privileged runner"
+        assert 'if [[ $EUID -eq 0 ]]; then' in full_build, "full-build must avoid nested sudo for direct-root invocations"
+        assert 'command -v sudo >/dev/null 2>&1 || die "sudo is required for privileged rootfs mutation"' in full_build, "full-build must fail closed when sudo is unavailable"
+        assert 'sudo --preserve-env=SUDO_UID,SUDO_GID -- "$@"' in full_build, "full-build must preserve sudo caller ownership metadata"
+        assert 'run_privileged bash "$LAYERS_DIR/layer5-application/scripts/build-application.sh" "$rootfs" x86_64' in full_build, "full-build must run application rootfs mutation through the privileged runner"
+        assert '    bash "$LAYERS_DIR/layer5-application/scripts/build-application.sh" "$rootfs" x86_64' not in full_build, "full-build must not invoke application mutation unprivileged"
         assert 'build_layer4 "$rootfs_tar" "$target"' in full_build, "full-build must pass the rootfs and target to Layer 4"
         assert 'build-services.sh" "$rootfs" x86_64' in full_build, "full-build must use the x86_64 rootfs Layer 4 interface"
         assert 'Layer 4 is x86_64-only, skipping' in full_build, "full-build must skip Layer 4 for ARM targets"
         assert 'build-services.sh" "$target"' not in full_build, "full-build must not call the obsolete one-argument Layer 4 interface"
-        assert full_build.index('build_layer4 "$rootfs_tar" "$target"') < full_build.index('build_layer2 "$rootfs_tar" "$target"'), "full-build must transform the x86_64 rootfs before Layer 2"
+        assert 'build_layer5_application "$rootfs_tar" "$target"' in full_build, "full-build must apply the x86_64 application bundle"
+        assert full_build.index('build_layer5_application "$rootfs_tar" "$target"') < full_build.index('build_layer2 "$rootfs_tar" "$target"'), "application bundle must precede image assembly"
 
 
 print("test-workflow-files: PASS")

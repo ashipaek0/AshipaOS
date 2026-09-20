@@ -21,6 +21,15 @@ die() {
     exit 1
 }
 
+run_privileged() {
+    if [[ $EUID -eq 0 ]]; then
+        "$@"
+        return
+    fi
+    command -v sudo >/dev/null 2>&1 || die "sudo is required for privileged rootfs mutation"
+    sudo --preserve-env=SUDO_UID,SUDO_GID -- "$@"
+}
+
 usage() {
     echo "Usage: $(basename "$0") [OPTIONS] <target>"
     echo ""
@@ -77,6 +86,18 @@ build_layer5() {
     log "=== LAYER 5: Building Settings Daemon (target=$target) ==="
     bash "$LAYERS_DIR/layer5-settingsd/scripts/build-settingsd.sh" "$target"
     log "Layer 5 complete"
+}
+
+build_layer5_application() {
+    local rootfs="$1"
+    local target="$2"
+    if [[ "$target" != "x86_64" ]]; then
+        log "Layer 5 application is x86_64-only, skipping for target=$target"
+        return 0
+    fi
+    log "=== LAYER 5: Installing Jellyfin MPV Shim bundle (target=$target) ==="
+    run_privileged bash "$LAYERS_DIR/layer5-application/scripts/build-application.sh" "$rootfs" x86_64
+    log "Layer 5 application complete"
 }
 
 build_layer6() {
@@ -214,6 +235,7 @@ main() {
         log "Layer 3 display complete"
     fi
     build_layer4 "$rootfs_tar" "$target"
+    build_layer5_application "$rootfs_tar" "$target"
     build_layer2 "$rootfs_tar" "$target"
     build_layer3 "$target"
     build_layer5 "$target"

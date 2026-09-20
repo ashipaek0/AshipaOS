@@ -133,7 +133,7 @@ install_locked_packages() {
         lock_names+=("$name")
         printf '%s %s (%s)\n' "$name" "$version" "$architecture"
     done < <(load_lock)
-    ((${#specs[@]} == 12)) || error "packages.lock must contain exactly 12 display packages"
+    ((${#specs[@]} == 11)) || error "packages.lock must contain exactly 11 display packages"
 
     prepare_apt_state "$rootfs"
     run_target "$rootfs" env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" update
@@ -167,8 +167,6 @@ validate_target_runtime() {
         || error "mpv executable missing from target rootfs"
     run_target "$rootfs" /bin/sh -c 'command -v python3' >/dev/null \
         || error "python3 executable missing from target rootfs"
-    run_target "$rootfs" python3 -c 'import mpv; print(mpv.MPV)' >/dev/null \
-        || error "target rootfs Python mpv import/API check failed"
 }
 
 install_user_and_service() {
@@ -194,7 +192,7 @@ write_evidence() {
             [[ -n "$pkg" ]] || continue
             policy=$(run_target "$rootfs" apt-cache "${apt_options[@]}" policy "$pkg" | tr '\n' ' ' | sed 's/"/\\"/g')
             printf '    "%s": {"version": "%s", "architecture": "%s", "sha256": "%s", "apt_policy": "%s"}%s\n' \
-                "$pkg" "$version" "$architecture" "$sha256" "$policy" "$([[ "$pkg" == python3-mpv ]] && echo '' || echo ',')"
+                "$pkg" "$version" "$architecture" "$sha256" "$policy" "$([[ "$pkg" == mpv ]] && echo '' || echo ',')"
         done < <(load_lock)
         printf '  },\n  "service": "ashipaos-display.service",\n  "runtime_user": "ashipa",\n  "physical_gpu_gate": "HARDWARE"\n}\n'
     } > "$EVIDENCE_DIR/build-evidence.json"

@@ -1,0 +1,32 @@
+# Jellyfin MPV Shim application bundle: x86_64 only.
+targets:
+  - x86_64
+version: 3.0.0
+commit: 9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315
+archive:
+  url: https://github.com/jellyfin/jellyfin-mpv-shim/archive/9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315.tar.gz
+  sha256: c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731
+runtime:
+  entrypoint: jellyfin-mpv-shim=jellyfin_mpv_shim.mpv_shim:main
+  python: '>=3.9'
+  mandatory_dependencies:
+    - python-mpv>=1.0.8
+    - jellyfin-apiclient-python>=1.18.0
+    - python-mpv-jsonipc>=1.4.0
+    - requests
+    - pillow
+  excluded_extras:
+    - systray
+    - gui
+    - discord
+    - pywin32
+storage:
+  immutable: /usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0
+  persistent_config: /storage/jellyfin-mpv-shim
+  slots: /storage/apps/jellyfin-mpv-shim/slots
+  active: /storage/apps/jellyfin-mpv-shim/active.json
+  owner: ashipa
+  mode: '0700'
+verification:
+  dependency_resolution: BLOCKED_UNTIL_EXACT_TARGET_LOCK
+  hardware_display: HARDWARE
