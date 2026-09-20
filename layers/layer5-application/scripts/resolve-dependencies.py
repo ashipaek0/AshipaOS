@@ -279,6 +279,10 @@ result["passed"] = (result["target_tags_ok"] and bool(result["libmpv"]) and resu
 print(json.dumps(result))
 '''
         library_paths = [rootfs_root / "lib/x86_64-linux-gnu", rootfs_root / "usr/lib/x86_64-linux-gnu"]
+        rootfs_libmpv = next((candidate for candidate in sorted(rootfs_root.rglob("libmpv.so*"))
+                              if candidate.is_file()), None)
+        if rootfs_libmpv is not None:
+            library_paths.insert(0, rootfs_libmpv.parent)
         probe_env = os.environ.copy()
         probe_env["ASHIPAOS_TARGET_LD_LIBRARY_PATH"] = ":".join(str(path) for path in library_paths if path.is_dir())
         completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target), str(app_root),
