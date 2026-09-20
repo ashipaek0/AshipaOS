@@ -56,6 +56,7 @@ for p in files:
         assert "python3-packaging" in x86, "x86_64 resolver job must install python3-packaging"
         assert "actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c" in x86, "x86_64 resolver job must pin setup-python"
         assert "python-version: '3.11'" in x86, "x86_64 resolver job must provision Python 3.11"
+        assert "python3.11 -m pip install" in x86 and "packaging==26.3" in x86, "x86_64 resolver must install packaging into target Python"
         assert "--pip python3.11" in x86, "x86_64 resolver must probe with Python 3.11"
         assert "tests/vm/boot-x86_64.sh" in x86, "x86_64 VM gate missing"
         assert "layer3-display/scripts/build-display.sh" in x86, "x86_64 display stack missing"

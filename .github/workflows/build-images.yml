@@ -63,6 +63,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install resolver tooling into target Python
+        run: |
+          python3.11 -m pip install --disable-pip-version-check --no-cache-dir 'packaging==26.3'
+
       - name: Install dependencies
         run: |
           sudo apt-get update
