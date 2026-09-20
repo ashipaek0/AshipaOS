@@ -278,14 +278,28 @@ result["passed"] = (result["target_tags_ok"] and bool(result["libmpv"]) and resu
                     all(value == "OK" for value in result["imports"].values()))
 print(json.dumps(result))
 '''
-        library_paths = sorted({candidate.parent for candidate in rootfs_root.rglob("*.so*")
-                                if candidate.is_file()})
+        # LD_LIBRARY_PATH is consumed by the dynamic loader before Python starts.
+        # Do not point it at the target's whole /usr/lib directory: that would
+        # make the host interpreter load the target glibc.  Stage target shared
+        # libraries except the host-provided libc family into an isolated
+        # directory, then expose that directory before launching the probe.
+        library_stage = pathlib.Path(tmp) / "target-libs"
+        library_stage.mkdir()
+        excluded = ("libc.so", "libm.so", "libpthread.so", "libdl.so", "librt.so",
+                    "libresolv.so", "libnsl.so", "ld-linux", "libutil.so", "libcrypt.so",
+                    "libanl.so", "libBrokenLocale.so")
+        for candidate in sorted(rootfs_root.rglob("*.so*")):
+            if not candidate.is_file() or candidate.name.startswith(excluded):
+                continue
+            link = library_stage / candidate.name
+            if not link.exists():
+                link.symlink_to(candidate)
+        library_paths = [library_stage]
         rootfs_libmpv = next((candidate for candidate in sorted(rootfs_root.rglob("libmpv.so*"))
                               if candidate.is_file()), None)
-        if rootfs_libmpv is not None:
-            library_paths.insert(0, rootfs_libmpv.parent)
         probe_env = os.environ.copy()
         probe_env["ASHIPAOS_TARGET_LD_LIBRARY_PATH"] = ":".join(str(path) for path in library_paths if path.is_dir())
+        probe_env["LD_LIBRARY_PATH"] = probe_env["ASHIPAOS_TARGET_LD_LIBRARY_PATH"]
         completed = subprocess.run([target_python, "-I", "-S", "-c", script, str(target), str(app_root),
                                     python_tag, abi_tag, platform_tag], check=False,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
