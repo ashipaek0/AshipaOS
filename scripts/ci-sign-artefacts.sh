@@ -19,12 +19,21 @@ echo "Repository root: $REPO_ROOT"
 echo "Images directory: $IMAGES_DIR"
 echo "OTA directory: $OTA_DIR"
 
-# Check if GPG key is available (skip in dev mode)
+# Check if GPG key is available. Placeholder signatures are development-only.
 if ! gpg --list-secret-keys 2>/dev/null | grep -q "AshipaOS Release"; then
-    echo "WARNING: GPG private key not found. Skipping signing (development mode)."
-    echo "To enable signing, set GPG_PRIVATE_KEY and GPG_PASSPHRASE secrets."
-    
-    # Create placeholder signature files for testing
+    if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+        echo "ERROR: GPG private key not found for tag release; refusing placeholder signatures." >&2
+        exit 1
+    fi
+    if [[ "${CI_ALLOW_PLACEHOLDER_SIGNATURES:-}" != "1" ]]; then
+        echo "ERROR: GPG private key not found and development placeholder signatures are not enabled." >&2
+        echo "Set CI_ALLOW_PLACEHOLDER_SIGNATURES=1 only for explicit development validation." >&2
+        exit 1
+    fi
+    echo "WARNING: GPG private key not found. Using explicitly enabled development placeholders."
+    echo "To enable production signing, set GPG_PRIVATE_KEY and GPG_PASSPHRASE secrets."
+
+    # Create placeholder signature files for explicitly enabled development validation.
     if [ -d "$IMAGES_DIR" ]; then
         for img in "$IMAGES_DIR"/*.img.gz; do
             if [ -f "$img" ]; then
@@ -47,6 +56,7 @@ if ! gpg --list-secret-keys 2>/dev/null | grep -q "AshipaOS Release"; then
     SBOM_FILE="$REPO_ROOT/output/sbom.json"
     if [ -f "$SBOM_FILE" ]; then
         echo "PLACEHOLDER_SIGNATURE" > "${SBOM_FILE}.sig"
+        sha256sum "$SBOM_FILE" > "${SBOM_FILE}.sha256"
         echo "  Created placeholder: sbom.json.sig"
     fi
     
@@ -90,6 +100,8 @@ if [ -f "$SBOM_FILE" ]; then
     echo "Signing SBOM..."
     echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
         --armor --detach-sign "$SBOM_FILE"
+    cp -- "${SBOM_FILE}.asc" "${SBOM_FILE}.sig"
+    sha256sum "$SBOM_FILE" > "${SBOM_FILE}.sha256"
 fi
 
 echo "=== Signing Complete ==="

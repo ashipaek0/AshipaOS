@@ -19,14 +19,14 @@ test_result() {
     fi
 }
 
-test_shebang() { head -1 "$1" | grep -q '^#!/bin/bash' && echo "PASS" || echo "FAIL"; }
-test_shell_strict() { grep -q 'set -euo pipefail' "$1" && echo "PASS" || echo "FAIL"; }
+test_shebang() { head -1 "$1" | grep -qE '^#!/(bin/bash|usr/bin/env bash)$' && echo "PASS" || echo "FAIL"; }
+test_shell_strict() { grep -qE '^set -E?euo pipefail$' "$1" && echo "PASS" || echo "FAIL"; }
 test_usage_function() { grep -q 'usage()' "$1" && echo "PASS" || echo "FAIL"; }
 test_error_handling() { grep -q 'error()' "$1" && grep -q 'trap\|exit 1' "$1" && echo "PASS" || echo "FAIL"; }
 test_executable() { [[ -x "$1" ]] && echo "PASS" || echo "FAIL"; }
 test_no_hardcoding() { ! grep -qE '/dev/mmcblk|/sys/class/' "$1" && echo "PASS" || echo "FAIL"; }
 test_verification_class() { grep -qE 'Verification Class:' "$1" && echo "PASS" || echo "FAIL"; }
-test_dependencies() { grep -q 'Dependencies:\|layer2' "$1" && echo "PASS" || echo "FAIL"; }
+test_dependencies() { grep -q 'rootfs-tar.gz' "$1" && grep -q 'rootfs integration' "$1" && echo "PASS" || echo "FAIL"; }
 test_evidence_dir() { [[ -d "$LAYER_DIR/evidence" ]] || mkdir -p "$LAYER_DIR/evidence" && echo "PASS" || echo "FAIL"; }
 test_evidence_generation() { grep -q 'generate_evidence' "$1" && grep -q 'build-evidence.json' "$1" && echo "PASS" || echo "FAIL"; }
 test_config_exists() { [[ -f "$LAYER_DIR/config/init-config.yaml" ]] && echo "PASS" || echo "FAIL"; }

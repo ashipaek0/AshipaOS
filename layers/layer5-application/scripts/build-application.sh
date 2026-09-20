@@ -78,22 +78,23 @@ PY
 
 ROOTFS_DIR="$TMP/rootfs"
 mkdir -p "$ROOTFS_DIR"
-tar -xzf "$INPUT" -C "$ROOTFS" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*'
+tar -xzf "$INPUT" -C "$ROOTFS_DIR" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*'
 # Metadata-only staging: no bin/launcher is installed while the lock is unresolved.
-install -D -m 0755 "$LAYER_DIR/files/usr/libexec/ashipaos-jellyfin-mpv-shim" "$ROOTFS/usr/libexec/ashipaos-jellyfin-mpv-shim"
-mkdir -p "$ROOTFS/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION" "$ROOTFS/storage/jellyfin-mpv-shim" "$ROOTFS/storage/apps/jellyfin-mpv-shim/slots"
-cp "$ARCHIVE" "$ROOTFS/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION/source.tar.gz"
-cp "$TMP/dependency-sbom.json" "$ROOTFS/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION/dependency-sbom.json"
-cp "$LOCK" "$ROOTFS/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION/dependencies.lock.json"
+install -D -m 0755 "$LAYER_DIR/files/usr/libexec/ashipaos-jellyfin-mpv-shim" "$ROOTFS_DIR/usr/libexec/ashipaos-jellyfin-mpv-shim"
+mkdir -p "$ROOTFS_DIR/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION" "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim/slots"
+cp "$ARCHIVE" "$ROOTFS_DIR/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION/source.tar.gz"
+cp "$TMP/dependency-sbom.json" "$ROOTFS_DIR/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION/dependency-sbom.json"
+cp "$LOCK" "$ROOTFS_DIR/usr/lib/ashipaos/apps/jellyfin-mpv-shim/$VERSION/dependencies.lock.json"
+
 # Resolve ownership from the target rootfs, never from the build host. Missing
 # target identities are an error; silently leaving root ownership is unsafe.
-ashipa_uid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS/etc/passwd")
-ashipa_gid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS/etc/group")
+ashipa_uid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS_DIR/etc/passwd")
+ashipa_gid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS_DIR/etc/group")
 [[ "$ashipa_uid" =~ ^[0-9]+$ && "$ashipa_gid" =~ ^[0-9]+$ ]] || error "target rootfs lacks ashipa ownership identity"
-chown -R "$ashipa_uid:$ashipa_gid" "$ROOTFS/storage/jellyfin-mpv-shim" "$ROOTFS/storage/apps/jellyfin-mpv-shim"
-chmod 0700 "$ROOTFS/storage/jellyfin-mpv-shim" "$ROOTFS/storage/apps/jellyfin-mpv-shim" "$ROOTFS/storage/apps/jellyfin-mpv-shim/slots"
-OUT="${INPUT}.application.tmp"
-tar -C "$ROOTFS" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' -czf "$OUT" .
+chown -R "$ashipa_uid:$ashipa_gid" "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim"
+chmod 0700 "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim/slots"
+
+tar -C "$ROOTFS_DIR" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' -czf "$OUT" .
 mv -f "$OUT" "$INPUT"
 rootfs_output_owner "$INPUT" "$(dirname "$INPUT")"
 printf 'layer5-application: metadata staged; runnable bundle blocked by unresolved exact dependency closure\n'

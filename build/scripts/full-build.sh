@@ -63,9 +63,14 @@ build_layer2() {
 }
 
 build_layer3() {
-    local target="$1"
+    local rootfs="$1"
+    local target="$2"
     log "=== LAYER 3: Configuring First-Boot Init (target=$target) ==="
-    bash "$LAYERS_DIR/layer3-init/scripts/build-init.sh" "$target"
+    if [[ "$target" == "x86_64" ]]; then
+        bash "$LAYERS_DIR/layer3-init/scripts/build-init.sh" "$rootfs" x86_64
+    else
+        bash "$LAYERS_DIR/layer3-init/scripts/build-init.sh" "$target"
+    fi
     log "Layer 3 complete"
 }
 
@@ -82,9 +87,14 @@ build_layer4() {
 }
 
 build_layer5() {
-    local target="$1"
+    local rootfs="$1"
+    local target="$2"
     log "=== LAYER 5: Building Settings Daemon (target=$target) ==="
-    bash "$LAYERS_DIR/layer5-settingsd/scripts/build-settingsd.sh" "$target"
+    if [[ "$target" == "x86_64" ]]; then
+        bash "$LAYERS_DIR/layer5-settingsd/scripts/build-settingsd.sh" "$rootfs" x86_64
+    else
+        bash "$LAYERS_DIR/layer5-settingsd/scripts/build-settingsd.sh" "$target"
+    fi
     log "Layer 5 complete"
 }
 
@@ -101,9 +111,14 @@ build_layer5_application() {
 }
 
 build_layer6() {
-    local target="$1"
+    local rootfs="$1"
+    local target="$2"
     log "=== LAYER 6: Configuring OTA Mechanism (target=$target) ==="
-    bash "$LAYERS_DIR/layer6-ota/scripts/build-ota.sh" "$target"
+    if [[ "$target" == "x86_64" ]]; then
+        bash "$LAYERS_DIR/layer6-ota/scripts/build-ota.sh" "$rootfs" x86_64
+    else
+        bash "$LAYERS_DIR/layer6-ota/scripts/build-ota.sh" "$target"
+    fi
     log "Layer 6 complete"
 }
 
@@ -236,10 +251,10 @@ main() {
     fi
     build_layer4 "$rootfs_tar" "$target"
     build_layer5_application "$rootfs_tar" "$target"
+    build_layer3 "$rootfs_tar" "$target"
+    build_layer5 "$rootfs_tar" "$target"
+    build_layer6 "$rootfs_tar" "$target"
     build_layer2 "$rootfs_tar" "$target"
-    build_layer3 "$target"
-    build_layer5 "$target"
-    build_layer6 "$target"
     build_layer7 "$target"
     build_layer8 "$target"
     build_layer9 "$target"

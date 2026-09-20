@@ -63,6 +63,7 @@ for p in files:
         assert "layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64" in x86, "x86_64 workflow must apply Layer 4 to the rootfs before image creation"
         assert "layer4-services/scripts/build-services.sh" not in arm, "Layer 4 x86_64 rootfs policy must not run for ARM"
         assert x86.index("layer4-services/scripts/build-services.sh") < x86.index("Build Layer 2"), "Layer 4 policy must run before image creation"
+        assert x86.index("Build Layer 1") < x86.index("build-init.sh output/rootfs-x86_64.tar.gz x86_64") < x86.index("Build Layer 2"), "x86 rootfs integration must precede image assembly"
         assert "Gate A95X image contents" in arm and 'image-content-tests.sh "$image"' in arm, "A95X build must run the image-content gate against its produced image"
         assert "android-tools-mkbootimg" not in arm, "A95X CI must not depend on Ubuntu's broken mkbootimg wrapper"
         patch_name = "Patch x86_64 Layer 1 debootstrap retry handling"
@@ -76,7 +77,11 @@ for p in files:
         assert "DEBIAN_MIRROR=https://snapshot.debian.org/archive/debian/20240311T000000Z/" in x86, "x86_64 Layer 1 must retain immutable HTTPS snapshot"
         assert "http://deb.debian.org" not in patch and "--no-check-certificate" not in patch, "retry patch must not add mutable mirrors or weaken TLS"
         assert patch_name not in arm, "debootstrap retry patch must remain x86_64-only"
-        assert x86.index("Build Layer 2") < x86.index("tests/vm/boot-x86_64.sh") < x86.index("Build Layer 3 (First-Boot Init)"), "VM gate ordering invalid"
+        assert "build-init.sh output/rootfs-x86_64.tar.gz x86_64" in x86 and "build-settingsd.sh output/rootfs-x86_64.tar.gz x86_64" in x86 and "build-ota.sh output/rootfs-x86_64.tar.gz x86_64" in x86, "x86 first-boot/settingsd/OTA layers must mutate the rootfs before image creation"
+        signer = open(os.path.join(root, "scripts/ci-sign-artefacts.sh")).read()
+        assert "CI_ALLOW_PLACEHOLDER_SIGNATURES" in signer and "refs/tags/" in signer, "signer must gate placeholders and reject tag fallback"
+        assert "CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}" in x86, "x86 development opt-in must be workflow_dispatch-only"
+        assert "CI_ALLOW_PLACEHOLDER_SIGNATURES" not in arm, "A95X workflow must not opt into placeholder signatures"
         assert "if: always()" in x86 and "output/evidence/vm-x86_64/" in x86, "VM evidence upload must survive failure"
         assert "tests/vm/boot-x86_64.sh" not in arm and "qemu-system-x86" not in arm, "VM gate must remain x86_64-only"
         vm_script = os.path.join(root, "tests/vm/boot-x86_64.sh")

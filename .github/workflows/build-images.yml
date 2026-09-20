@@ -31,6 +31,9 @@ jobs:
         run: |
           echo "=== Running Static Tests ==="
           bash tests/static/test-rootfs-ownership.sh
+          bash tests/static/test-signing-safety.sh
+          bash tests/static/test-x86-pipeline-contracts.sh
+          bash tests/vm/test-boot-x86_64-fake.sh
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
               echo "Testing ${layer}"
@@ -125,7 +128,11 @@ jobs:
 
       - name: Configure GPG
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
+          if [[ -n "${{ secrets.GPG_PRIVATE_KEY }}" ]]; then
+            printf '%s\n' "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
+          else
+            echo "No GPG_PRIVATE_KEY configured; signing will fail closed unless development mode is explicit."
+          fi
           echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
           echo "GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}" >> "$GITHUB_ENV"
 
@@ -147,6 +154,18 @@ jobs:
         run: |
           sudo --preserve-env=SUDO_UID,SUDO_GID \
             bash layers/layer5-application/scripts/build-application.sh output/rootfs-x86_64.tar.gz x86_64
+
+      - name: Build Layer 3 (First-Boot Init, x86_64 rootfs)
+        run: |
+          bash layers/layer3-init/scripts/build-init.sh output/rootfs-x86_64.tar.gz x86_64
+
+      - name: Build Layer 5 (Settings Daemon, x86_64 rootfs)
+        run: |
+          bash layers/layer5-settingsd/scripts/build-settingsd.sh output/rootfs-x86_64.tar.gz x86_64
+
+      - name: Build Layer 6 (OTA Mechanism, x86_64 rootfs)
+        run: |
+          bash layers/layer6-ota/scripts/build-ota.sh output/rootfs-x86_64.tar.gz x86_64
 
       - name: Build Layer 2 (Disk Image)
         run: |
@@ -170,32 +189,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Build Layer 3 (First-Boot Init)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh x86_64
-
-      - name: Build Layer 5 (Settings Daemon)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh x86_64
-
-      - name: Build Layer 6 (OTA Mechanism)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh x86_64
 
       - name: Build Layer 10 (Release Engineering)
         run: |
           bash layers/layer10-release/tests/package-tests.sh
           bash layers/layer10-release/scripts/build-10-release.sh x86_64
-
-      - name: Sign Artefacts
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -Eeuo pipefail
-          echo "Signing artifacts from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
-            "$GITHUB_WORKSPACE/output/images" \
-            "$GITHUB_WORKSPACE/output/ota"
 
       - name: Generate SBOM
         working-directory: ${{ github.workspace }}
@@ -205,6 +203,18 @@ jobs:
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
             "$GITHUB_WORKSPACE/output/sbom.json"
+
+      - name: Sign Artefacts
+        working-directory: ${{ github.workspace }}
+        env:
+          CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: |
+          set -Eeuo pipefail
+          echo "Signing artifacts from: $(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
+            "$GITHUB_WORKSPACE/output/images" \
+            "$GITHUB_WORKSPACE/output/ota"
 
       - name: Upload Images
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -219,7 +229,11 @@ jobs:
             output/ota/*.pkg.sig
             output/ota/*.pkg.asc
             output/ota/SHA256SUMS-*
+            output/ota/manifest.json
+            output/ota/manifest.json.sha256
             output/sbom.json
+            output/sbom.json.sig
+            output/sbom.json.sha256
           retention-days: 90
 
   build-a95x-f3-air:
