@@ -206,7 +206,7 @@ def probe_abi(python_tag: str, abi_tag: str, platform_tag: str,
             members = rootfs_tar.getmembers()
             for member in members:
                 destination = (rootfs_root / member.name).resolve()
-                if not str(destination).startswith(str(rootfs_root.resolve()) + "/"):
+                if destination != rootfs_root.resolve() and not str(destination).startswith(str(rootfs_root.resolve()) + "/"):
                     evidence.update({"passed": False, "error": "target rootfs archive contains an unsafe path"})
                     return evidence
             rootfs_tar.extractall(rootfs_root, members=members)
