@@ -35,6 +35,10 @@ curl --fail --location --retry 3 --output "$archive" "$archive_url"
 echo "$archive_sha  $archive" | sha256sum --check --status
 rm -rf "$WORKSPACE/source"; mkdir -p "$WORKSPACE/source"
 tar --extract --gzip --file "$archive" --strip-components=1 --directory "$WORKSPACE/source"
+mirror_options_content='DISTRO_MIRROR="https://ftp.gnu.org/gnu http://sources.coreelec.org http://sources.libreelec.tv/mirror"'
+mkdir -p "$WORKSPACE/source/.coreelec"
+printf '%s\n' "$mirror_options_content" > "$WORKSPACE/source/.coreelec/options"
+mirror_options_sha256=$(sha256sum "$WORKSPACE/source/.coreelec/options" | cut -d' ' -f1)
 [[ "$(sha256sum "$WORKSPACE/source/$dockerfile_rel" | cut -d' ' -f1)" == "$docker_sha" ]] || { echo 'Dockerfile hash mismatch' >&2; exit 1; }
 grep -Fxq 'PROJECT=Amlogic-ce' "$WORKSPACE/source/.config" 2>/dev/null || true
 # The Dockerfile is rebuilt with the exact pinned base; no host build path is accepted.
@@ -48,5 +52,6 @@ chmod -R a+rX "$WORKSPACE/source/target"
 count=$(find "$WORKSPACE/source/target" -maxdepth 1 -type f -name 'CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz' -print | wc -l)
 [[ "$count" -eq 1 ]] || { echo "expected exactly one Generic artifact, got $count" >&2; exit 1; }
 artifact="$WORKSPACE/source/$artifact_rel"; chmod a+r "$artifact"; sha256sum "$artifact" | tee "$EVIDENCE/artifact.sha256"
-printf '%s\n' "artifact=$artifact_rel" "artifact_count=$count" "base_digest=$base_digest" > "$EVIDENCE/ce2a-build-result.txt"
+printf '%s\n' "artifact=$artifact_rel" "artifact_count=$count" "base_digest=$base_digest" "mirror_options_content=$mirror_options_content" "mirror_options_sha256=$mirror_options_sha256" > "$EVIDENCE/ce2a-build-result.txt"
+printf '%s\n' "$mirror_options_content" "sha256=$mirror_options_sha256" > "$EVIDENCE/ce2a-mirror-override.txt"
 cp "$artifact" "$EVIDENCE/"
