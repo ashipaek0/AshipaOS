@@ -14,6 +14,20 @@ assert workspace < first_docker and evidence < first_docker
 extract=text.index('tar --extract')
 mirror=text.index('DISTRO_MIRROR=')
 assert extract < mirror < first_docker, 'mirror override must be generated after extraction and before Docker build'
+pax='pax_pkg="$WORKSPACE/source/packages/devel/pax-utils/package.mk"'
+pax_url='https://dev.gentoo.org/~sam/distfiles/app-misc/pax-utils/pax-utils-1.3.7.tar.xz'
+pax_sha='108362d29668d25cf7b0cadc63b15a4c1cfc0dbc71adc151b33c5fe7dece939'
+assert pax in text and text.index(pax) > extract and text.index(pax) < first_docker
+assert text.count(pax_url) == 1, 'pax-utils URL must have one deterministic definition'
+assert text.count(pax_sha) == 1, 'pax-utils hash must have one deterministic definition'
+assert 'pax-utils-1.3.7.tar.xz' in text
+for preserved in ('PKG_VERSION="1.3.7"', 'PKG_DEPENDS_HOST="toolchain:host"', 'PKG_MESON_OPTS_HOST="-Duse_libcap=disabled"'):
+    assert preserved in text
+assert 'pax_override_content=' in text and 'pax_override_sha256=$(printf' in text
+expected_override='PKG_SHA256="' + pax_sha + '"' + chr(10) + 'PKG_URL="' + pax_url + '"' + chr(10)
+assert hashlib.sha256(expected_override.encode()).hexdigest() == '02c1539f4b22ac01f5718f838433b6c920fd4932a7bacf4478279b4c7cf8dca7'
+assert 'pax-utils-override.txt' in text and 'pax-utils-distfile.txt' in text
+assert 'sha256sum --check --status' in text and 'pax-utils-1.3.7.tar.xz' in text
 expected_mirror='DISTRO_MIRROR="https://ftp.gnu.org/gnu http://sources.coreelec.org http://sources.libreelec.tv/mirror"'
 assert hashlib.sha256((expected_mirror + chr(10)).encode()).hexdigest() == 'f44cc8d2b261293b9498d6296263d0ecb59cd02bad735c75b3cdadb9b687ac7d'
 assert expected_mirror in text, 'mirror override ordering/content changed'

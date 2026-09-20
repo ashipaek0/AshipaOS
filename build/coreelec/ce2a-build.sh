@@ -35,6 +35,36 @@ curl --fail --location --retry 3 --output "$archive" "$archive_url"
 echo "$archive_sha  $archive" | sha256sum --check --status
 rm -rf "$WORKSPACE/source"; mkdir -p "$WORKSPACE/source"
 tar --extract --gzip --file "$archive" --strip-components=1 --directory "$WORKSPACE/source"
+# CI-only pax-utils source override: the Gentoo distfile is byte-equivalent to
+# the v1.3.7 GitHub source tree used by the package, including all build files.
+pax_pkg="$WORKSPACE/source/packages/devel/pax-utils/package.mk"
+pax_url='https://dev.gentoo.org/~sam/distfiles/app-misc/pax-utils/pax-utils-1.3.7.tar.xz'
+pax_sha='108362d29668d25cf7b0cadc63b15a4c1cfc0dbc71adc151b33c5fe7dece939'
+export pax_pkg pax_url pax_sha
+python3 - <<'PY'
+import os
+from pathlib import Path
+
+path = Path(os.environ['pax_pkg'])
+text = path.read_text(encoding='utf-8')
+old_sha = 'PKG_SHA256="907fdcfc6c6c2913a8e42847f8096027b0a953b9344208d14daf2324fd711638"'
+old_url = 'PKG_URL="https://gitweb.gentoo.org/proj/pax-utils.git/snapshot/pax-utils-${PKG_VERSION}.tar.bz2"'
+new_sha = f'PKG_SHA256="{os.environ["pax_sha"]}"'
+new_url = f'PKG_URL="{os.environ["pax_url"]}"'
+assert text.count(old_sha) == 1 and text.count(old_url) == 1
+assert text.count('PKG_VERSION="1.3.7"') == 1
+assert text.count('PKG_DEPENDS_HOST="toolchain:host"') == 1
+assert text.count('PKG_MESON_OPTS_HOST="-Duse_libcap=disabled"') == 1
+updated = text.replace(old_sha, new_sha).replace(old_url, new_url)
+assert updated.count('PKG_SHA256=') == 1 and updated.count('PKG_URL=') == 1
+path.write_text(updated, encoding='utf-8')
+PY
+pax_override_content=$'PKG_SHA256="'$pax_sha'"\nPKG_URL="'$pax_url'"'
+pax_override_sha256=$(printf '%s\n' "$pax_override_content" | sha256sum | cut -d' ' -f1)
+curl --fail --location --retry 3 --output "$WORKSPACE/pax-utils-1.3.7.tar.xz" "$pax_url"
+printf '%s  %s\n' "$pax_sha" "$WORKSPACE/pax-utils-1.3.7.tar.xz" | sha256sum --check --status
+printf '%s\n' "$pax_override_content" "sha256=$pax_override_sha256" > "$EVIDENCE/pax-utils-override.txt"
+printf '%s\n' "distfile_url=$pax_url" "distfile_sha256=$pax_sha" "override_sha256=$pax_override_sha256" > "$EVIDENCE/pax-utils-distfile.txt"
 mirror_options_content='DISTRO_MIRROR="https://ftp.gnu.org/gnu http://sources.coreelec.org http://sources.libreelec.tv/mirror"'
 mkdir -p "$WORKSPACE/source/.coreelec"
 printf '%s\n' "$mirror_options_content" > "$WORKSPACE/source/.coreelec/options"
