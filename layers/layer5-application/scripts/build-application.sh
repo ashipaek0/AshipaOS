@@ -5,6 +5,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
+source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 CONFIG="$LAYER_DIR/config/application-config.yaml"
 SOURCE_URL="https://github.com/jellyfin/jellyfin-mpv-shim/archive/9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315.tar.gz"
 SOURCE_SHA256="c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731"
