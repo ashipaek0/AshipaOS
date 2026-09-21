@@ -1,9 +1,0 @@
-# Layer 5: Settings Daemon Configuration
-settings:
-  hostname: {type: string, default: ashipaos}
-  timezone: {type: string, default: UTC}
-  display_brightness: {type: int, default: 80, min: 0, max: 100}
-  audio_volume: {type: int, default: 50, min: 0, max: 100}
-dbus:
-  service_name: com.ashipaos.settings
-  object_path: /com/ashipaos/settings

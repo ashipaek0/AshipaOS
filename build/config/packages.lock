@@ -1,3 +1,0 @@
-# Pinned versioned build inputs. Empty in Layer 0; populated by later
-# layer tasks. Every release input must be pinned or explicitly recorded.
-packages: []
