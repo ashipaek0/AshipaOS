@@ -260,6 +260,11 @@ test_ca_certificates_bootstrap() {
     else
         log_fail "CA certificates are missing from the target rootfs package array"
     fi
+    if grep -q 'CA_CERTIFICATES_PACKAGE.*passwd dbus sudo' "$script"; then
+        log_pass "D-Bus daemon and sudo are installed in the target rootfs"
+    else
+        log_fail "D-Bus daemon/sudo package closure is missing"
+    fi
 }
 
 # Test 11: Safe argument and validation failures are non-zero

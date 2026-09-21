@@ -1,7 +1,7 @@
 [Unit]
 Description=AshipaOS x86_64 Wayland display session
-Wants=seatd.service network-online.target
-After=network-online.target seatd.service systemd-user-sessions.service
+Wants=seatd.service dbus.service
+After=seatd.service dbus.service
 ConditionPathExists=/usr/bin/cage
 
 [Service]
