@@ -90,7 +90,7 @@ validate_config() {
             [[ "$unit" != "$disabled_unit" ]] || error "unit appears in both policy lists: $unit"
         done
     done
-    [[ "$(config_scalar default_target)" == multi-user.target ]] || error "default target must be multi-user.target"
+    [[ "$(config_scalar default_target)" == graphical.target ]] || error "default target must be graphical.target"
     [[ "$(config_section_scalar policy disable_unlisted)" == true ]] \
         || error "policy.disable_unlisted must be true"
     [[ -n "$(config_section_scalar policy preset_file)" ]] \

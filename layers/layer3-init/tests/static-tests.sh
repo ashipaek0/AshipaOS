@@ -34,6 +34,7 @@ test_hostname_config() { grep -q 'hostname:' "$LAYER_DIR/config/init-config.yaml
 test_users_config() { grep -q 'users:' "$LAYER_DIR/config/init-config.yaml" && echo "PASS" || echo "FAIL"; }
 test_cloud_init_support() { grep -q 'cloud-init' "$1" && echo "PASS" || echo "FAIL"; }
 test_systemd_firstboot_support() { grep -q 'systemd-firstboot\|firstboot' "$1" && echo "PASS" || echo "FAIL"; }
+test_firstboot_access() { grep -q 'configure_firstboot_access' "$1" && grep -q -- '--autologin ashipa' "$1" && echo "PASS" || echo "FAIL"; }
 
 echo "Running Layer 3 Static Tests..."
 echo "================================"
@@ -54,6 +55,7 @@ if [[ -f "$BUILD_SCRIPT" ]]; then
     test_result "SE02: Evidence generation" "$(test_evidence_generation "$BUILD_SCRIPT")"
     test_result "SI01: cloud-init support" "$(test_cloud_init_support "$BUILD_SCRIPT")"
     test_result "SI02: systemd-firstboot support" "$(test_systemd_firstboot_support "$BUILD_SCRIPT")"
+    test_result "SI03: first-boot console access" "$(test_firstboot_access "$BUILD_SCRIPT")"
 else
     echo "✗ Build script not found"; FAILED=$((FAILED + 1))
 fi

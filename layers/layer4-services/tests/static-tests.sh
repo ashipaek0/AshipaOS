@@ -59,7 +59,7 @@ fi
 unsupported_enabled=0
 while IFS= read -r unit; do
     case "$unit" in
-        systemd-journald.service|systemd-logind.service|systemd-networkd.service|getty@tty1.service)
+        systemd-journald.service|systemd-logind.service|systemd-networkd.service|getty@tty1.service|ashipaos-display.service)
             ;;
         *)
             printf 'Unsupported enabled Layer 4 unit: %s\\n' "$unit" >&2
@@ -165,7 +165,7 @@ services:
   required_services:
     - getty@tty1.service
     - getty@tty2.service
-default_target: multi-user.target
+default_target: graphical.target
 policy:
   preset_file: /etc/systemd/system-preset/ashipaos.preset
   disable_unlisted: true
@@ -235,7 +235,7 @@ services:
     - bluetooth.service
   required_services:
     - systemd-logind.service
-default_target: multi-user.target
+default_target: graphical.target
 policy:
   preset_file: /etc/systemd/system-preset/ashipaos.preset
   disable_unlisted: true

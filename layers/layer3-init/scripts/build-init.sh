@@ -53,6 +53,18 @@ EOF
     : > "$output_dir/etc/machine-id"
 }
 
+configure_firstboot_access() {
+    local rootfs="$1"
+    local dropin="$rootfs/etc/systemd/system/getty@tty1.service.d/ashipaos-access.conf"
+    mkdir -p "$(dirname "$dropin")"
+    cat > "$dropin" <<'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ashipa --noclear %I $TERM
+EOF
+    chmod 0644 "$dropin"
+}
+
 mutate_rootfs() {
     [[ -s "$ROOTFS_TARBALL" ]] || error "rootfs tarball not found or empty: $ROOTFS_TARBALL"
     tar -tzf "$ROOTFS_TARBALL" >/dev/null || error "rootfs is not a readable gzip tar archive"
@@ -61,6 +73,7 @@ mutate_rootfs() {
     mkdir -p "$ROOTFS"
     tar -xzf "$ROOTFS_TARBALL" -C "$ROOTFS" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*'
     generate_systemd_firstboot "$ROOTFS"
+    configure_firstboot_access "$ROOTFS"
     local output="${ROOTFS_TARBALL}.init.tmp"
     tar -C "$ROOTFS" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' -czf "$output" .
     mv -f -- "$output" "$ROOTFS_TARBALL"

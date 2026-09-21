@@ -9,12 +9,13 @@ services:
     - systemd-logind.service
     - systemd-networkd.service
     - getty@tty1.service
+    - ashipaos-display.service
   disabled:
     - bluetooth.service
     - cups.service
     - ModemManager.service
 
-default_target: multi-user.target
+default_target: graphical.target
 
 policy:
   preset_file: /etc/systemd/system-preset/ashipaos.preset
@@ -27,3 +28,4 @@ testing:
     - systemd-logind.service
     - systemd-networkd.service
     - getty@tty1.service
+    - ashipaos-display.service
