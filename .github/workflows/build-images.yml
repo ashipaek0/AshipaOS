@@ -203,7 +203,7 @@ jobs:
           grep -E '^(\./)?etc/systemd/system/graphical.target.wants/ashipaos-display.service$' output/evidence/x86-rootfs-members.txt
           grep -E '^(\./)?etc/systemd/system/getty@tty1.service.d/ashipaos-access.conf$' output/evidence/x86-rootfs-members.txt
           tar -xOf output/rootfs-x86_64.tar.gz ./etc/systemd/system/getty@tty1.service.d/ashipaos-access.conf | grep -Fx -- 'ExecStart=-/sbin/agetty --autologin ashipa --noclear %I $TERM'
-          if tar -tvzf output/rootfs-x86_64.tar.gz | grep -Eq '(\./)?etc/systemd/system/default.target -> (/usr)?/lib/systemd/system/graphical.target$'; then
+          if tar -tvzf output/rootfs-x86_64.tar.gz | grep -Eq '.*(\./)?etc/systemd/system/default.target -> (/usr)?/lib/systemd/system/graphical.target$'; then
             echo 'x86_64 graphical default target: PASS'
           else
             echo 'x86_64 graphical default target missing' >&2
