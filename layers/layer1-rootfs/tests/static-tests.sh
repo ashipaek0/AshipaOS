@@ -259,10 +259,10 @@ test_ca_certificates_bootstrap() {
     else
         log_fail "CA certificates package is not explicitly declared"
     fi
-    if grep -q 'install "\$kernel_package" "\$INITRAMFS_PACKAGE" "\$COREUTILS_PACKAGE" "\$BUSYBOX_PACKAGE" "\$CA_CERTIFICATES_PACKAGE"' "$script"; then
+    if grep -q 'packages=(.*\$CA_CERTIFICATES_PACKAGE' "$script" && grep -q 'apt-get -y --no-install-recommends install "\${packages\[@\]}"' "$script"; then
         log_pass "CA certificates are installed in the target rootfs before Layer 3 APT"
     else
-        log_fail "CA certificates are missing from the target rootfs install command"
+        log_fail "CA certificates are missing from the target rootfs package array"
     fi
 }
 
