@@ -253,7 +253,11 @@ validate_units() {
 enable_unit() {
     local unit="$1" path
     path=$(unit_path "$unit")
-    if grep -q '^\[Install\]' "$path"; then
+    if [[ "$unit" == "seatd.service" ]]; then
+        mkdir -p "$ROOTFS/etc/systemd/system/multi-user.target.wants"
+        ln -sfn /lib/systemd/system/seatd.service "$ROOTFS/etc/systemd/system/multi-user.target.wants/seatd.service"
+        log "Enabled static seat manager: $unit"
+    elif grep -q '^\[Install\]' "$path"; then
         systemctl --root="$ROOTFS" --no-reload enable "$unit"
     else
         log "Validated static distro unit: $unit"
