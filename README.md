@@ -1,14 +1,7 @@
-# AshipaOS
+# AshipaOS A95X F3 Air
 
-AshipaOS is a purpose-built, TV-oriented OS for single-board computers and TV
-boxes: it boots straight into a 10-foot Jellyfin client experience (via a
-generic Jellyfin/mpv-shim application layer) with managed OS/app updates,
-rollback, provisioning, and a privileged `settingsd` service for UI-driven
-system operations.
+Amlogic A95X F3 Air appliance image using the pinned CoreELEC/Amlogic boot and runtime foundation.
 
-## Targets
+Target: `a95x-f3-air` · Architecture: `arm64` · Media: removable SD only.
 
-| Target | Hardware | Arch | Track | Status |
-|---|---|---|---|---|
-| `x86_64` | Generic x86_64 (UEFI) | x86_64 | Debian rootfs + image assembly | PROVISIONAL |
-| `a95x-f3-air` | A95X F3 Air TV box | arm64 (Amlogic) | CoreELEC-based Amlogic pipeline | PROVISIONAL |
+Builds are CI-only. Do not overwrite eMMC, connect UART VCC, or use RS-232 voltage levels.

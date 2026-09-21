@@ -13,7 +13,7 @@ WORK_DIR=""
 PARTIAL_IMAGE=""
 
 ROOTFS_IMAGE=""
-TARGET="x86_64"
+TARGET="a95x-f3-air"
 IMAGE_SIZE_MB=""
 EFI_SIZE_MB=""
 ROOT_SIZE_MB=""
@@ -40,7 +40,7 @@ Options:
     --print-repo-root  Print the resolved repository root (test aid)
 
 Verification Class: BUILD
-Dependencies: Layer 1 rootfs, util-linux sfdisk, dosfstools (A95X FAT16), libguestfs-tools, grub-efi (x86_64), u-boot (ARM64)
+Dependencies: Layer 1 rootfs, util-linux sfdisk, dosfstools (A95X FAT16), libguestfs-tools, dosfstools, u-boot-tools, device-tree-compiler
 EOF
 }
 
@@ -104,9 +104,9 @@ parse_and_validate_config() {
     if [[ "$TARGET" == "a95x-f3-air" ]]; then
         [[ "$EFI_SIZE_MB" -eq 256 && "$ROOT_SIZE_MB" -eq 3584 ]] ||
             error "A95X layout requires 256 MiB boot and 3584 MiB root partitions"
-        grep -qE '^      filesystem: fat16$' "$CONFIG_FILE" || error "A95X boot filesystem must be FAT16"
-        grep -q 'start_sector: 8192' "$CONFIG_FILE" || error "A95X boot start sector is not recorded"
-        grep -q 'start_sector: 532480' "$CONFIG_FILE" || error "A95X root start sector is not recorded"
+        grep -qE '^    type: fat16$' "$CONFIG_FILE" || error "A95X boot filesystem must be FAT16"
+        grep -q '    start_sector: 8192' "$CONFIG_FILE" || error "A95X boot start sector is not recorded"
+        grep -q '    start_sector: 532480' "$CONFIG_FILE" || error "A95X root start sector is not recorded"
     fi
 
     log "Image configuration: total=${IMAGE_SIZE_MB}MiB, efi=${EFI_SIZE_MB}MiB, root=${ROOT_SIZE_MB}MiB"
@@ -134,15 +134,7 @@ EOF
         return
     fi
 
-    cat >"$destination" <<EOF
-label: gpt
-unit: sectors
-first-lba: 2048
-sector-size: 512
 
-start=2048, size=$efi_sectors, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI"
-start=$root_start, size=$root_sectors, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Root"
-EOF
 }
 
 create_partition_layout() {
@@ -156,49 +148,12 @@ create_partition_layout() {
 
 populate_image() {
     local image="$1" rootfs_tar="$2"
-    case "$TARGET" in
-        x86_64|a95x-f3-air) ;;
-        *) error "unsupported Layer 2 target: $TARGET" ;;
-    esac
+    [[ "$TARGET" == a95x-f3-air ]] || error "unsupported Layer 2 target: $TARGET"
     command -v guestfish >/dev/null || error "guestfish is required for a full Layer 2 build; metadata-only output is forbidden"
     [[ -f "$rootfs_tar" ]] || error "Layer 1 rootfs tarball not found: $rootfs_tar"
     tar -tzf "$rootfs_tar" >/dev/null || error "Layer 1 rootfs is not a readable gzip tar archive: $rootfs_tar"
 
-    if [[ "$TARGET" == "a95x-f3-air" ]]; then
-        install_a95x_boot_partition "$image" "$rootfs_tar"
-        return
-    fi
-
-    # A single appliance session preserves mounts and imports directories, links,
-    # ownership and modes in one operation. Per-file upload loses that metadata.
-    guestfish <<EOF
-add-drive "$image"
-run
-mkfs vfat /dev/sda1
-set-label /dev/sda1 $EFI_LABEL
-mkfs ext4 /dev/sda2
-set-label /dev/sda2 $ROOT_LABEL
-mount /dev/sda2 /
-tar-in "$rootfs_tar" / compress:gzip
-mkdir-p /boot/efi
-mount /dev/sda1 /boot/efi
-mkdir-p /etc
-write /etc/fstab "LABEL=$ROOT_LABEL / ext4 defaults,noatime 0 1\nLABEL=$EFI_LABEL /boot/efi vfat umask=0077 0 2\n"
-# Install UEFI bootloader structure for x86_64
-mkdir-p /boot/efi/EFI/BOOT
-mkdir-p /boot/efi/EFI/systemd
-# Create placeholder for bootloader (actual bootloader installed by host tools or later layer)
-# This ensures the EFI partition has the correct directory structure
-write /boot/efi/EFI/BOOT/.gitkeep "EFI boot directory - bootloader installed by grub-install\n"
-umount-all
-EOF
-
-    # Install target-specific bootloader
-    if [[ "$TARGET" == "x86_64" ]]; then
-        install_x86_64_bootloader "$image"
-    elif [[ "$TARGET" == "a95x-f3-air" ]]; then
-        : # A95X boot partition is assembled before this target-specific hook.
-    fi
+    install_a95x_boot_partition "$image" "$rootfs_tar"
 }
 
 make_a95x_kernel() {
@@ -403,44 +358,8 @@ umount-all
 EOF
 }
 
-install_x86_64_bootloader() {
-    local image="$1"
-    log "Installing GRUB EFI bootloader for x86_64 via guestfish..."
-
-    local grub_efi=""
-    for candidate in \
-        /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi \
-        /usr/lib/grub/x86_64-efi/grubx64.efi; do
-        if [[ -f "$candidate" ]]; then
-            grub_efi="$candidate"
-            break
-        fi
-    done
-    [[ -n "$grub_efi" ]] || error "GRUB EFI binary not found; install grub-efi-amd64-bin"
-
-    # GitHub-hosted runners do not permit host loop devices or privileged
-    # mounts. guestfish performs all image access through its appliance.
-    guestfish -a "$image" <<EOF
-run
-mount /dev/sda1 /
-mkdir-p /root
-mount /dev/sda2 /root
-mkdir-p /EFI/BOOT
-mkdir-p /boot/grub
-mkdir-p /root/boot/grub
-upload $grub_efi /EFI/BOOT/BOOTX64.EFI
-write /EFI/BOOT/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
-write /boot/grub/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
-write /root/boot/grub/grub.cfg "set timeout=5\\nmenuentry \"AshipaOS\" {\\n  set root=(hd0,gpt2)\\n  linux /vmlinuz root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200n8\\n  initrd /initrd.img\\n}\\n"
-umount-all
-EOF
-
-    log "GRUB EFI bootloader installed successfully via guestfish"
-}
-
 create_metadata() {
-    local image="$1" rootfs="$2" boot_type=vfat boot_label="$EFI_LABEL" boot_mount=/boot/efi
-    [[ "$TARGET" == "a95x-f3-air" ]] && boot_type=fat16 && boot_label="$A95X_BOOT_LABEL" && boot_mount=/boot
+    local image="$1" rootfs="$2" boot_type=fat16 boot_label="$A95X_BOOT_LABEL" boot_mount=/boot
     cat >"$image.meta.json" <<EOF
 {
   "image_type": "disk_image",
@@ -450,7 +369,7 @@ create_metadata() {
     "efi": {"size_mb": $EFI_SIZE_MB, "type": "$boot_type", "label": "$boot_label", "mount": "$boot_mount"},
     "root": {"size_mb": $ROOT_SIZE_MB, "type": "ext4", "label": "$ROOT_LABEL", "mount": "/"}
   },
-  "partition_table": "$([[ "$TARGET" == "a95x-f3-air" ]] && echo dos || echo gpt)",
+  "partition_table": "dos",
   "bootloader": "not_configured",
   "rootfs_source": "$rootfs",
   "rootfs_size_bytes": $(stat -c%s "$rootfs"),
@@ -494,7 +413,7 @@ main() {
     case "${1:-}" in
         -h|--help) usage; return 0 ;;
         --validate) mode=validate; shift ;;
-        --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2; TARGET="${1:-x86_64}"; [[ $# -eq 0 || $# -eq 1 ]] || error "--layout-only accepts only [target]"; [[ $# -eq 0 ]] || shift ;;
+        --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2; TARGET="a95x-f3-air"; [[ $# -eq 0 || $# -eq 1 ]] || error "--layout-only accepts only [target]"; [[ $# -eq 0 ]] || shift ;;
         --print-repo-root) printf '%s\n' "$REPO_ROOT"; return 0 ;;
     esac
 
@@ -515,7 +434,7 @@ main() {
 
     [[ $# -ge 1 && $# -le 2 ]] || error "expected <rootfs-image> [target]; use --help for usage"
     ROOTFS_IMAGE="$1"
-    TARGET="${2:-x86_64}"
+    TARGET="a95x-f3-air"
     parse_and_validate_config
     [[ -f "$ROOTFS_IMAGE" ]] || error "Layer 1 rootfs tarball not found: $ROOTFS_IMAGE"
     local temp_parent="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}"

@@ -1,20 +1,6 @@
 {
-  "layer": 5,
-  "component": "jellyfin-mpv-shim",
-  "target": "x86_64",
-  "verification_class": "STATIC",
-  "source_version": "3.0.0",
-  "source_commit": "9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315",
-  "archive_sha256": "c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731",
-  "dependency_resolution": "BLOCKED_UNTIL_EXACT_TARGET_LOCK",
-  "runtime_behavior": "launcher refuses activation without validated executable closure",
-  "forbidden_dependency": "python3-mpv",
-  "hardware_display_gate": "HARDWARE",
-  "artifact_mode": "METADATA_ONLY",
-  "runnable_bundle": "NOT_CREATED",
-  "manifest_contract": "ashipaos.jellyfin-mpv-shim.slot.v1",
-  "build_requirements": [
-    "setuptools>=77",
-    "wheel"
-  ]
+  "target": "a95x-f3-air",
+  "architecture": "arm64",
+  "verification_class": "BUILD",
+  "status": "PENDING_CI"
 }

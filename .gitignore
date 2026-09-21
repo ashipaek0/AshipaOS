@@ -29,14 +29,3 @@ output/sbom.json
 
 # Temporary build scripts
 build/scripts/
-
-# Versioned immutable CoreELEC pin and validator (A95X-CE-1)
-!build/
-build/*
-!build/coreelec/
-build/coreelec/*
-!build/coreelec/pin.json
-!build/coreelec/validate-pin.sh
-!build/coreelec/ce2a-build.sh
-!build/coreelec/ce2a-inspect-image.sh
-!build/coreelec/validate-ce2a-manifest.py

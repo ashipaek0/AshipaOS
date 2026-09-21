@@ -17,17 +17,12 @@ DEBIAN_SUITE="${DEBIAN_SUITE:-bookworm}"
 DEBIAN_MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
 COMPONENTS="${COMPONENTS:-main,contrib,non-free-firmware}"
 
-# Product/CLI architecture to Debian architecture. x86_64 must remain explicit.
+# Product architecture is fixed to arm64 for this branch.
 declare -A ARCH_MAP=(
-    ["x86_64"]="amd64"
-    ["amd64"]="amd64"
     ["arm64"]="arm64"
-    ["armhf"]="armhf"
 )
 declare -A KERNEL_PACKAGES=(
-    ["amd64"]="linux-image-amd64"
     ["arm64"]="linux-image-arm64"
-    ["armhf"]="linux-image-armmp"
 )
 INITRAMFS_PACKAGE="initramfs-tools"
 COREUTILS_PACKAGE="coreutils"
@@ -45,7 +40,7 @@ Usage: $(basename "$0") <target_arch> <output_file> [target]
 Creates a Debian root filesystem with a target-resolved kernel and initramfs.
 
 Arguments:
-  target_arch   Product/Debian architecture (x86_64, amd64, arm64, armhf)
+  target_arch   Product architecture (arm64)
   output_file   Output path for the rootfs tarball
   target        Optional product target; enables target features from build/targets
 
@@ -93,14 +88,6 @@ mount_rootfs_api() {
     mount --rbind /dev "$rootfs/dev"
     mount --make-rslave "$rootfs/dev"
 }
-
-install_x86_64_boot_marker() {
-    local rootfs="$1"
-    # The boot marker is emitted by the graphical readiness service after the
-    # display service is active. Do not put it in /etc/issue: getty can print
-    # that before systemd has reached graphical.target.
-}
-
 
 target_enables_boot_status() {
     local target="${1:-}"
@@ -196,26 +183,14 @@ create_rootfs() {
     trap "cleanup_mounts '$rootfs'; rm -rf '$temp_dir'" EXIT
     log "Building Debian $DEBIAN_SUITE rootfs for $product_arch ($debian_arch)"
 
-    if [[ "$debian_arch" != "$(dpkg --print-architecture)" ]]; then
-        debootstrap --arch="$debian_arch" --components="$COMPONENTS" --foreign \
-            "$DEBIAN_SUITE" "$rootfs" "$DEBIAN_MIRROR"
-        case "$debian_arch" in
-            arm64) qemu_arch=aarch64 ;;
-            armhf) qemu_arch=arm ;;
-            *) error "No qemu mapping for cross architecture: $debian_arch" ;;
-        esac
-        cp "/usr/bin/qemu-${qemu_arch}-static" "$rootfs/usr/bin/"
-        chroot "$rootfs" /debootstrap/debootstrap --second-stage
-        rm -f "$rootfs/usr/bin/qemu-${qemu_arch}-static"
-    else
-        debootstrap --arch="$debian_arch" --components="$COMPONENTS" \
-            "$DEBIAN_SUITE" "$rootfs" "$DEBIAN_MIRROR"
-    fi
+    [[ "$debian_arch" == arm64 ]] || error "Amlogic branch supports only arm64"
+    debootstrap --arch=arm64 --components="$COMPONENTS" --foreign \
+        "$DEBIAN_SUITE" "$rootfs" "$DEBIAN_MIRROR"
+    cp /usr/bin/qemu-aarch64-static "$rootfs/usr/bin/"
+    chroot "$rootfs" /debootstrap/debootstrap --second-stage
+    rm -f "$rootfs/usr/bin/qemu-aarch64-static"
 
     install_kernel_and_initramfs "$rootfs" "$debian_arch"
-    if [[ "$product_arch" == "x86_64" || "$product_arch" == "amd64" ]]; then
-        install_x86_64_boot_marker "$rootfs"
-    fi
     install_boot_status "$rootfs" "$target"
     minimize_rootfs "$rootfs"
     if [[ "$debian_arch" == arm64 ]]; then
@@ -296,7 +271,7 @@ main() {
     [[ $# -ge 2 && $# -le 3 ]] || usage
     local product_arch="$1" output_file="$2"
     local debian_arch="${ARCH_MAP[$product_arch]:-}"
-    [[ -n "$debian_arch" ]] || error "Invalid architecture: $product_arch (valid: x86_64, amd64, arm64, armhf)"
+    [[ -n "$debian_arch" ]] || error "Invalid architecture: $product_arch (valid: arm64)"
     check_dependencies "$debian_arch"
     create_rootfs "$product_arch" "$output_file" "$debian_arch" "${3:-}"
     # Re-open the tarball for evidence would require extracting it; metadata was

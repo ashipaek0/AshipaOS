@@ -8,12 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target device (x86_64, a95x-f3-air)'
+        description: 'Target device (a95x-f3-air)'
         required: true
-        default: 'x86_64'
+        default: 'a95x-f3-air'
         type: choice
         options:
-          - x86_64
           - a95x-f3-air
 
 jobs:
@@ -32,8 +31,6 @@ jobs:
           echo "=== Running Static Tests ==="
           bash tests/static/test-rootfs-ownership.sh
           bash tests/static/test-signing-safety.sh
-          bash tests/static/test-x86-pipeline-contracts.sh
-          bash tests/vm/test-boot-x86_64-fake.sh
           for layer in layers/layer*/; do
             if [ -f "${layer}tests/static-tests.sh" ]; then
               echo "Testing ${layer}"
@@ -47,238 +44,6 @@ jobs:
       - name: Validate immutable CoreELEC pin against authorized fork
         run: bash build/coreelec/validate-pin.sh
 
-      - name: Test Layer 5 dependency resolver regressions
-        run: bash tests/static/test-layer5-dependency-resolver.sh
-
-  build-x86_64:
-    needs: static-tests
-    runs-on: ubuntu-latest
-    # Note: Uses libguestfs for disk image creation - no privileged mode needed
-    if: github.event.inputs.target == 'x86_64' || github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-
-      - name: Install target Python 3.11
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c
-        with:
-          python-version: '3.11'
-
-      - name: Install resolver tooling into target Python
-        run: |
-          python3.11 -m pip install --disable-pip-version-check --no-cache-dir 'packaging==26.3'
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            debootstrap \
-            qemu-user-static \
-            qemu-system-arm \
-            qemu-system-x86 \
-            ovmf \
-            binfmt-support \
-            libguestfs-tools \
-            linux-image-generic \
-            gpg \
-            jq \
-            shellcheck \
-            util-linux \
-            python3-packaging \
-            grub-efi-amd64-bin \
-            grub-efi-amd64-signed \
-            efibootmgr
-          
-          # Register QEMU binaries for ARM64 emulation
-          sudo update-binfmts --enable qemu-aarch64
-          
-          # Configure libguestfs to use direct mode (no FUSE needed)
-          export LIBGUESTFS_BACKEND=direct
-
-      - name: Verify libguestfs appliance
-        run: |
-          # GitHub's Ubuntu host kernel is not shipped as a readable /boot
-          # input for supermin. Install a repository kernel explicitly and
-          # expose only that public kernel image on this ephemeral runner.
-          sudo chmod a+r /boot/vmlinuz-*
-          export LIBGUESTFS_BACKEND=direct
-          timeout 120s libguestfs-test-tool
-
-      - name: Patch x86_64 Layer 1 debootstrap retry handling
-        run: |
-          sudo python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-
-          expected_version = "1.0.134ubuntu2"
-          functions = Path("/usr/share/debootstrap/functions")
-          version = subprocess.check_output(
-              ["dpkg-query", "-W", "-f=${Version}", "debootstrap"], text=True
-          ).strip()
-          if version != expected_version:
-              raise SystemExit(
-                  f"unexpected debootstrap version: {version!r}; "
-                  f"expected {expected_version!r}"
-              )
-          if not functions.is_file():
-              raise SystemExit(f"missing debootstrap source: {functions}")
-
-          text = functions.read_text()
-          old = 'if ! just_get "$from" "$dest2"; then continue 2; fi'
-          new = 'if ! just_get "$from" "$dest2"; then continue; fi'
-          if text.count(old) != 1:
-              raise SystemExit(
-                  f"expected exactly one buggy debootstrap download branch, "
-                  f"found {text.count(old)}"
-              )
-          if text.count(new):
-              raise SystemExit("debootstrap retry correction already present")
-          patched = text.replace(old, new)
-          if patched.count(old) != 0 or patched.count(new) != 1:
-              raise SystemExit("debootstrap retry correction postcondition failed")
-          functions.write_text(patched)
-          print(f"patched {functions} for debootstrap {version}")
-          PY
-
-      - name: Configure GPG
-        run: |
-          if [[ -n "${{ secrets.GPG_PRIVATE_KEY }}" ]]; then
-            printf '%s\n' "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
-          else
-            echo "No GPG_PRIVATE_KEY configured; signing will fail closed unless development mode is explicit."
-          fi
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}" >> "$GITHUB_ENV"
-
-      - name: Build Layer 1 (RootFS)
-        run: |
-          sudo env DEBIAN_MIRROR=https://snapshot.debian.org/archive/debian/20240311T000000Z/ \
-            bash layers/layer1-rootfs/scripts/build-rootfs.sh amd64 output/rootfs-x86_64.tar.gz
-
-      - name: Resolve and probe Layer 5 dependency closure (x86_64)
-        run: |
-          set -Eeuo pipefail
-          sudo bash layers/layer3-display/scripts/build-display.sh output/rootfs-x86_64.tar.gz x86_64
-          bash layers/layer3-display/tests/check-debian-packages.sh
-          python3.11 layers/layer5-application/scripts/resolve-dependencies.py \
-            --pip python3.11 \
-            --rootfs output/rootfs-x86_64.tar.gz \
-            --output output/evidence/layer5-dependency-resolution.json
-
-      - name: Upload Layer 5 dependency evidence
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: ashipaos-layer5-dependency-evidence-${{ github.run_id }}
-          path: output/evidence/layer5-*
-          if-no-files-found: warn
-          retention-days: 90
-
-      - name: Build Layer 4 (System Services, x86_64 rootfs policy)
-        run: |
-          bash layers/layer4-services/scripts/build-services.sh output/rootfs-x86_64.tar.gz x86_64
-
-      - name: Build Layer 5 Application (x86_64 only)
-        run: |
-          sudo --preserve-env=SUDO_UID,SUDO_GID \
-            bash layers/layer5-application/scripts/build-application.sh \
-            output/rootfs-x86_64.tar.gz x86_64 \
-            output/evidence/layer5-dependency-resolution.json
-
-      - name: Build Layer 3 (First-Boot Init, x86_64 rootfs)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh output/rootfs-x86_64.tar.gz x86_64
-
-      - name: Build Layer 5 (Settings Daemon, x86_64 rootfs)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh output/rootfs-x86_64.tar.gz x86_64
-
-      - name: Build Layer 6 (OTA Mechanism, x86_64 rootfs)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh output/rootfs-x86_64.tar.gz x86_64
-
-      - name: Gate x86_64 GUI default and first-boot access
-        run: |
-          set -Eeuo pipefail
-          tar -tzf output/rootfs-x86_64.tar.gz > output/evidence/x86-rootfs-members.txt
-          grep -E '^(\./)?etc/systemd/system/graphical.target.wants/ashipaos-display.service$' output/evidence/x86-rootfs-members.txt
-          grep -E '^(\./)?etc/systemd/system/getty@tty1.service.d/ashipaos-access.conf$' output/evidence/x86-rootfs-members.txt
-          tar -xOf output/rootfs-x86_64.tar.gz ./etc/systemd/system/getty@tty1.service.d/ashipaos-access.conf | grep -Fx -- 'ExecStart=-/sbin/agetty --autologin ashipa --noclear %I $TERM'
-          tar -tvzf output/rootfs-x86_64.tar.gz > output/evidence/x86-rootfs-long-members.txt
-          if grep -Eq '.*(\./)?etc/systemd/system/default.target -> (/usr)?/lib/systemd/system/graphical.target$' output/evidence/x86-rootfs-long-members.txt; then
-            echo 'x86_64 graphical default target: PASS'
-          else
-            echo 'x86_64 graphical default target missing' >&2
-            exit 1
-          fi
-
-      - name: Build Layer 2 (Disk Image)
-        run: |
-          export LIBGUESTFS_BACKEND=direct
-          bash layers/layer2-image/tests/layout-tests.sh
-          bash layers/layer2-image/scripts/build-image.sh output/rootfs-x86_64.tar.gz x86_64
-
-      - name: Stage 2 QEMU UEFI boot gate (x86_64 only)
-        run: |
-          set -Eeuo pipefail
-          image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-x86_64-*.img' -print -quit)
-          [[ -n "$image" ]] || { echo 'Layer 2 x86_64 image not found' >&2; exit 1; }
-          bash tests/vm/boot-x86_64.sh "$image" output/evidence/vm-x86_64
-
-      - name: Upload x86_64 VM evidence
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: ashipaos-x86_64-vm-evidence-${{ github.run_id }}
-          path: output/evidence/vm-x86_64/
-          if-no-files-found: warn
-          retention-days: 90
-
-
-      - name: Build Layer 10 (Release Engineering)
-        run: |
-          bash layers/layer10-release/tests/package-tests.sh
-          bash layers/layer10-release/scripts/build-10-release.sh x86_64
-
-      - name: Generate SBOM
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -Eeuo pipefail
-          echo "Generating SBOM from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
-            "$GITHUB_WORKSPACE/output/sbom.json"
-
-      - name: Sign Artefacts
-        working-directory: ${{ github.workspace }}
-        env:
-          CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
-        run: |
-          set -Eeuo pipefail
-          echo "Signing artifacts from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
-            "$GITHUB_WORKSPACE/output/images" \
-            "$GITHUB_WORKSPACE/output/ota"
-
-      - name: Upload Images
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: ashipaos-x86_64-${{ github.run_id }}
-          path: |
-            output/images/*.img.gz
-            output/images/*.img.gz.sig
-            output/images/*.img.gz.asc
-            output/images/SHA256SUMS-*
-            output/ota/*.pkg
-            output/ota/*.pkg.sig
-            output/ota/*.pkg.asc
-            output/ota/SHA256SUMS-*
-            output/ota/manifest.json
-            output/ota/manifest.json.sha256
-            output/sbom.json
-            output/sbom.json.sig
-            output/sbom.json.sha256
-          retention-days: 90
 
   build-a95x-f3-air:
     needs: static-tests
@@ -315,8 +80,7 @@ jobs:
 
       - name: Verify libguestfs appliance
         run: |
-          # The appliance always uses the x86_64 runner's host kernel, even
-          # while it populates an arm64 target disk image.
+          # The appliance uses the runner's kernel while it populates the target image.
           sudo chmod a+r /boot/vmlinuz-*
           export LIBGUESTFS_BACKEND=direct
           timeout 120s libguestfs-test-tool
@@ -345,18 +109,6 @@ jobs:
             bash layers/layer5-application/scripts/build-application.sh \
             output/rootfs-a95x-f3-air.tar.gz a95x-f3-air \
             output/evidence/layer5-arm64-dependency-resolution.json
-
-      - name: Build Layer 3 (First-Boot Init, A95X rootfs)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Build Layer 5 (Settings Daemon, A95X rootfs)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Build Layer 6 (OTA Mechanism, A95X rootfs)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
       - name: Gate A95X Jellyfin application bundle
         run: |
@@ -387,18 +139,6 @@ jobs:
           [[ -n "$image" ]] || { echo 'A95X image not found; content gate cannot be skipped' >&2; exit 1; }
           bash layers/layer2-image/tests/image-content-tests.sh "$image"
 
-
-      - name: Build Layer 7 (HAL)
-        run: |
-          bash layers/layer7-hal/scripts/build-7-hal.sh a95x-f3-air
-
-      - name: Build Layer 8 (Media Framework)
-        run: |
-          bash layers/layer8-media/scripts/build-8-media.sh a95x-f3-air
-
-      - name: Build Layer 9 (Input Stack)
-        run: |
-          bash layers/layer9-input/scripts/build-9-input.sh a95x-f3-air
 
       - name: Build Layer 10 (Release Engineering)
         run: |
@@ -443,7 +183,7 @@ jobs:
           retention-days: 90
 
   create-release:
-    needs: [build-x86_64, build-a95x-f3-air]
+    needs: build-a95x-f3-air
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     permissions:

@@ -1,13 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AshipaOS build target",
-  "description": "Minimal target stub schema (Layer 0). Extended by later layers.",
+  "title": "AshipaOS A95X target",
   "type": "object",
-  "required": ["name", "arch", "status"],
+  "required": ["name", "arch", "media"],
   "properties": {
-    "name": { "type": "string" },
-    "arch": { "type": "string", "enum": ["arm64", "x86_64"] },
-    "status": { "type": "string", "enum": ["PROVISIONAL", "CONFIRMED"] }
+    "name": {"const": "a95x-f3-air"},
+    "arch": {"const": "arm64"},
+    "media": {"const": "removable-sd"}
   },
   "additionalProperties": true
 }

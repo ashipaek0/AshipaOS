@@ -22,7 +22,7 @@ chmod 0755 "$TMP/slots/A/bin/jellyfin-mpv-shim"
 python3 - "$TMP/slots/A/bin/jellyfin-mpv-shim" "$TMP/slots/A/manifest.json" "$TMP/active.json" <<'PY'
 import hashlib, json, pathlib, sys
 exe=pathlib.Path(sys.argv[1])
-manifest={"schema":"ashipaos.jellyfin-mpv-shim.slot.v1","name":"jellyfin-mpv-shim","version":"3.0.0","executable":"bin/jellyfin-mpv-shim","sha256":hashlib.sha256(exe.read_bytes()).hexdigest(),"python_tag":"cp311","abi_tag":"cp311","platform_tag":"manylinux_x86_64","dependency_status":"RESOLVED"}
+manifest={"schema":"ashipaos.jellyfin-mpv-shim.slot.v1","name":"jellyfin-mpv-shim","version":"3.0.0","executable":"bin/jellyfin-mpv-shim","sha256":hashlib.sha256(exe.read_bytes()).hexdigest(),"python_tag":"cp311","abi_tag":"cp311","platform_tag":"manylinux_2_27_aarch64","dependency_status":"RESOLVED"}
 pathlib.Path(sys.argv[2]).write_text(json.dumps(manifest)+'\n')
 pathlib.Path(sys.argv[3]).write_text('{"slot":"A","version":"3.0.0"}\n')
 PY
