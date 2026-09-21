@@ -144,7 +144,10 @@ def main() -> int:
             source_project = next(source_root.glob("*/jellyfin_mpv_shim"), None)
             if source_project is None:
                 raise ValueError("source package missing")
-            probe_result = probe(args.rootfs, source_project.parent, args.artifacts_dir)
+            target_root = work / "target-root"
+            target_root.mkdir()
+            safe_extract(args.rootfs, target_root)
+            probe_result = probe(target_root, source_project.parent, args.artifacts_dir)
             evidence.update({"status": "RESOLVED", "artifacts": downloaded, "build_artifacts": build, "abi": probe_result})
     except Exception as exc:
         evidence["error"] = f"{type(exc).__name__}: {exc}"
