@@ -78,7 +78,7 @@ main() {
     [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { usage; return 0; }
     if [[ -f "${1:-}" ]]; then
         ROOTFS_TARBALL="$1"; TARGET="${2:-x86_64}"; MODE="${3:-systemd-firstboot}"
-        [[ "$TARGET" == x86_64 ]] || error "Layer 3 rootfs integration is x86_64-only"
+        [[ "$TARGET" == x86_64 || "$TARGET" == a95x-f3-air ]] || error "unsupported Layer 3 rootfs target: $TARGET"
         validate_config; mutate_rootfs
     else
         TARGET="${1:-x86_64}"; MODE="${2:-systemd-firstboot}"

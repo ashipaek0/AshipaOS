@@ -180,7 +180,9 @@ jobs:
       - name: Build Layer 5 Application (x86_64 only)
         run: |
           sudo --preserve-env=SUDO_UID,SUDO_GID \
-            bash layers/layer5-application/scripts/build-application.sh output/rootfs-x86_64.tar.gz x86_64
+            bash layers/layer5-application/scripts/build-application.sh \
+            output/rootfs-x86_64.tar.gz x86_64 \
+            output/evidence/layer5-dependency-resolution.json
 
       - name: Build Layer 3 (First-Boot Init, x86_64 rootfs)
         run: |
@@ -284,6 +286,7 @@ jobs:
             gpg \
             jq \
             shellcheck \
+            python3-packaging \
             dosfstools \
             u-boot-tools \
             util-linux \
@@ -313,6 +316,49 @@ jobs:
         run: |
           sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
+      - name: Resolve and probe Layer 5 dependency closure (A95X ARM64)
+        run: |
+          set -Eeuo pipefail
+          python3 layers/layer5-application/scripts/resolve-dependencies-arm64.py \
+            --rootfs output/rootfs-a95x-f3-air.tar.gz \
+            --artifacts-dir output/evidence/layer5-arm64-artifacts \
+            --output output/evidence/layer5-arm64-dependency-resolution.json
+
+      - name: Build Layer 5 Application (A95X ARM64)
+        run: |
+          sudo --preserve-env=SUDO_UID,SUDO_GID \
+            bash layers/layer5-application/scripts/build-application.sh \
+            output/rootfs-a95x-f3-air.tar.gz a95x-f3-air \
+            output/evidence/layer5-arm64-dependency-resolution.json
+
+      - name: Build Layer 3 (First-Boot Init, A95X rootfs)
+        run: |
+          bash layers/layer3-init/scripts/build-init.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
+
+      - name: Build Layer 5 (Settings Daemon, A95X rootfs)
+        run: |
+          bash layers/layer5-settingsd/scripts/build-settingsd.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
+
+      - name: Build Layer 6 (OTA Mechanism, A95X rootfs)
+        run: |
+          bash layers/layer6-ota/scripts/build-ota.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
+
+      - name: Gate A95X Jellyfin application bundle
+        run: |
+          set -Eeuo pipefail
+          tar -tzf output/rootfs-a95x-f3-air.tar.gz > output/evidence/a95x-rootfs-members.txt
+          grep -Fx 'usr/libexec/ashipaos-jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
+          grep -Fx 'usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/bin/jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
+          tar -xOf output/rootfs-a95x-f3-air.tar.gz ./usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/manifest.json > output/evidence/a95x-jellyfin-manifest.json
+          python3 - <<'PY'
+          import json
+          value = json.load(open('output/evidence/a95x-jellyfin-manifest.json', encoding='utf-8'))
+          assert value['dependency_status'] == 'RESOLVED'
+          assert value['platform_tag'] == 'manylinux_2_27_aarch64'
+          assert value['executable'] == 'bin/jellyfin-mpv-shim'
+          print('A95X Jellyfin application bundle gate: PASS')
+          PY
+
       - name: Build Layer 2 (Disk Image)
         run: |
           export LIBGUESTFS_BACKEND=direct
@@ -326,17 +372,6 @@ jobs:
           [[ -n "$image" ]] || { echo 'A95X image not found; content gate cannot be skipped' >&2; exit 1; }
           bash layers/layer2-image/tests/image-content-tests.sh "$image"
 
-      - name: Build Layer 3 (First-Boot Init)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh a95x-f3-air
-
-      - name: Build Layer 5 (Settings Daemon)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh a95x-f3-air
-
-      - name: Build Layer 6 (OTA Mechanism)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh a95x-f3-air
 
       - name: Build Layer 7 (HAL)
         run: |
@@ -388,6 +423,8 @@ jobs:
             output/ota/*.pkg.asc
             output/ota/SHA256SUMS-*
             output/sbom.json
+            output/evidence/layer5-arm64-*
+            output/evidence/a95x-jellyfin-manifest.json
           retention-days: 90
 
   create-release:

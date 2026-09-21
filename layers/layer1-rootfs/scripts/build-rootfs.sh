@@ -142,8 +142,17 @@ install_kernel_and_initramfs() {
     log "Installing target kernel $kernel_package and $INITRAMFS_PACKAGE"
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
         apt-get -o DPkg::Options::=--force-confold update
+    local packages=("$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE" passwd)
+    if [[ "$debian_arch" == arm64 ]]; then
+        # ARM64 Jellyfin MPV Shim uses the target interpreter and Debian's
+        # target-native libmpv; these must be present before the app probe.
+        packages+=(python3 libmpv2)
+    fi
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -y --no-install-recommends install "$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE"
+        apt-get -y --no-install-recommends install "${packages[@]}"
+    if ! run_in_rootfs "$rootfs" getent passwd ashipa >/dev/null 2>&1; then
+        run_in_rootfs "$rootfs" useradd --system --create-home --shell /bin/bash --user-group ashipa
+    fi
 
     # Kernel postinst normally creates these. Explicitly finish generation so both
     # native and debootstrap --foreign builds have the same deterministic gate.
