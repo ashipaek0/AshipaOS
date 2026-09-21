@@ -12,6 +12,8 @@ SupplementaryGroups=video render seat
 Environment=XDG_RUNTIME_DIR=/run/user/%U
 Environment=WAYLAND_DISPLAY=wayland-0
 Environment=LIBSEAT_BACKEND=seatd
+StandardOutput=journal+console
+StandardError=journal+console
 ExecStartPre=/usr/bin/install -d -o ashipa -g ashipa -m 0700 /run/user/%U
 ExecStart=/usr/libexec/ashipaos-display
 Restart=on-failure

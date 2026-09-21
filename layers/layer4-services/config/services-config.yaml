@@ -6,7 +6,6 @@ target: x86_64
 services:
   enabled:
     - systemd-journald.service
-    - systemd-logind.service
     - systemd-networkd.service
     - dbus.service
     - seatd.service
@@ -26,7 +25,6 @@ testing:
   verify_with_systemd_analyze: true
   required_services:
     - systemd-journald.service
-    - systemd-logind.service
     - systemd-networkd.service
     - dbus.service
     - seatd.service
