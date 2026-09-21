@@ -56,7 +56,7 @@ main() {
     [[ "${1:-}" == "-h" ]] && { echo "Usage: $0 <rootfs-tar.gz> x86_64"; return 0; }
     if [[ -f "${1:-}" ]]; then
         ROOTFS_TARBALL="$1"; TARGET="${2:-x86_64}"
-        [[ "$TARGET" == x86_64 || "$TARGET" == a95x-f3-air ]] || error "unsupported Layer 5 rootfs target: $TARGET"
+        [[ "$TARGET" == x86_64 ]] || error "unsupported Layer 5 rootfs target: $TARGET"
         validate_config; mutate_rootfs
     else
         TARGET="${1:-x86_64}"

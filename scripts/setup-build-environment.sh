@@ -305,8 +305,6 @@ download_rootfs() {
     local deb_arch
     case "$arch" in
         amd64|x86_64) deb_arch="amd64" ;;
-        arm64|aarch64) deb_arch="arm64" ;;
-        armhf|arm) deb_arch="armhf" ;;
         *) error "Unsupported architecture: $arch" ;;
     esac
     

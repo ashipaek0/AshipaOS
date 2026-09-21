@@ -1,12 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AshipaOS build target",
-  "description": "Minimal target stub schema (Layer 0). Extended by later layers.",
+  "title": "AshipaOS x86_64 build target",
   "type": "object",
   "required": ["name", "arch", "status"],
   "properties": {
-    "name": { "type": "string" },
-    "arch": { "type": "string", "enum": ["arm64", "x86_64"] },
+    "name": { "const": "x86_64" },
+    "arch": { "const": "x86_64" },
     "status": { "type": "string", "enum": ["PROVISIONAL", "CONFIRMED"] }
   },
   "additionalProperties": true

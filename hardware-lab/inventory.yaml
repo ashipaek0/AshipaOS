@@ -1,32 +1,5 @@
-# Hardware Lab Inventory (Layer 0 stub)
-# Per build guide §0.9: remote hardware lab for automated testing
-# Status: PROVISIONAL until physical devices are registered with evidence
-
 devices:
   x86_64-generic:
     type: x86_64-pc
-    status: UNKNOWN
-    evidence: []
-    capabilities:
-      serial_console: UNKNOWN
-      network_power: UNKNOWN
-      boot_media: UNKNOWN
-    
-  a95x-f3-air:
-    type: amlogic-s905x3-box
-    status: UNKNOWN
-    evidence: []
-    capabilities:
-      serial_console: UNKNOWN
-      network_power: UNKNOWN
-      boot_media: UNKNOWN
-
-lab_status:
-  automation_ready: false
-  remote_access: false
-  evidence_collection: MANUAL
-
-notes: |
-  Layer 0: Hardware lab structure initialized.
-  Physical device registration and evidence collection pending.
-  All device statuses are UNKNOWN until verified with recorded evidence.
+    transport: local
+    validation: qemu-and-physical

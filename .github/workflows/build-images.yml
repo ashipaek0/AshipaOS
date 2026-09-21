@@ -8,13 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target device (x86_64, a95x-f3-air)'
+        description: 'Target device (x86_64)'
         required: true
         default: 'x86_64'
         type: choice
         options:
           - x86_64
-          - a95x-f3-air
 
 jobs:
   static-tests:
@@ -40,12 +39,6 @@ jobs:
               bash "${layer}tests/static-tests.sh"
             fi
           done
-
-      - name: Validate immutable CoreELEC pin shape
-        run: bash tests/static/test-coreelec-pin.sh
-
-      - name: Validate immutable CoreELEC pin against authorized fork
-        run: bash build/coreelec/validate-pin.sh
 
       - name: Test Layer 5 dependency resolver regressions
         run: bash tests/static/test-layer5-dependency-resolver.sh
@@ -73,7 +66,6 @@ jobs:
           sudo apt-get install -y \
             debootstrap \
             qemu-user-static \
-            qemu-system-arm \
             qemu-system-x86 \
             ovmf \
             binfmt-support \
@@ -88,9 +80,7 @@ jobs:
             grub-efi-amd64-signed \
             efibootmgr
           
-          # Register QEMU binaries for ARM64 emulation
-          sudo update-binfmts --enable qemu-aarch64
-          
+          # Register only the native x86_64 execution path
           # Configure libguestfs to use direct mode (no FUSE needed)
           export LIBGUESTFS_BACKEND=direct
 
@@ -280,170 +270,8 @@ jobs:
             output/sbom.json.sha256
           retention-days: 90
 
-  build-a95x-f3-air:
-    needs: static-tests
-    runs-on: ubuntu-latest
-    # Note: Uses libguestfs + QEMU emulation for ARM64 - no privileged mode needed
-    if: github.event.inputs.target == 'a95x-f3-air' || github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            debootstrap \
-            qemu-user-static \
-            qemu-system-arm \
-            binfmt-support \
-            libguestfs-tools \
-            linux-image-generic \
-            gpg \
-            jq \
-            shellcheck \
-            python3-packaging \
-            dosfstools \
-            u-boot-tools \
-            util-linux \
-            device-tree-compiler
-          
-          # Register QEMU binaries for ARM64 emulation
-          sudo update-binfmts --enable qemu-aarch64
-          
-          # Configure libguestfs to use direct mode (no FUSE needed)
-          export LIBGUESTFS_BACKEND=direct
-
-      - name: Verify libguestfs appliance
-        run: |
-          # The appliance always uses the x86_64 runner's host kernel, even
-          # while it populates an arm64 target disk image.
-          sudo chmod a+r /boot/vmlinuz-*
-          export LIBGUESTFS_BACKEND=direct
-          timeout 120s libguestfs-test-tool
-
-      - name: Configure GPG
-        run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}" >> "$GITHUB_ENV"
-
-      - name: Build Layer 1 (RootFS)
-        run: |
-          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Resolve and probe Layer 5 dependency closure (A95X ARM64)
-        run: |
-          set -Eeuo pipefail
-          python3 layers/layer5-application/scripts/resolve-dependencies-arm64.py \
-            --rootfs output/rootfs-a95x-f3-air.tar.gz \
-            --artifacts-dir output/evidence/layer5-arm64-artifacts \
-            --output output/evidence/layer5-arm64-dependency-resolution.json
-
-      - name: Build Layer 5 Application (A95X ARM64)
-        run: |
-          sudo --preserve-env=SUDO_UID,SUDO_GID \
-            bash layers/layer5-application/scripts/build-application.sh \
-            output/rootfs-a95x-f3-air.tar.gz a95x-f3-air \
-            output/evidence/layer5-arm64-dependency-resolution.json
-
-      - name: Build Layer 3 (First-Boot Init, A95X rootfs)
-        run: |
-          bash layers/layer3-init/scripts/build-init.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Build Layer 5 (Settings Daemon, A95X rootfs)
-        run: |
-          bash layers/layer5-settingsd/scripts/build-settingsd.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Build Layer 6 (OTA Mechanism, A95X rootfs)
-        run: |
-          bash layers/layer6-ota/scripts/build-ota.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Gate A95X Jellyfin application bundle
-        run: |
-          set -Eeuo pipefail
-          tar -tzf output/rootfs-a95x-f3-air.tar.gz > output/evidence/a95x-rootfs-members.txt
-          grep -Fx 'usr/libexec/ashipaos-jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
-          grep -Fx 'usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/bin/jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
-          tar -xOf output/rootfs-a95x-f3-air.tar.gz ./usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/manifest.json > output/evidence/a95x-jellyfin-manifest.json
-          python3 - <<'PY'
-          import json
-          value = json.load(open('output/evidence/a95x-jellyfin-manifest.json', encoding='utf-8'))
-          assert value['dependency_status'] == 'RESOLVED'
-          assert value['platform_tag'] == 'manylinux_2_27_aarch64'
-          assert value['executable'] == 'bin/jellyfin-mpv-shim'
-          print('A95X Jellyfin application bundle gate: PASS')
-          PY
-
-      - name: Build Layer 2 (Disk Image)
-        run: |
-          export LIBGUESTFS_BACKEND=direct
-          bash layers/layer2-image/tests/layout-tests.sh
-          bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
-
-      - name: Gate A95X image contents
-        run: |
-          set -Eeuo pipefail
-          image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-a95x-f3-air-*.img' -print -quit)
-          [[ -n "$image" ]] || { echo 'A95X image not found; content gate cannot be skipped' >&2; exit 1; }
-          bash layers/layer2-image/tests/image-content-tests.sh "$image"
-
-
-      - name: Build Layer 7 (HAL)
-        run: |
-          bash layers/layer7-hal/scripts/build-7-hal.sh a95x-f3-air
-
-      - name: Build Layer 8 (Media Framework)
-        run: |
-          bash layers/layer8-media/scripts/build-8-media.sh a95x-f3-air
-
-      - name: Build Layer 9 (Input Stack)
-        run: |
-          bash layers/layer9-input/scripts/build-9-input.sh a95x-f3-air
-
-      - name: Build Layer 10 (Release Engineering)
-        run: |
-          bash layers/layer10-release/tests/package-tests.sh
-          bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
-
-      - name: Sign Artefacts
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -Eeuo pipefail
-          echo "Signing artifacts from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
-            "$GITHUB_WORKSPACE/output/images" \
-            "$GITHUB_WORKSPACE/output/ota"
-
-      - name: Generate SBOM
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -Eeuo pipefail
-          echo "Generating SBOM from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
-            "$GITHUB_WORKSPACE/output/sbom.json"
-
-      - name: Upload Images
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: ashipaos-a95x-f3-air-${{ github.run_id }}
-          path: |
-            output/images/*.img.gz
-            output/images/*.img.gz.sig
-            output/images/*.img.gz.asc
-            output/images/SHA256SUMS-*
-            output/ota/*.pkg
-            output/ota/*.pkg.sig
-            output/ota/*.pkg.asc
-            output/ota/SHA256SUMS-*
-            output/sbom.json
-            output/evidence/layer5-arm64-*
-            output/evidence/a95x-jellyfin-manifest.json
-          retention-days: 90
-
   create-release:
-    needs: [build-x86_64, build-a95x-f3-air]
+    needs: build-x86_64
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     permissions:

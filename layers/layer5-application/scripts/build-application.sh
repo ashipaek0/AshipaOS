@@ -14,8 +14,8 @@ INPUT="${1:-}"
 TARGET="${2:-}"
 RESOLUTION="${3:-}"
 error() { printf '[L5-APPLICATION ERROR] %s\n' "$*" >&2; exit 1; }
-[[ $# -eq 3 ]] || { printf 'Usage: %s <rootfs-tar.gz> <x86_64|a95x-f3-air> <resolution.json>\n' "$(basename "$0")"; exit 2; }
-[[ "$TARGET" == x86_64 || "$TARGET" == a95x-f3-air ]] || error "unsupported target: $TARGET"
+[[ $# -eq 3 ]] || { printf 'Usage: %s <rootfs-tar.gz> <x86_64> <resolution.json>\n' "$(basename "$0")"; exit 2; }
+[[ "$TARGET" == x86_64 ]] || error "unsupported target: $TARGET"
 [[ -s "$INPUT" && -s "$RESOLUTION" && -f "$CONFIG" ]] || error "application inputs are incomplete"
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/ashipaos-application.XXXXXX")

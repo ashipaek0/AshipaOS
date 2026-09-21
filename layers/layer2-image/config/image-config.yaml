@@ -1,13 +1,9 @@
-# Layer 2: Partitioned Disk Image Configuration
-# Verification Class: BUILD; VM and HARDWARE are blocked until boot inputs exist
-
+# Layer 2: x86_64 UEFI Disk Image Configuration
 image_size_mb: 4096
 filesystem_overhead_percent: 5
-
 partitions:
   efi: 256
   root: 3584
-
 filesystems:
   efi:
     type: vfat
@@ -19,50 +15,14 @@ filesystems:
     label: RootFS
     mount_point: /
     options: "defaults,noatime"
-
-targets:
-  a95x-f3-air:
-    partition_table: dos
-    boot_partition:
-      start_sector: 8192
-      filesystem: fat16
-      label: A95XBOOT
-      files: [AML_AUTOSCRIPT, CFGLOAD, KERNEL.IMG, dtb.img, manifest]
-    root_partition:
-      start_sector: 532480
-      filesystem: ext4
-      label: RootFS
-    boot_contract:
-      source: "CoreELEC 21.3-Omega Generic Amlogic image; inspected extracted boot partition"
-      kernel_image: android-legacy
-      page_size: 2048
-      kernel_offset: "0x01080000"
-      ramdisk_offset: "0x01000000"
-      second_offset: "0x00f00000"
-      tags_offset: "0x00000100"
-      bootargs: "root=LABEL=RootFS rw console=ttyS0,115200 console=tty0"
-      prepartition_gap: {start_sector: 1, end_sector: 8191, contents: zero}
-      raw_sd_payload_writes: false
-      script_semantics: {autoscript: autoscr, cfgload_device: environment-derived}
-      android_v0_offsets: {name: "48:64", cmdline: "64:576", id: "576:596"}
-
 bootloader:
   type: uefi
   arch_mapping:
-    arm64: BOOTAA64.EFI
     amd64: BOOTX64.EFI
-    armhf: BOOTARM.EFI
-
 kernel:
   source: external
-  # Kernel provided by target-specific build or package
   install_path: /boot
-  dtb_path: /boot/dtbs
-
 testing:
   vm_boot_timeout: 120
   hardware_boot_timeout: 300
-  required_tests:
-    - partition_integrity
-    - filesystem_check
-    - fstab_validation
+  required_tests: [partition_integrity, filesystem_check, fstab_validation]

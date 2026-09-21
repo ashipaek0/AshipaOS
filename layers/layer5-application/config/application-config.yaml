@@ -1,7 +1,6 @@
 # Jellyfin MPV Shim application bundle.
 targets:
   - x86_64
-  - a95x-f3-air
 version: 3.0.0
 commit: 9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315
 archive:

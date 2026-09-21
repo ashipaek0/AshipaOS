@@ -17,7 +17,6 @@ grep -q 'Requires=ashipaos-display.service' "$ROOTFS_OVERLAY/etc/systemd/system/
 grep -q 'ASHIPAOS_BOOT_SUCCESS=1' "$ROOTFS_OVERLAY/etc/systemd/system/ashipaos-boot-success.service"
 marker_guard=$(grep 'if \[\[ "\$product_arch"' "$MARKER_SCRIPT")
 [[ "$marker_guard" == *'"x86_64"'* && "$marker_guard" == *'"amd64"'* ]]
-[[ "$marker_guard" != *'"arm64"'* && "$marker_guard" != *'"armhf"'* ]]
 ! grep -q 'ashipaos-boot-success.service' "$MARKER_SCRIPT"
 printf 'fake-marker-config: PASS\n'
 

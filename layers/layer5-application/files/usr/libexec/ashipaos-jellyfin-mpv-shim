@@ -42,7 +42,7 @@ try:
     if value["executable"] != "bin/jellyfin-mpv-shim" or value["dependency_status"] != "RESOLVED": raise ValueError
     if not isinstance(value["python_tag"], str) or not value["python_tag"].startswith("cp3"): raise ValueError
     if not isinstance(value["abi_tag"], str) or not value["abi_tag"].startswith("cp3"): raise ValueError
-    if not isinstance(value["platform_tag"], str) or not any(platform in value["platform_tag"] for platform in ("x86_64", "aarch64")): raise ValueError
+    if not isinstance(value["platform_tag"], str) or not any(platform in value["platform_tag"] for platform in ("x86_64",)): raise ValueError
     if any(not isinstance(value[k], str) or not value[k] for k in ("sha256", "python_tag", "abi_tag", "platform_tag")): raise ValueError
     if len(value["sha256"]) != 64 or any(c not in "0123456789abcdef" for c in value["sha256"]): raise ValueError
 except (OSError, ValueError, KeyError, json.JSONDecodeError, TypeError):

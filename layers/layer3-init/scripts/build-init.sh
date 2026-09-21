@@ -20,7 +20,7 @@ source "$REPO_ROOT/scripts/rootfs-ownership.sh"
 usage() {
     cat <<EOF
 Usage: $(basename "$0") <rootfs-tar.gz> x86_64 [mode]
-       $(basename "$0") <target> [mode]  (metadata-only non-x86 compatibility)
+       $(basename "$0") <target> [mode]  (metadata-only mode)
 EOF
 }
 log() { printf '[L3-INIT] %s\n' "$*"; }
@@ -94,7 +94,7 @@ main() {
     [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { usage; return 0; }
     if [[ -f "${1:-}" ]]; then
         ROOTFS_TARBALL="$1"; TARGET="${2:-x86_64}"; MODE="${3:-systemd-firstboot}"
-        [[ "$TARGET" == x86_64 || "$TARGET" == a95x-f3-air ]] || error "unsupported Layer 3 rootfs target: $TARGET"
+        [[ "$TARGET" == x86_64 ]] || error "unsupported Layer 3 rootfs target: $TARGET"
         validate_config; mutate_rootfs
     else
         TARGET="${1:-x86_64}"; MODE="${2:-systemd-firstboot}"
