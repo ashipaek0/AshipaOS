@@ -10,7 +10,6 @@ User=ashipa
 Group=ashipa
 SupplementaryGroups=video render seat
 Environment=XDG_RUNTIME_DIR=/run/user/%U
-Environment=WAYLAND_DISPLAY=wayland-0
 Environment=LIBSEAT_BACKEND=seatd
 StandardOutput=journal+console
 StandardError=journal+console
