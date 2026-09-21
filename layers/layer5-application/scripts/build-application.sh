@@ -36,8 +36,7 @@ tar -xzf "$INPUT" -C "$ROOTFS_DIR" --exclude='./dev/*' --exclude='dev/*' --exclu
 
 python3 - "$RESOLUTION" "$TMP" "$ROOTFS_DIR" "$ARCHIVE" "$TARGET" <<'PY'
 import hashlib, json, pathlib, shutil, sys, urllib.request, zipfile
-resolution, tmp, rootfs, archive, target = map(pathlib.Path, sys.argv[1:5])
-target_name = sys.argv[5]
+resolution, tmp, rootfs, archive, target_name = map(pathlib.Path, sys.argv[1:])
 data = json.loads(resolution.read_text(encoding='utf-8'))
 if data.get('status') != 'RESOLVED': raise SystemExit('dependency resolution is not RESOLVED')
 items = data.get('artifacts')
