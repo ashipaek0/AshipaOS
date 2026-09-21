@@ -1,3 +1,0 @@
-# Layer 10-release Configuration
-enabled: true
-target_support: [x86_64, a95x-f3-air]
