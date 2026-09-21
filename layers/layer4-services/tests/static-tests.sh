@@ -59,7 +59,7 @@ fi
 unsupported_enabled=0
 while IFS= read -r unit; do
     case "$unit" in
-        systemd-journald.service|systemd-logind.service|systemd-networkd.service|getty@tty1.service|ashipaos-display.service)
+        systemd-journald.service|systemd-logind.service|systemd-networkd.service|dbus.service|seatd.service|getty@tty1.service)
             ;;
         *)
             printf 'Unsupported enabled Layer 4 unit: %s\\n' "$unit" >&2

@@ -5,6 +5,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT/tests/vm/boot-x86_64.sh"
 MARKER_SCRIPT="$ROOT/layers/layer1-rootfs/scripts/build-rootfs.sh"
+ROOTFS_OVERLAY="$ROOT/rootfs-overlay"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/evidence"
@@ -12,8 +13,8 @@ printf image > "$TMP/image.img"
 printf code > "$TMP/OVMF_CODE.fd"
 printf vars > "$TMP/OVMF_VARS.fd"
 
-grep -q 'local issue="\$rootfs/etc/issue"' "$MARKER_SCRIPT"
-grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$MARKER_SCRIPT"
+grep -q 'Requires=ashipaos-display.service' "$ROOTFS_OVERLAY/etc/systemd/system/ashipaos-boot-success.service"
+grep -q 'ASHIPAOS_BOOT_SUCCESS=1' "$ROOTFS_OVERLAY/etc/systemd/system/ashipaos-boot-success.service"
 marker_guard=$(grep 'if \[\[ "\$product_arch"' "$MARKER_SCRIPT")
 [[ "$marker_guard" == *'"x86_64"'* && "$marker_guard" == *'"amd64"'* ]]
 [[ "$marker_guard" != *'"arm64"'* && "$marker_guard" != *'"armhf"'* ]]

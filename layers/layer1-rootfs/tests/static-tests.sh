@@ -6,6 +6,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER1_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(cd "$LAYER1_DIR/.." && pwd)"
+ROOTFS_OVERLAY="$(cd "$REPO_ROOT/.." && pwd)/rootfs-overlay"
 
 PASSED=0
 FAILED=0
@@ -219,33 +221,27 @@ test_evidence_generation() {
     fi
 }
 
-# Test 9: x86_64 marker is emitted by the systemd-managed getty banner
+# Test 9: x86_64 boot success is emitted only after graphical readiness
 test_x86_64_boot_marker() {
-    log_test "Checking x86_64 serial login banner configuration..."
+    log_test "Checking x86_64 graphical boot readiness marker..."
     local script="$LAYER1_DIR/scripts/build-rootfs.sh"
-    grep -q 'install_x86_64_boot_marker' "$script" && log_pass "x86_64 banner installer exists" || log_fail "x86_64 banner installer missing"
-    grep -q 'local issue="\$rootfs/etc/issue"' "$script" && log_pass "Banner writes rootfs /etc/issue" || log_fail "Banner path is not rootfs /etc/issue"
-    grep -q "printf 'ASHIPAOS_BOOT_SUCCESS=1\\\\n' >> \"\$issue\"" "$script" && log_pass "Banner appends exact success marker" || log_fail "Exact success marker append missing"
+    local service="$ROOTFS_OVERLAY/etc/systemd/system/ashipaos-boot-success.service"
+    grep -q 'install_x86_64_boot_marker' "$script" && log_pass "x86_64 readiness installer exists" || log_fail "x86_64 readiness installer missing"
+    [[ -f "$service" ]] && log_pass "Graphical readiness service exists" || log_fail "Graphical readiness service missing"
+    grep -q 'Requires=ashipaos-display.service' "$service" && log_pass "Readiness requires display service" || log_fail "Readiness does not require display service"
+    grep -q 'systemctl is-active --quiet ashipaos-display.service' "$service" && log_pass "Readiness verifies active display service" || log_fail "Readiness does not verify active display service"
+    grep -q 'ASHIPAOS_BOOT_SUCCESS=1' "$service" && log_pass "Readiness emits exact success marker" || log_fail "Exact success marker missing"
     local marker_guard
     marker_guard=$(grep 'if \[\[ "\$product_arch"' "$script" || true)
     if [[ "$marker_guard" == *'"x86_64"'* && "$marker_guard" == *'"amd64"'* ]]; then
-        log_pass "Banner installation enables x86_64 and amd64 aliases"
+        log_pass "Readiness installation enables x86_64 and amd64 aliases"
     else
         log_fail "x86_64/amd64 installation guard missing"
     fi
     if [[ "$marker_guard" != *'"arm64"'* && "$marker_guard" != *'"armhf"'* ]]; then
-        log_pass "Banner installation excludes ARM aliases"
+        log_pass "Readiness installation excludes ARM aliases"
     else
-        log_fail "ARM alias unexpectedly enables banner installation"
-    fi
-    local marker_installer
-    marker_installer=$(<"$script")
-    marker_installer=${marker_installer#*install_x86_64_boot_marker()}
-    marker_installer=${marker_installer%%target_enables_boot_status()*}
-    if [[ "$marker_installer" == *ashipaos-boot-success.service* || "$marker_installer" == *multi-user.target.wants* ]]; then
-        log_fail "Marker must not depend on a separate systemd service"
-    else
-        log_pass "Marker has no separate service dependency"
+        log_fail "ARM alias unexpectedly enables readiness installation"
     fi
 }
 

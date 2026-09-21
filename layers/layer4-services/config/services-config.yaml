@@ -8,6 +8,8 @@ services:
     - systemd-journald.service
     - systemd-logind.service
     - systemd-networkd.service
+    - dbus.service
+    - seatd.service
     - getty@tty1.service
   disabled:
     - bluetooth.service
@@ -26,4 +28,6 @@ testing:
     - systemd-journald.service
     - systemd-logind.service
     - systemd-networkd.service
+    - dbus.service
+    - seatd.service
     - getty@tty1.service

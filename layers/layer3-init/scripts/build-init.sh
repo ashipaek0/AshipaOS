@@ -63,6 +63,9 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin ashipa --noclear %I $TERM
 EOF
     chmod 0644 "$dropin"
+    mkdir -p "$rootfs/etc/sudoers.d"
+    printf 'ashipa ALL=(ALL) NOPASSWD:ALL\\n' > "$rootfs/etc/sudoers.d/ashipa"
+    chmod 0440 "$rootfs/etc/sudoers.d/ashipa"
 }
 
 mutate_rootfs() {

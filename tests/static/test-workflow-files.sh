@@ -129,14 +129,13 @@ for p in files:
         assert not any("linux /boot/vmlinuz " in line or "initrd /boot/initrd.img" in line for line in grub_linux_lines + grub_initrd_lines), "x86_64 GRUB entries must not use /boot kernel paths"
         assert "/boot/grub/grub.cfg" in layer2_script and "/root/boot/grub/grub.cfg" in layer2_script, "GRUB config must be written to canonical image paths"
         marker = open(os.path.join(root, "layers/layer1-rootfs/scripts/build-rootfs.sh")).read()
-        assert 'local issue="$rootfs/etc/issue"' in marker, "boot marker must write rootfs /etc/issue"
-        assert "printf 'ASHIPAOS_BOOT_SUCCESS=1\\n' >> \"$issue\"" in marker, "boot marker must append the exact banner line"
+        readiness = open(os.path.join(root, "rootfs-overlay/etc/systemd/system/ashipaos-boot-success.service")).read()
+        assert "Requires=ashipaos-display.service" in readiness, "boot marker must require the display service"
+        assert "systemctl is-active --quiet ashipaos-display.service" in readiness, "boot marker must verify active display service"
+        assert "ASHIPAOS_BOOT_SUCCESS=1" in readiness, "boot marker must emit the exact readiness line"
         assert 'if [[ "$product_arch" == "x86_64" || "$product_arch" == "amd64" ]]' in marker, "boot marker must enable x86_64 and amd64 aliases"
         marker_guard = next(line for line in marker.splitlines() if 'if [[ "$product_arch"' in line)
         assert '"arm64"' not in marker_guard and '"armhf"' not in marker_guard, "boot marker must remain disabled for ARM aliases"
-        marker_installer = marker[marker.index("install_x86_64_boot_marker()"):marker.index("target_enables_boot_status()")]
-        assert "ashipaos-boot-success.service" not in marker_installer, "boot marker must not depend on a separate service"
-        assert "multi-user.target.wants" not in marker_installer, "boot marker must not use target service wiring"
         full_build = open(os.path.join(root, "build/scripts/full-build.sh")).read()
         assert 'run_privileged() {' in full_build, "full-build must define an explicit privileged runner"
         assert 'if [[ $EUID -eq 0 ]]; then' in full_build, "full-build must avoid nested sudo for direct-root invocations"

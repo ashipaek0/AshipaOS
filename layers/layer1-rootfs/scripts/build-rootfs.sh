@@ -96,17 +96,11 @@ mount_rootfs_api() {
 
 install_x86_64_boot_marker() {
     local rootfs="$1"
-    # /etc/issue is read by the systemd-managed serial getty immediately before
-    # it prints the login prompt. This is therefore emitted by getty after the
-    # serial console has started, rather than by an unrelated boot service.
-    local issue="$rootfs/etc/issue"
-    mkdir -p "$(dirname "$issue")"
-    touch "$issue"
-    if [[ -s "$issue" ]] && [[ "$(tail -c 1 "$issue" | wc -l)" -eq 0 ]]; then
-        printf '\n' >> "$issue"
-    fi
-    printf 'ASHIPAOS_BOOT_SUCCESS=1\n' >> "$issue"
+    # The boot marker is emitted by the graphical readiness service after the
+    # display service is active. Do not put it in /etc/issue: getty can print
+    # that before systemd has reached graphical.target.
 }
+
 
 target_enables_boot_status() {
     local target="${1:-}"
@@ -121,10 +115,13 @@ install_boot_status() {
     local overlay="$REPO_ROOT/rootfs-overlay"
     [[ -f "$overlay/usr/libexec/ashipaos-boot-status-handler" ]] || error "Missing boot-status handler overlay"
     [[ -f "$overlay/etc/systemd/system/ashipaos-boot-status.service" ]] || error "Missing boot-status service overlay"
+    [[ -f "$overlay/etc/systemd/system/ashipaos-boot-success.service" ]] || error "Missing boot-success service overlay"
     install -D -m 0755 "$overlay/usr/libexec/ashipaos-boot-status-handler" "$rootfs/usr/libexec/ashipaos-boot-status-handler"
     install -D -m 0644 "$overlay/etc/systemd/system/ashipaos-boot-status.service" "$rootfs/etc/systemd/system/ashipaos-boot-status.service"
-    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants"
+    install -D -m 0644 "$overlay/etc/systemd/system/ashipaos-boot-success.service" "$rootfs/etc/systemd/system/ashipaos-boot-success.service"
+    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants" "$rootfs/etc/systemd/system/graphical.target.wants"
     ln -sf ../ashipaos-boot-status.service "$rootfs/etc/systemd/system/multi-user.target.wants/ashipaos-boot-status.service"
+    ln -sf ../ashipaos-boot-success.service "$rootfs/etc/systemd/system/graphical.target.wants/ashipaos-boot-success.service"
 }
 
 install_kernel_and_initramfs() {
@@ -142,7 +139,7 @@ install_kernel_and_initramfs() {
     log "Installing target kernel $kernel_package and $INITRAMFS_PACKAGE"
     run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
         apt-get -o DPkg::Options::=--force-confold update
-    local packages=("$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE" passwd)
+    local packages=("$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE" passwd dbus sudo)
     if [[ "$debian_arch" == arm64 ]]; then
         # ARM64 Jellyfin MPV Shim uses the target interpreter and Debian's
         # target-native libmpv; these must be present before the app probe.
