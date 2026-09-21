@@ -9,7 +9,6 @@ services:
     - systemd-logind.service
     - systemd-networkd.service
     - getty@tty1.service
-    - ashipaos-display.service
   disabled:
     - bluetooth.service
     - cups.service
@@ -28,4 +27,3 @@ testing:
     - systemd-logind.service
     - systemd-networkd.service
     - getty@tty1.service
-    - ashipaos-display.service
