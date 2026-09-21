@@ -221,12 +221,24 @@ create_rootfs() {
     fi
     install_boot_status "$rootfs" "$target"
     minimize_rootfs "$rootfs"
+    if [[ "$debian_arch" == arm64 ]]; then
+        [[ -x "$rootfs/usr/bin/python3.11" || -x "$rootfs/usr/bin/python3" ]] \
+            || error "ARM64 rootfs lost Python after minimization"
+        compgen -G "$rootfs/usr/lib/aarch64-linux-gnu/libmpv.so*" >/dev/null \
+            || error "ARM64 rootfs lost libmpv after minimization"
+    fi
     validate_kernel_initramfs "$rootfs" "$debian_arch" "${KERNEL_PACKAGES[$debian_arch]}"
     mkdir -p "$(dirname "$output_file")"
     tar -C "$rootfs" \
         --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
         -czf "$output_file" .
     [[ -s "$output_file" ]] || error "Rootfs tarball is empty: $output_file"
+    if [[ "$debian_arch" == arm64 ]]; then
+        tar -tzf "$output_file" | grep -Eq '(^|/)usr/bin/python3(\.11)?$' \
+            || error "ARM64 rootfs tarball lost Python during packaging"
+        tar -tzf "$output_file" | grep -Eq '(^|/)libmpv\.so' \
+            || error "ARM64 rootfs tarball lost libmpv during packaging"
+    fi
     rootfs_output_owner "$output_file" "$(dirname "$output_file")" \
         || error "Could not restore rootfs output ownership"
     generate_evidence "$product_arch" "$debian_arch" "$output_file" "$rootfs"
