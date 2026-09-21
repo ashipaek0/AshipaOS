@@ -78,6 +78,7 @@ fi
 QEMU_FIRMWARE_ARGS=(-drive "if=pflash,format=raw,readonly=on,file=$OVMF")
 [[ -n "$OVMF_VARS" ]] && QEMU_FIRMWARE_ARGS+=(-drive "if=pflash,format=raw,file=$OVMF_VARS")
 QEMU_ARGS=(-machine q35 -accel tcg -cpu max -m 1024 "${QEMU_FIRMWARE_ARGS[@]}" \
+    -device virtio-gpu-pci \
     -drive "format=raw,if=virtio,file=$IMAGE,readonly=on" \
     -nographic -serial stdio -monitor none -no-reboot)
 
