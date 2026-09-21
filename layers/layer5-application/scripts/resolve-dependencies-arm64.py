@@ -56,10 +56,14 @@ def download(url: str, destination: pathlib.Path, expected: str) -> None:
 
 
 def target_python(rootfs: pathlib.Path) -> pathlib.Path:
-    for candidate in (rootfs / "usr/bin/python3.11", rootfs / "usr/bin/python3"):
-        if candidate.exists():
+    candidates = [rootfs / "usr/bin/python3.11", rootfs / "usr/bin/python3"]
+    candidates.extend(sorted(rootfs.rglob("python3.11")))
+    candidates.extend(sorted(rootfs.rglob("python3")))
+    for candidate in candidates:
+        if candidate.is_file() and not candidate.name.endswith("-config"):
             return candidate
-    raise ValueError("ARM64 target rootfs does not contain Python 3.11")
+    discovered = [str(p.relative_to(rootfs)) for p in rootfs.rglob("*python3*")][:40]
+    raise ValueError("ARM64 target rootfs does not contain Python 3.11; discovered: " + ", ".join(discovered))
 
 
 def probe(rootfs: pathlib.Path, source_root: pathlib.Path, wheel_dir: pathlib.Path) -> dict:
