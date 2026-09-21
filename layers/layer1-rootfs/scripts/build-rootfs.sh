@@ -234,10 +234,13 @@ create_rootfs() {
         -czf "$output_file" .
     [[ -s "$output_file" ]] || error "Rootfs tarball is empty: $output_file"
     if [[ "$debian_arch" == arm64 ]]; then
-        tar -tzf "$output_file" | grep -Eq '(^|/)usr/bin/python3(\.11)?$' \
+        local tar_members="$output_file.members"
+        tar -tzf "$output_file" > "$tar_members"
+        grep -Eq '(^|/)usr/bin/python3(\.11)?$' "$tar_members" \
             || error "ARM64 rootfs tarball lost Python during packaging"
-        tar -tzf "$output_file" | grep -Eq '(^|/)libmpv\.so' \
+        grep -Eq '(^|/)libmpv\.so' "$tar_members" \
             || error "ARM64 rootfs tarball lost libmpv during packaging"
+        rm -f "$tar_members"
     fi
     rootfs_output_owner "$output_file" "$(dirname "$output_file")" \
         || error "Could not restore rootfs output ownership"
