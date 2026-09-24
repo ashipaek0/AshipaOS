@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 (( EUID == 0 )) || { echo 'assemble-disk-image.sh must run as root' >&2; exit 1; }
-ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd); source "$ROOT_DIR/installer/config.sh"
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd); source "$ROOT_DIR/installer/config.sh"; source "$ROOT_DIR/installer/partition-path.sh"
 rootfs=${ROOTFS_OUT:-out/appliance-rootfs}; out=${DISK_OUT:-out/appliance.img}; tmp=$(mktemp -d); loop=; mounted=0
 cleanup() { set +e; (( mounted )) && { umount -R "$tmp/mnt"; umount "$tmp/mnt/dev" "$tmp/mnt/proc" "$tmp/mnt/sys"; }; [[ -n "$loop" ]] && losetup -d "$loop"; rm -rf "$tmp"; }
 trap cleanup EXIT
@@ -10,8 +10,7 @@ for tool in truncate parted mkfs.vfat mkfs.ext4 grub-install grub-mkconfig loset
 truncate -s "$APPLIANCE_IMAGE_BYTES" "$tmp/appliance.img"
 parted -s "$tmp/appliance.img" mklabel gpt mkpart BIOS 1MiB 3MiB set 1 bios_grub on mkpart ESP fat32 3MiB 515MiB set 2 esp on mkpart root ext4 515MiB 100%
 loop=$(losetup --find --show --partscan "$tmp/appliance.img"); partprobe "$loop"; udevadm settle
-part() { case "$1" in *nvme*n*|*mmcblk*) printf '%sp%s' "$1" "$2";; *) printf '%s%s' "$1" "$2";; esac; }
-esp=$(part "$loop" 2); rootpart=$(part "$loop" 3)
+esp=$(partition_path "$loop" 2); rootpart=$(partition_path "$loop" 3)
 mkfs.vfat -n ASHIPAOS "$esp"; mkfs.ext4 -L ASHIPAOS_ROOT "$rootpart"
 mkdir -p "$tmp/mnt"; mount "$rootpart" "$tmp/mnt"; mounted=1
 cp -a "$rootfs/." "$tmp/mnt/"

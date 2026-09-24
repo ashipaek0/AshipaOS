@@ -12,7 +12,7 @@ make_disk() {
 }
 run() { SYSFS_ROOT="$tmp/sys" DEV_ROOT="$tmp/dev" "$ROOT/installer/select-target.sh" --fixture-root "$@"; }
 case "$mode" in
-  partition_helper) [[ "$(DEV_ROOT=/dev bash -c 'source "$1"; partition_path /dev/sda 3' _ "$ROOT/installer/partition-path.sh")" == /dev/sda3 ]]; [[ "$(DEV_ROOT=/dev bash -c 'source "$1"; partition_path /dev/nvme0n1 3' _ "$ROOT/installer/partition-path.sh")" == /dev/nvme0n1p3 ]];;
+  partition_helper) [[ "$(DEV_ROOT=/dev bash -c 'source "$1"; partition_path /dev/sda 3' _ "$ROOT/installer/partition-path.sh")" == /dev/sda3 ]]; [[ "$(DEV_ROOT=/dev bash -c 'source "$1"; partition_path /dev/nvme0n1 3' _ "$ROOT/installer/partition-path.sh")" == /dev/nvme0n1p3 ]]; [[ "$(DEV_ROOT=/dev bash -c 'source "$1"; partition_path /dev/loop0 2' _ "$ROOT/installer/partition-path.sh")" == /dev/loop0p2 ]]; [[ "$(DEV_ROOT=/dev bash -c 'source "$1"; partition_path /dev/vda 3' _ "$ROOT/installer/partition-path.sh")" == /dev/vda3 ]];;
   zero) ! run ;;
   multiple) make_disk sda 22000000000; make_disk sdb 22000000000; ! run ;;
   safe) make_disk sda 22000000000; [[ $(run) == "$tmp/dev/sda" ]];;
