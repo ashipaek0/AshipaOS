@@ -47,6 +47,9 @@ for module in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci ata_piix
   [[ "$module_file" == /lib/modules/"$kernel"/* && -f "$tmp$module_file" ]] || { echo "required hardware module missing: $module" >&2; exit 1; }
 done
 cp -aL "$(command -v bash)" "$tmp/bin/bash"
+# libparted popen()s helpers (dmidecode) through /bin/sh and segfaults when
+# the shell is missing, so partprobe/parted need /bin/sh in the initramfs.
+ln -sfn bash "$tmp/bin/sh"
 cat > "$tmp/etc/modprobe.d/ashipaos.conf" <<'CONF'
 # Installer storage/filesystem drivers are intentionally present and loaded.
 CONF

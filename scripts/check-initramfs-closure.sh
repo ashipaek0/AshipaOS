@@ -3,7 +3,7 @@ set -Eeuo pipefail
 archive=${1:?initramfs archive}; command -v gzip >/dev/null; command -v cpio >/dev/null; command -v file >/dev/null; command -v readelf >/dev/null
 root=$(mktemp -d); trap 'rm -rf "$root"' EXIT
 gzip -dc "$archive" | (cd "$root" && cpio -idm --quiet)
-for required in init installer/discover-source.sh installer/select-target.sh installer/install.sh bin/bash etc/ashipaos-runtime.commands; do
+for required in init installer/discover-source.sh installer/select-target.sh installer/install.sh bin/bash bin/sh etc/ashipaos-runtime.commands; do
   [[ -e "$root/$required" ]] || { echo "initramfs missing $required" >&2; exit 1; }
 done
 # The kernel starts /init with PATH=/sbin:/usr/sbin:/bin:/usr/bin; hosts differ
