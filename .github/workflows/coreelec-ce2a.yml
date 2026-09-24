@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   ce2a:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout AshipaOS
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
@@ -35,7 +36,8 @@ jobs:
       - name: Inspect Generic image (read-only)
         if: success()
         run: |
-          export CE2A_DTB_SHA256="$(sha256sum output/ce2a/workspace/source/target/boot/sm1_s905x3_4g_1gbit.dtb | cut -d' ' -f1)"
+          CE2A_DTB_SHA256="$(sha256sum output/ce2a/workspace/source/target/boot/sm1_s905x3_4g_1gbit.dtb | cut -d' ' -f1)"
+          export CE2A_DTB_SHA256
           bash build/coreelec/ce2a-inspect-image.sh \
             output/ce2a/evidence/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz \
             build/coreelec/pin.json \
