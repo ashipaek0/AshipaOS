@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+if command -v appliance-settings >/dev/null; then appliance-settings & fi
+exec appliance-shell

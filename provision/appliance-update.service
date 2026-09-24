@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly appliance update
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/appliance-update

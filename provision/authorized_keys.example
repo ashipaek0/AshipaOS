@@ -1,0 +1,1 @@
+# Public-key payload is injected by CI from the ADMIN_SSH_PUBKEY secret.

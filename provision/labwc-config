@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <decoration>no</decoration>
+  </core>
+  <windowRules>
+    <windowRule identifier="com.github.iwalton3.jellyfin-mpv-shim">
+      <action name="Fullscreen" />
+    </windowRule>
+    <windowRule identifier="appliance-settings">
+      <action name="Fullscreen" />
+      <action name="Above" />
+    </windowRule>
+  </windowRules>
+</labwc_config>

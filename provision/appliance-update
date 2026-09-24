@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+APP=com.github.iwalton3.jellyfin-mpv-shim
+STATE=/var/lib/appliance
+mkdir -p "$STATE"
+flatpak --system info -r "$APP" > "$STATE/last-good-info" 2>/dev/null || true
+flatpak --system update -y --noninteractive "$APP"
+flatpak --system uninstall -y --unused --noninteractive || true
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold dist-upgrade
+systemctl restart greetd
+if ! appliance-health-check; then logger -t appliance-update 'client health check failed'; exit 1; fi
+[ -f /var/run/reboot-required ] && systemctl reboot

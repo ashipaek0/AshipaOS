@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+for i in 1 2 3 4 5 6; do
+  sleep 5
+  flatpak ps | grep -q com.github.iwalton3.jellyfin-mpv-shim && exit 0
+  logger -t appliance-health-check "client not ready attempt $i"
+done
+exit 1

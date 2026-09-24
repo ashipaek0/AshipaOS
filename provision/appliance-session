@@ -1,0 +1,2 @@
+#!/bin/sh
+exec labwc -C /etc/labwc

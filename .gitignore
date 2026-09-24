@@ -1,0 +1,5 @@
+out/
+.flatpak-test/
+provision/authorized_keys
+*.iso
+*.iso.sha256

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+out=${ISO_OUT:-out/ashipaos-installer.iso}; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+for f in out/appliance.img.zst out/appliance.img.manifest out/installer-initramfs.gz; do test -s "$f" || { echo "missing $f" >&2; exit 1; }; done
+for tool in grub-mkrescue grub-mkstandalone; do command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }; done
+kernel=${KERNEL:-out/appliance-rootfs/boot/vmlinuz-*}; kernel=$(printf '%s\n' $kernel | head -n1); test -f "$kernel"
+mkdir -p "$tmp/boot/grub/i386-pc" "$tmp/install" "$tmp/EFI/BOOT"
+cp "$kernel" "$tmp/boot/vmlinuz"; cp out/installer-initramfs.gz "$tmp/boot/initramfs.gz"; cp out/appliance.img.zst out/appliance.img.manifest "$tmp/install/"
+cat > "$tmp/boot/grub/grub.cfg" <<'GRUB'
+set timeout=3
+set default=0
+serial --unit=0 --speed=115200
+terminal_input serial
+terminal_output serial
+menuentry 'Install AshipaOS offline' {
+ linux /boot/vmlinuz quiet
+ initrd /boot/initramfs.gz
+}
+menuentry 'Force reinstall AshipaOS offline' {
+ linux /boot/vmlinuz quiet ashipaos.force=1
+ initrd /boot/initramfs.gz
+}
+GRUB
+grub-mkstandalone -O x86_64-efi -o "$tmp/EFI/BOOT/BOOTX64.EFI" \
+  --modules='part_gpt fat iso9660 normal efi_gop' "boot/grub/grub.cfg=$tmp/boot/grub/grub.cfg"
+test -s "$tmp/EFI/BOOT/BOOTX64.EFI"
+command -v mkfs.vfat >/dev/null || { echo 'mkfs.vfat is required' >&2; exit 1; }
+esp="$tmp/efi.img"; truncate -s 16M "$esp"; mkfs.vfat "$esp" >/dev/null
+command -v mcopy >/dev/null || { echo 'mtools is required' >&2; exit 1; }; mmd -i "$esp" ::EFI ::EFI/BOOT; mcopy -i "$esp" "$tmp/EFI/BOOT/BOOTX64.EFI" ::EFI/BOOT/BOOTX64.EFI
+mkdir -p "$(dirname "$out")"
+# grub-mkrescue creates the authoritative i386-pc El Torito image.  These
+# xorriso options add the GRUB2 hybrid MBR and boot-info patching; do not use
+# the ISOLINUX isohybrid template.
+grub-mkrescue -o "$tmp/image.iso" "$tmp" -- \
+  -iso-level 3 -boot_image grub2_mbr=/usr/lib/grub/i386-pc/boot_hybrid.img \
+  -boot_image grub2_boot_info=on -boot-load-size 4 -boot-info-table
+mv "$tmp/image.iso" "$out"; sha256sum "$out" > "$out.sha256"

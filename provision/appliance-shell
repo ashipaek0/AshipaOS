@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+while :; do
+  flatpak run com.github.iwalton3.jellyfin-mpv-shim || true
+  sleep 2
+done
