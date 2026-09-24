@@ -13,11 +13,25 @@ for name,(path,value) in mutations.items():
  d[path[-1]]=value
  (out/(name+'.json')).write_text(json.dumps(q),encoding='utf8')
 PY
-# Every mutated pin must be rejected by the real build entry point before any
-# download (pin validation runs first; CI=true only lifts the local-run block).
+# Every mutated pin must be rejected by the real build entry point and by the
+# pin validator before any network access (CI=true only lifts the local-run
+# block). Network tools are replaced by tripwires that record any call, so
+# the test is offline and cannot pass just because a download failed.
+mkdir -p "$TMP/tripwire"
+for tool in curl docker git; do
+  printf '#!/bin/sh\necho "%s $*" >> "%s/network-calls"\nexit 1\n' "$tool" "$TMP" > "$TMP/tripwire/$tool"
+  chmod +x "$TMP/tripwire/$tool"
+done
+printf '{"full_name":"ashipaek0/CoreELEC","fork":true,"parent":{"full_name":"CoreELEC/CoreELEC"}}\n' > "$TMP/fork.json"
 for mutated in "$TMP"/wrong-*.json; do
-  if CI=true bash "$ROOT/build/coreelec/ce2a-build.sh" --ci "$mutated" "$TMP/work" "$TMP/evidence" >/dev/null 2>&1; then
-    echo "accepted mutated pin: $(basename "$mutated")" >&2; exit 1
+  if PATH="$TMP/tripwire:$PATH" CI=true bash "$ROOT/build/coreelec/ce2a-build.sh" --ci "$mutated" "$TMP/work" "$TMP/evidence" >/dev/null 2>&1; then
+    echo "build accepted mutated pin: $(basename "$mutated")" >&2; exit 1
+  fi
+  if PATH="$TMP/tripwire:$PATH" COREELEC_FORK_METADATA_FILE="$TMP/fork.json" bash "$ROOT/build/coreelec/validate-pin.sh" "$mutated" >/dev/null 2>&1; then
+    echo "validator accepted mutated pin: $(basename "$mutated")" >&2; exit 1
+  fi
+  if [[ -s "$TMP/network-calls" ]]; then
+    echo "mutated pin $(basename "$mutated") reached the network: $(cat "$TMP/network-calls")" >&2; exit 1
   fi
 done
 [[ ! -e "$TMP/work/source.tar.gz" ]] || { echo 'a mutated pin reached the download step' >&2; exit 1; }

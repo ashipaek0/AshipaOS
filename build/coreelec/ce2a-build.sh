@@ -17,10 +17,16 @@ import json, os, re
 p=json.load(open(os.environ['PIN'],encoding='utf8')); s=p['source']; b=p['builder']; base=b['base_image']; t=p['build']; a=p['artifact']
 assert s['repository']=='https://github.com/ashipaek0/CoreELEC.git' and s['fork']=={'full_name':'ashipaek0/CoreELEC','required':True,'parent':'CoreELEC/CoreELEC'}
 assert s['upstream_repository']=='https://github.com/CoreELEC/CoreELEC.git' and s['upstream_source_line']=='coreelec-21'
-assert s['ref']=={'type':'tag','value':'21.3-Omega'} and re.fullmatch(r'[0-9a-f]{40}',s['commit']) and s['commit']==s['fork_commit']==s['upstream_commit']
-assert re.fullmatch(r'[0-9a-f]{64}',s['archive']['sha256'])
-assert b['dockerfile']['path']=='tools/docker/jammy/Dockerfile' and re.fullmatch(r'[0-9a-f]{64}',b['dockerfile']['sha256'])
-assert base['tag']=='ubuntu:jammy' and re.fullmatch(r'sha256:[0-9a-f]{64}',base['digest']) and base['pinned_reference']=='ubuntu@'+base['digest']
+# Exact values, not just well-formed ones: a mutated pin must be rejected here,
+# before any download, not later by a hash check on a fetched archive.
+COMMIT='fc61125e8900ab0c2593a29b615980ed0cd5b939'
+ARCHIVE_SHA256='c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a'
+DOCKERFILE_SHA256='4f0d46fdf9709230f29e6ea8c423a292024287f653b30f67be01d567a08125a2'
+BASE_DIGEST='sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02'
+assert s['ref']=={'type':'tag','value':'21.3-Omega'} and s['commit']==s['fork_commit']==s['upstream_commit']==COMMIT
+assert s['archive']=={'url':f'https://github.com/ashipaek0/CoreELEC/archive/{COMMIT}.tar.gz','sha256':ARCHIVE_SHA256}
+assert b['dockerfile']=={'path':'tools/docker/jammy/Dockerfile','sha256':DOCKERFILE_SHA256}
+assert base['tag']=='ubuntu:jammy' and base['digest']==BASE_DIGEST and base['pinned_reference']=='ubuntu@'+BASE_DIGEST
 assert t=={'PROJECT':'Amlogic-ce','DEVICE':'Amlogic-ng','ARCH':'arm','OFFICIAL':'yes'}
 assert a=={'path':'target/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz','name':'CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz','glob':'target/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz'}
 for x in (s['commit'],s['archive']['sha256'],b['dockerfile']['sha256'],base['digest']): print(x)

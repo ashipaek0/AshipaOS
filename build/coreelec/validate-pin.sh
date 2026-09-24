@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Validate the immutable A95X CoreELEC pin and its authorized fork.
+# Hashes and digests are compared to exact values, not just their format.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -32,12 +33,19 @@ assert source["upstream_repository"] == "https://github.com/CoreELEC/CoreELEC.gi
 assert source["upstream_source_line"] == "coreelec-21"
 assert source["ref"] == {"type": "tag", "value": "21.3-Omega"}
 assert full_sha.fullmatch(source["commit"])
+assert source["commit"] == "fc61125e8900ab0c2593a29b615980ed0cd5b939"
 assert source["commit"] == source["fork_commit"] == source["upstream_commit"]
 assert sha256.fullmatch(source["archive"]["sha256"])
+assert source["archive"] == {
+    "url": f"https://github.com/ashipaek0/CoreELEC/archive/{source['commit']}.tar.gz",
+    "sha256": "c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a",
+}
 assert builder["dockerfile"]["path"] == "tools/docker/jammy/Dockerfile"
 assert sha256.fullmatch(builder["dockerfile"]["sha256"])
+assert builder["dockerfile"]["sha256"] == "4f0d46fdf9709230f29e6ea8c423a292024287f653b30f67be01d567a08125a2"
 assert base["tag"] == "ubuntu:jammy"
 assert digest.fullmatch(base["digest"])
+assert base["digest"] == "sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02"
 assert base["pinned_reference"] == "ubuntu@" + base["digest"]
 assert pin["build"] == {
     "PROJECT": "Amlogic-ce",
