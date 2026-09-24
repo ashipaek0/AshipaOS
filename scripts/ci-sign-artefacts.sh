@@ -72,7 +72,7 @@ if [ -d "$IMAGES_DIR" ]; then
     for img in "$IMAGES_DIR"/*.img.gz; do
         if [ -f "$img" ]; then
             echo "  Signing: $(basename "$img")"
-            echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
+            echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
                 --armor --detach-sign "$img"
         fi
     done
@@ -86,7 +86,7 @@ if [ -d "$OTA_DIR" ]; then
     for pkg in "$OTA_DIR"/*.pkg; do
         if [ -f "$pkg" ]; then
             echo "  Signing: $(basename "$pkg")"
-            echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
+            echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
                 --armor --detach-sign "$pkg"
         fi
     done
@@ -98,7 +98,7 @@ fi
 SBOM_FILE="$REPO_ROOT/output/sbom.json"
 if [ -f "$SBOM_FILE" ]; then
     echo "Signing SBOM..."
-    echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
+    echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
         --armor --detach-sign "$SBOM_FILE"
     cp -- "${SBOM_FILE}.asc" "${SBOM_FILE}.sig"
     sha256sum "$SBOM_FILE" > "${SBOM_FILE}.sha256"
