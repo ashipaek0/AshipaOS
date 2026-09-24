@@ -3,8 +3,12 @@ set -Eeuo pipefail
 out=${ROOTFS_OUT:-out/appliance-rootfs}; tmp=$(mktemp -d)
 # A failed mmdebstrap (root mode) can leave /dev, /proc and /sys mounted in
 # the rootfs. Unmount them before deleting, and never delete across a mount.
+mounts_under() { findmnt -rn -o TARGET | awk -v p="$1/" 'index($0, p) == 1' | sort -r; }
 unmount_under() {
-  findmnt -rn -o TARGET | awk -v p="$1/" 'index($0, p) == 1' | sort -r | while read -r m; do umount -l "$m"; done
+  local m
+  # Shared propagation can list one mount twice; the second umount then fails.
+  mounts_under "$1" | while read -r m; do umount -l "$m" 2>/dev/null || true; done
+  [[ -z "$(mounts_under "$1")" ]] || { echo "could not unmount everything under $1" >&2; return 1; }
 }
 cleanup() {
   set +e
@@ -110,15 +114,17 @@ install -d -m 0755 "$root$stage"
 install -m 0755 scripts/install-flatpak-graph-offline.sh "$root$stage/"
 install -m 0644 scripts/flathub.env "$root$stage/"
 # Flatpak needs /proc (boot_id), /sys and /dev inside the chroot, and its
-# bwrap-run triggers need the chroot root to be a mount point. Mount them only
-# for the install.
-mount --bind "$root" "$root"
-mount -t proc proc "$root/proc"
-mount -t sysfs -o ro,nosuid,nodev,noexec sysfs "$root/sys"
-mount --bind /dev "$root/dev"
-unshare -n chroot "$root" "$stage/install-flatpak-graph-offline.sh" --system /var/lib/ashipaos/flatpak-repo/.ostree/repo "${refs[@]}"
-unmount_under "$root"
-umount "$root"
+# bwrap-run triggers need the chroot root to be a private mount point. Mount
+# them in a private, network-less namespace so nothing reaches the host (the
+# runner's shared propagation would otherwise duplicate them) and they vanish
+# when the install exits.
+unshare --mount --net --propagation private sh -c '
+  mount --bind "$1" "$1" &&
+  mount -t proc proc "$1/proc" &&
+  mount -t sysfs -o ro,nosuid,nodev,noexec sysfs "$1/sys" &&
+  mount --bind /dev "$1/dev" &&
+  root=$1 && shift && exec chroot "$root" "$@"
+' _ "$root" "$stage/install-flatpak-graph-offline.sh" --system /var/lib/ashipaos/flatpak-repo/.ostree/repo "${refs[@]}"
 rm -rf "$root$stage"
 host_flatpak scripts/list-installed-flatpaks.sh --system > "$tmp/installed-flatpak.tsv"
 python3 scripts/verify-flatpak-lock.py out/flatpak-lock.json "$tmp/installed-flatpak.tsv"
