@@ -1,7 +1,7 @@
 [Unit]
 Description=AshipaOS boot status endpoint
-Wants=network-online.target
-After=network-online.target
+# Listens on all interfaces as they come up; never waits for a network.
+After=network.target
 
 [Service]
 Type=simple

@@ -1,0 +1,393 @@
+== AshipaOS boot report (stage 3: Linux userspace) ==
+2026-04-27T19:52:20Z (may be wrong before NTP)
+uptime: 211.61 763.98
+kernel: Linux ashipaos 6.1.0-52-arm64 #1 SMP Debian 6.1.180-1 (2026-08-03) aarch64 GNU/Linux
+cmdline: root=LABEL=RootFS rootwait rw console=ttyAML0,115200 console=tty0
+model: Shenzhen CYX Industrial Co., Ltd A95XF3-AIR
+
+== failed units ==
+● systemd-networkd-wait-online.service loaded failed failed Wait for Network to be Configured
+
+== jellyfin mpv shim ==
+● ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim
+     Loaded: loaded (/etc/systemd/system/ashipaos-jellyfin-mpv-shim.service; enabled; preset: enabled)
+     Active: active (running) since Mon 2026-04-27 19:52:16 UTC; 4s ago
+   Main PID: 742 (python3)
+      Tasks: 3 (limit: 4183)
+     Memory: 35.1M
+        CPU: 4.060s
+     CGroup: /system.slice/ashipaos-jellyfin-mpv-shim.service
+             └─742 /usr/bin/python3 -s -c "from jellyfin_mpv_shim.mpv_shim import main; main()"
+
+Apr 27 19:52:16 ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+Apr 27 19:52:18 ashipaos ashipaos-jellyfin-mpv-shim[742]: 2026-04-27 19:52:18,136 [    INFO] root: text shaping: raqm=yes
+
+== display/input/audio devices ==
+/dev/dri:
+total 0
+drwxr-xr-x 2 root root        100 Apr 27 19:48 by-path
+crw-rw---- 1 root video  226,   0 Apr 27 19:48 card0
+crw-rw---- 1 root video  226,   1 Apr 27 19:48 card1
+crw-rw---- 1 root render 226, 128 Apr 27 19:48 renderD128
+
+/dev/input:
+total 0
+drwxr-xr-x 2 root root     120 Apr 27 19:49 by-id
+drwxr-xr-x 2 root root     160 Apr 27 19:49 by-path
+crw-rw---- 1 root input 13, 64 Apr 27 19:48 event0
+crw-rw---- 1 root input 13, 65 Apr 27 19:48 event1
+crw-rw---- 1 root input 13, 66 Apr 27 19:49 event2
+crw-rw---- 1 root input 13, 67 Apr 27 19:49 event3
+crw-rw---- 1 root input 13, 68 Apr 27 19:49 event4
+crw-rw---- 1 root input 13, 69 Apr 27 19:49 event5
+crw-rw---- 1 root input 13, 70 Apr 27 19:49 event6
+crw-rw---- 1 root input 13, 63 Apr 27 19:48 mice
+crw-rw---- 1 root input 13, 32 Apr 27 19:48 mouse0
+
+/dev/snd:
+total 0
+drwxr-xr-x 2 root root       60 Apr 27 19:48 by-id
+drwxr-xr-x 2 root root       80 Apr 27 19:49 by-path
+crw-rw---- 1 root audio 116,  3 Apr 27 19:48 controlC0
+crw-rw---- 1 root audio 116,  7 Apr 27 19:49 controlC1
+crw-rw---- 1 root audio 116,  2 Apr 27 19:48 pcmC0D0c
+crw-rw---- 1 root audio 116,  4 Apr 27 19:49 pcmC1D0p
+crw-rw---- 1 root audio 116,  5 Apr 27 19:49 pcmC1D1p
+crw-rw---- 1 root audio 116,  6 Apr 27 19:49 pcmC1D2p
+crw-rw---- 1 root audio 116,  1 Apr 27 19:48 seq
+crw-rw---- 1 root audio 116, 33 Apr 27 19:48 timer
+
+== network ==
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+end0             DOWN           
+
+== journal warnings (this boot) ==
+Apr 27 19:48:56 ashipaos kernel: OF: fdt: Reserved memory: failed to reserve memory for node 'secmon@5000000': base 0x0000000005000000, size 3 MiB
+Apr 27 19:48:56 ashipaos kernel: Early cacheinfo failed, ret = -22
+Apr 27 19:48:56 ashipaos kernel: KASLR disabled due to lack of seed
+Apr 27 19:48:56 ashipaos kernel: dwc2 ff400000.usb: supply vusb_d not found, using dummy regulator
+Apr 27 19:48:56 ashipaos kernel: dwc2 ff400000.usb: supply vusb_a not found, using dummy regulator
+Apr 27 19:48:56 ashipaos kernel: device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+Apr 27 19:48:58 ashipaos kernel: meson-gx-mmc ffe03000.sd: card claims to support voltages below defined range
+Apr 27 19:48:58 ashipaos kernel: platform regulatory.0: firmware: failed to load regulatory.db (-2)
+Apr 27 19:48:58 ashipaos kernel: firmware_class: See https://wiki.debian.org/Firmware for information about missing firmware
+Apr 27 19:48:58 ashipaos kernel: platform regulatory.0: firmware: failed to load regulatory.db (-2)
+Apr 27 19:48:58 ashipaos kernel: platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+Apr 27 19:48:59 ashipaos kernel: debugfs: Directory 'ff800280.cec' with parent 'regmap' already present!
+Apr 27 19:49:00 ashipaos kernel: panfrost ffe40000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+Apr 27 19:49:00 ashipaos kernel: meson_vdec: module is from the staging directory, the quality is unknown, you have been warned.
+Apr 27 19:49:00 ashipaos kernel: FAT-fs (mmcblk0p1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.
+Apr 27 19:50:59 ashipaos systemd-networkd-wait-online[339]: Timeout occurred while waiting for network connectivity.
+Apr 27 19:50:59 ashipaos systemd[1]: systemd-networkd-wait-online.service: Failed with result 'exit-code'.
+Apr 27 19:50:59 ashipaos systemd[1]: Failed to start systemd-networkd-wait-online.service - Wait for Network to be Configured.
+Apr 27 19:51:10 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:51:18 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:51:26 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:51:34 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:51:41 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:51:49 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:51:57 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:52:05 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:52:12 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+
+== kernel log (tail) ==
+[    0.125756] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.125767] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.125777] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.128477] ACPI: Interpreter disabled.
+[    0.129205] iommu: Default domain type: Translated 
+[    0.129226] iommu: DMA domain TLB invalidation policy: strict mode 
+[    0.129478] pps_core: LinuxPPS API ver. 1 registered
+[    0.129495] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.129526] PTP clock support registered
+[    0.129566] EDAC MC: Ver: 3.0.0
+[    0.131966] NetLabel: Initializing
+[    0.131991] NetLabel:  domain hash size = 128
+[    0.132000] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.132068] NetLabel:  unlabeled traffic allowed by default
+[    0.132291] vgaarb: loaded
+[    0.132719] clocksource: Switched to clocksource arch_sys_counter
+[    0.133233] VFS: Disk quotas dquot_6.6.0
+[    0.133316] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.134264] AppArmor: AppArmor Filesystem Enabled
+[    0.134350] pnp: PnP ACPI: disabled
+[    0.143026] NET: Registered PF_INET protocol family
+[    0.143317] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.146680] tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.146793] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.146869] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.147277] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[    0.148034] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.148377] MPTCP token hash table entries: 4096 (order: 5, 98304 bytes, linear)
+[    0.148533] UDP hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.148616] UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.148966] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.149016] NET: Registered PF_XDP protocol family
+[    0.149040] PCI: CLS 0 bytes, default 64
+[    0.149485] Trying to unpack rootfs image as initramfs...
+[    0.150033] kvm [1]: IPA Size Limit: 40 bits
+[    0.150286] kvm [1]: vgic interrupt IRQ9
+[    0.150430] kvm [1]: VHE mode initialized successfully
+[    0.192480] Initialise system trusted keyrings
+[    0.192582] Key type blacklist registered
+[    0.192942] workingset: timestamp_bits=42 max_order=20 bucket_order=0
+[    0.199055] zbud: loaded
+[    0.200247] integrity: Platform Keyring initialized
+[    0.200314] integrity: Machine keyring initialized
+[    0.200332] Key type asymmetric registered
+[    0.200343] Asymmetric key parser 'x509' registered
+[    1.599420] Freeing initrd memory: 35088K
+[    1.627924] alg: self-tests for CTR-KDF (hmac(sha256)) passed
+[    1.628116] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 247)
+[    1.628308] io scheduler mq-deadline registered
+[    1.632968] irq_meson_gpio: 100 to 8 gpio interrupt mux initialized
+[    1.643612] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[    1.659299] soc soc0: Amlogic Meson SM1 (S905X3) Revision 2b:c (10:2) Detected
+[    1.662624] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    1.665439] Serial: AMBA driver
+[    1.665487] SuperH (H)SCI(F) driver initialized
+[    1.666333] ff803000.serial: ttyAML0 at MMIO 0xff803000 (irq = 14, base_baud = 1500000) is a meson_uart
+[    2.802920] printk: console [ttyAML0] enabled
+[    2.808056] msm_serial: driver initialized
+[    2.814978] mousedev: PS/2 mouse device common for all mice
+[    2.821401] ledtrig-cpu: registered to indicate activity on CPUs
+[    2.823476] meson-sm: secure-monitor enabled
+[    2.879784] NET: Registered PF_INET6 protocol family
+[    2.907194] Segment Routing with IPv6
+[    2.907315] In-situ OAM (IOAM) with IPv6
+[    2.909238] mip6: Mobile IPv6
+[    2.912083] NET: Registered PF_PACKET protocol family
+[    2.917207] mpls_gso: MPLS GSO support
+[    2.921676] registered taskstats version 1
+[    2.924887] Loading compiled-in X.509 certificates
+[    3.003239] Loaded X.509 cert 'Build time autogenerated kernel key: 833e2832225a7113aed9a0374865284c0405c0e0'
+[    3.008760] zswap: loaded using pool lzo/zbud
+[    3.012439] Key type .fscrypt registered
+[    3.015724] Key type fscrypt-provisioning registered
+[    3.046311] Key type encrypted registered
+[    3.046370] AppArmor: AppArmor sha1 policy hashing enabled
+[    3.050222] ima: No TPM chip found, activating TPM-bypass!
+[    3.055605] ima: Allocated hash algorithm: sha256
+[    3.060287] ima: No architecture policies found
+[    3.064782] evm: Initialising EVM extended attributes:
+[    3.069819] evm: security.selinux
+[    3.073096] evm: security.SMACK64 (disabled)
+[    3.077319] evm: security.SMACK64EXEC (disabled)
+[    3.081890] evm: security.SMACK64TRANSMUTE (disabled)
+[    3.086893] evm: security.SMACK64MMAP (disabled)
+[    3.091464] evm: security.apparmor
+[    3.094827] evm: security.ima
+[    3.097760] evm: security.capability
+[    3.101297] evm: HMAC attrs: 0x1
+[    3.526638] clk: Disabling unused clocks
+[    3.533672] Freeing unused kernel memory: 6464K
+[    3.588998] Checked W+X mappings: passed, no W+X pages found
+[    3.589071] Run /init as init process
+[    3.592657]   with arguments:
+[    3.592664]     /init
+[    3.592672]   with environment:
+[    3.592678]     HOME=/
+[    3.592686]     TERM=linux
+[    4.563539] meson-gx-mmc ffe05000.sd: Got CD GPIO
+[    4.570428] meson-vrtc ff8000a8.rtc: registered as rtc0
+[    4.570505] meson-vrtc ff8000a8.rtc: setting system clock to 1970-01-01T00:00:04 UTC (4)
+[    4.617305] meson-gx-mmc ffe07000.mmc: allocated mmc-pwrseq
+[    4.684775] meson8b-dwmac ff3f0000.ethernet: IRQ eth_wake_irq not found
+[    4.686170] meson8b-dwmac ff3f0000.ethernet: PTP uses main clock
+[    4.692509] mmc0: new high speed SDHC card at address 0001
+[    4.703692] mmcblk0: mmc0:0001 SD16G 29.1 GiB 
+[    4.704749] meson8b-dwmac ff3f0000.ethernet: User ID: 0x11, Synopsys ID: 0x37
+[    4.709943] meson8b-dwmac ff3f0000.ethernet: 	DWMAC1000
+[    4.714835] meson8b-dwmac ff3f0000.ethernet: DMA HW capability register supported
+[    4.714943]  mmcblk0: p1 p2
+[    4.722222] meson8b-dwmac ff3f0000.ethernet: RX Checksum Offload Engine supported
+[    4.722230] meson8b-dwmac ff3f0000.ethernet: COE Type 2
+[    4.722235] meson8b-dwmac ff3f0000.ethernet: TX Checksum insertion supported
+[    4.722239] meson8b-dwmac ff3f0000.ethernet: Wake-Up On Lan supported
+[    4.726021] meson8b-dwmac ff3f0000.ethernet: Normal descriptors
+[    4.734447] dwc3-meson-g12a ffe09000.usb: USB2 ports: 2
+[    4.737615] meson8b-dwmac ff3f0000.ethernet: Ring mode enabled
+[    4.737626] meson8b-dwmac ff3f0000.ethernet: Enable RX Mitigation via HW Watchdog Timer
+[    4.775683] dwc3-meson-g12a ffe09000.usb: USB3 ports: 1
+[    4.814042] mmc1: new HS200 MMC card at address 0001
+[    4.816123] mmcblk1: mmc1:0001 SGY3XD 57.9 GiB 
+[    4.821341] mmcblk1boot0: mmc1:0001 SGY3XD 4.00 MiB 
+[    4.825270] mmcblk1boot1: mmc1:0001 SGY3XD 4.00 MiB 
+[    4.841902] mmcblk1rpmb: mmc1:0001 SGY3XD 4.00 MiB, chardev (239:0)
+[    4.880642] usbcore: registered new interface driver usbfs
+[    4.880786] usbcore: registered new interface driver hub
+[    4.885919] usbcore: registered new device driver usb
+[    4.908979] meson8b-dwmac ff3f0000.ethernet end0: renamed from eth0
+[    4.924066] dwc2 ff400000.usb: supply vusb_d not found, using dummy regulator
+[    4.925864] dwc2 ff400000.usb: supply vusb_a not found, using dummy regulator
+[    4.933072] dwc2 ff400000.usb: EPs: 7, dedicated fifos, 712 entries in SPRAM
+[    4.983793] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    4.983872] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 1
+[    4.991480] xhci-hcd xhci-hcd.1.auto: hcc params 0x0228fe6c hci version 0x110 quirks 0x0000008000010010
+[    5.000699] xhci-hcd xhci-hcd.1.auto: irq 20, io mem 0xff500000
+[    5.006793] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    5.011937] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 2
+[    5.019524] xhci-hcd xhci-hcd.1.auto: Host supports USB 3.0 SuperSpeed
+[    5.026150] usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 6.01
+[    5.034141] usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    5.041298] usb usb1: Product: xHCI Host Controller
+[    5.046127] usb usb1: Manufacturer: Linux 6.1.0-52-arm64 xhci-hcd
+[    5.052170] usb usb1: SerialNumber: xhci-hcd.1.auto
+[    5.057751] hub 1-0:1.0: USB hub found
+[    5.060759] hub 1-0:1.0: 2 ports detected
+[    5.065299] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    5.072903] usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 6.01
+[    5.080898] usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    5.088051] usb usb2: Product: xHCI Host Controller
+[    5.092881] usb usb2: Manufacturer: Linux 6.1.0-52-arm64 xhci-hcd
+[    5.098911] usb usb2: SerialNumber: xhci-hcd.1.auto
+[    5.104631] hub 2-0:1.0: USB hub found
+[    5.107500] hub 2-0:1.0: 1 port detected
+[    5.336758] usb 1-2: new full-speed USB device number 2 using xhci-hcd
+[    5.397541] EXT4-fs (mmcblk0p2): mounted filesystem with ordered data mode. Quota mode: none.
+[    5.486339] usb 1-2: New USB device found, idVendor=1915, idProduct=1025, bcdDevice= 1.00
+[    5.488911] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=0
+[    5.495981] usb 1-2: Product: USB Composite Device
+[    5.500725] usb 1-2: Manufacturer: XING WEI 2.4G USB
+[    5.692593] Not activating Mandatory Access Control as /sbin/tomoyo-init does not exist.
+[    6.495321] systemd[1]: System time before build time, advancing clock.
+[    6.595412] systemd[1]: Inserted module 'autofs4'
+[    6.725099] systemd[1]: systemd 252.39-1~deb12u2 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    6.752067] systemd[1]: Detected architecture arm64.
+[    6.766477] systemd[1]: Hostname set to <ashipaos>.
+[    6.787706] systemd[1]: Initializing machine ID from random generator.
+[    7.654672] systemd[1]: Queued start job for default target graphical.target.
+[    7.683154] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+[    7.688820] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+[    7.696420] systemd[1]: Created slice user.slice - User and Session Slice.
+[    7.701851] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+[    7.712668] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+[    7.723802] systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+[    7.735101] systemd[1]: Expecting device dev-disk-by\x2dlabel-A95XBOOT.device - /dev/disk/by-label/A95XBOOT...
+[    7.744879] systemd[1]: Expecting device dev-ttyAML0.device - /dev/ttyAML0...
+[    7.751938] systemd[1]: Reached target cryptsetup.target - Local Encrypted Volumes.
+[    7.759625] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+[    7.768468] systemd[1]: Reached target paths.target - Path Units.
+[    7.774379] systemd[1]: Reached target remote-fs.target - Remote File Systems.
+[    7.781508] systemd[1]: Reached target slices.target - Slice Units.
+[    7.787785] systemd[1]: Reached target swap.target - Swaps.
+[    7.793296] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+[    7.802610] systemd[1]: Listening on systemd-fsckd.socket - fsck to fsckd communication Socket.
+[    7.810769] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[    7.820582] systemd[1]: Listening on systemd-journald-audit.socket - Journal Audit Socket.
+[    7.828283] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[    7.837150] systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+[    7.844404] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[    7.853167] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[    7.860603] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[    7.901093] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+[    7.909099] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+[    7.917876] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+[    7.926346] systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+[    7.935865] systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+[    7.946314] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+[    7.955920] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+[    7.965288] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+[    7.974140] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    7.984098] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+[    7.993316] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+[    7.996153] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+[    8.019399] systemd[1]: Starting systemd-journald.service - Journal Service...
+[    8.060647] loop: module loaded
+[    8.081562] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    8.090104] systemd[1]: Starting systemd-network-generator.service - Generate network units from Kernel command line...
+[    8.101662] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    8.107112] fuse: init (API version 7.38)
+[    8.111863] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[    8.129979] systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
+[    8.132993] systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+[    8.140663] systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+[    8.148147] systemd[1]: Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+[    8.157016] systemd[1]: Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+[    8.166659] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    8.171638] systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+[    8.181912] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[    8.186187] systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
+[    8.187860] device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+[    8.204538] device-mapper: uevent: version 1.0.3
+[    8.207694] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+[    8.209038] device-mapper: ioctl: 4.47.0-ioctl (2022-07-28) initialised: dm-devel@redhat.com
+[    8.217446] systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+[    8.223604] EXT4-fs (mmcblk0p2): re-mounted. Quota mode: none.
+[    8.246054] systemd[1]: modprobe@dm_mod.service: Deactivated successfully.
+[    8.248390] systemd[1]: Finished modprobe@dm_mod.service - Load Kernel Module dm_mod.
+[    8.258344] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    8.262926] systemd[1]: Finished modprobe@fuse.service - Load Kernel Module fuse.
+[    8.271960] systemd[1]: modprobe@loop.service: Deactivated successfully.
+[    8.277611] systemd[1]: Finished modprobe@loop.service - Load Kernel Module loop.
+[    8.285725] systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+[    8.293776] systemd[1]: Finished systemd-network-generator.service - Generate network units from Kernel command line.
+[    8.303699] systemd[1]: Finished systemd-remount-fs.service - Remount Root and Kernel File Systems.
+[    8.313363] systemd[1]: Reached target network-pre.target - Preparation for Network.
+[    8.345616] systemd[1]: Mounting sys-fs-fuse-connections.mount - FUSE Control File System...
+[    8.355560] systemd[1]: Mounting sys-kernel-config.mount - Kernel Configuration File System...
+[    8.359330] systemd[1]: systemd-firstboot.service - First Boot Wizard was skipped because of an unmet condition check (ConditionFirstBoot=yes).
+[    8.371852] systemd[1]: systemd-pstore.service - Platform Persistent Storage Archival was skipped because of an unmet condition check (ConditionDirectoryNotEmpty=/sys/fs/pstore).
+[    8.393110] systemd[1]: Starting systemd-random-seed.service - Load/Save Random Seed...
+[    8.396491] systemd[1]: systemd-repart.service - Repartition Root Disk was skipped because no trigger condition checks were met.
+[    8.413496] systemd[1]: Starting systemd-sysctl.service - Apply Kernel Variables...
+[    8.422523] systemd[1]: Starting systemd-sysusers.service - Create System Users...
+[    8.438112] systemd[1]: Started systemd-journald.service - Journal Service.
+[    8.546860] systemd-journald[231]: Received client request to flush runtime journal.
+[   10.015008] meson-gx-mmc ffe03000.sd: allocated mmc-pwrseq
+[   10.065160] meson-gx-mmc ffe03000.sd: card claims to support voltages below defined range
+[   10.099545] mmc2: new ultra high speed SDR104 SDIO card at address 0001
+[   10.225812] Registered IR keymap rc-empty
+[   10.225961] rc rc0: meson-ir as /devices/platform/soc/ff800000.bus/ff808000.ir/rc/rc0
+[   10.232185] rc rc0: lirc_dev: driver meson-ir registered at minor = 0, raw IR receiver, no transmitter
+[   10.256993] input: meson-ir as /devices/platform/soc/ff800000.bus/ff808000.ir/rc/rc0/input0
+[   10.259949] meson-ir ff808000.ir: receiver initialized
+[   10.261847] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[   10.273773] cfg80211: Loaded X.509 cert 'benh@debian.org: 577e021cb980e0e820821ba7b54b4961b8b4fadf'
+[   10.282074] cfg80211: Loaded X.509 cert 'romain.perier@gmail.com: 3abbc6ec146e09d1b6016ab9d6cf71dd233f0328'
+[   10.291721] cfg80211: Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[   10.298320] cfg80211: Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[   10.306078] platform regulatory.0: firmware: failed to load regulatory.db (-2)
+[   10.312812] firmware_class: See https://wiki.debian.org/Firmware for information about missing firmware
+[   10.322173] platform regulatory.0: firmware: failed to load regulatory.db (-2)
+[   10.329268] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[   10.337846] cfg80211: failed to load regulatory.db
+[   10.395876] mc: Linux media interface: v0.10
+[   10.584806] meson-drm ff900000.vpu: Queued 2 outputs on vpu
+[   10.604733] random: crng init done
+[   10.652390] debugfs: Directory 'ff800280.cec' with parent 'regmap' already present!
+[   10.656564] Registered IR keymap rc-cec
+[   10.658386] rc rc1: meson_g12a_ao_cec as /devices/platform/soc/ff800000.bus/ff800280.cec/rc/rc1
+[   10.667112] input: meson_g12a_ao_cec as /devices/platform/soc/ff800000.bus/ff800280.cec/rc/rc1/input1
+[   10.734146] videodev: Linux video capture interface: v2.00
+[   10.860841] meson-dw-hdmi ff600000.hdmi-tx: Detected HDMI TX controller v2.01a with HDCP (meson_dw_hdmi_phy)
+[   10.865620] meson-dw-hdmi ff600000.hdmi-tx: registered DesignWare HDMI I2C bus driver
+[   10.873274] meson-drm ff900000.vpu: bound ff600000.hdmi-tx (ops meson_dw_hdmi_ops [meson_dw_hdmi])
+[   10.882725] [drm] Initialized meson 1.0.0 20161109 for ff900000.vpu on minor 0
+[   10.916561] panfrost ffe40000.gpu: clock rate = 24000000
+[   10.916680] panfrost ffe40000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+[   10.930592] panfrost ffe40000.gpu: mali-g31 id 0x7093 major 0x0 minor 0x0 status 0x0
+[   10.932756] panfrost ffe40000.gpu: features: 00000000,000027f7, issues: 00000000,00000400
+[   10.940893] panfrost ffe40000.gpu: Features: L2:0x07100206 Shader:0x00000000 Tiler:0x00000209 Mem:0x1 MMU:0x00002821 AS:0xff JS:0x7
+[   10.952572] panfrost ffe40000.gpu: shader_present=0x1 l2_present=0x1
+[   10.963561] [drm] Initialized panfrost 1.2.0 20180908 for ffe40000.gpu on minor 1
+[   11.129239] hid: raw HID events driver (C) Jiri Kosina
+[   11.177710] usbcore: registered new interface driver usbhid
+[   11.177765] usbhid: USB HID core driver
+[   11.206067] input: XING WEI 2.4G USB USB Composite Device as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.2/0003:1915:1025.0001/input/input2
+[   11.247423] meson8b-dwmac ff3f0000.ethernet end0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[   11.313180] meson8b-dwmac ff3f0000.ethernet end0: PHY [mdio_mux-0.1:08] driver [Meson G12A Internal PHY] (irq=19)
+[   11.320776] meson8b-dwmac ff3f0000.ethernet end0: No Safety Features support found
+[   11.320798] meson8b-dwmac ff3f0000.ethernet end0: PTP not supported by HW
+[   11.321187] meson8b-dwmac ff3f0000.ethernet end0: configuring for phy/rmii link mode
+[   11.338952] meson_vdec: module is from the staging directory, the quality is unknown, you have been warned.
+[   11.341491] FAT-fs (mmcblk0p1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.
+[   11.344760] usbcore: registered new interface driver snd-usb-audio
+[   11.369264] hid-generic 0003:1915:1025.0001: input,hidraw0: USB HID v2.01 Keyboard [XING WEI 2.4G USB USB Composite Device] on usb-xhci-hcd.1.auto-2/input2
+[   11.370305] input: XING WEI 2.4G USB USB Composite Device Mouse as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input3
+[   11.370853] input: XING WEI 2.4G USB USB Composite Device Consumer Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input4
+[   11.429152] input: XING WEI 2.4G USB USB Composite Device System Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input5
+[   11.429381] input: XING WEI 2.4G USB USB Composite Device as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input6
+[   11.429631] hid-generic 0003:1915:1025.0002: input,hidraw1: USB HID v2.01 Mouse [XING WEI 2.4G USB USB Composite Device] on usb-xhci-hcd.1.auto-2/input3
+[   11.529621] Console: switching to colour frame buffer device 200x56
+[   11.702230] meson-drm ff900000.vpu: [drm] fb0: mesondrmfb frame buffer device

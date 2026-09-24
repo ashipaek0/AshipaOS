@@ -13,3 +13,18 @@ Evidence supplied by the owner of the exact unit (MANUAL, 2026-09-24).
 
 The matching mainline device tree is `amlogic/meson-sm1-a95xf3-air.dtb`
 (internal RMII PHY), not the `-gbit` variant.
+
+## First AshipaOS boot (2026-09-24, image from commit 9e53383)
+
+Logs in `boot-2026-09-24/`, copied from the SD card by the owner.
+
+- `ashipaos-stage2-u-boot.txt`: the vendor U-Boot chain-loaded the AshipaOS
+  mainline U-Boot (`U-Boot 2024.07-g3f772959 ... ashipaos-a95x-f3-air`), which
+  found the card on `mmc 0` and loaded the kernel. No stage-1 log was supplied.
+- `ashipaos-stage3-linux.txt`: Debian `6.1.0-52-arm64` booted with
+  `meson-sm1-a95xf3-air.dtb` (model "Shenzhen CYX Industrial Co., Ltd
+  A95XF3-AIR"); meson-drm, panfrost (Mali-G31), HDMI framebuffer console,
+  meson-ir, audio cards and a USB 2.4 GHz keyboard/mouse came up; the internal
+  PHY bound. `end0` had no link, the clock was not set (no network, no RTC),
+  and `ashipaos-jellyfin-mpv-shim.service` exited with an error about 5 s after
+  each start (reason not captured by that report version).

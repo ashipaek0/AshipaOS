@@ -16,8 +16,10 @@ packages:
   # Kernel and DTBs come from the same package; see build/targets mainline_boot.
   kernel: [linux-image-arm64, initramfs-tools]
   # busybox serves the boot-status endpoint; systemd-resolved pairs with the
-  # systemd-networkd DHCP configuration in rootfs-overlay.
-  system: [busybox, ca-certificates, dbus, systemd-resolved]
+  # systemd-networkd DHCP configuration in rootfs-overlay. The box has no
+  # battery-backed clock, so systemd-timesyncd sets the time over the network
+  # (TLS to a Jellyfin server fails with a wrong clock).
+  system: [busybox, ca-certificates, dbus, systemd-resolved, systemd-timesyncd]
   # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv,
   # rendering through DRM/GBM/EGL (Mesa panfrost + meson display driver).
   application_runtime: [python3, libmpv2, libgl1-mesa-dri, libegl-mesa0, libgbm1, fonts-dejavu-core]

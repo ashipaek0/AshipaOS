@@ -206,7 +206,10 @@ configure_system() {
 
     install -D -m 0644 "$OVERLAY_DIR/etc/systemd/network/20-wired.network" \
         "$ROOTFS/etc/systemd/network/20-wired.network"
-    in_rootfs systemctl enable systemd-networkd.service systemd-resolved.service
+    in_rootfs systemctl enable systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
+    # The appliance must boot with or without a network: nothing may wait for
+    # one, so network-online.target is reached at once.
+    ln -sfn /dev/null "$ROOTFS/etc/systemd/system/systemd-networkd-wait-online.service"
 }
 
 target_enables_boot_status() {

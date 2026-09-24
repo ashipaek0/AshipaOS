@@ -1,13 +1,14 @@
-# No-UART diagnostics: 60 s after boot, write ashipaos-stage3-linux.txt to the
-# SD card's boot partition (LABEL=A95XBOOT, mounted at /boot/firmware).
+# No-UART diagnostics: rewrite ashipaos-stage3-linux.txt on the SD card's boot
+# partition (LABEL=A95XBOOT, mounted at /boot/firmware) 1, 3 and 10 minutes
+# after boot. Type=simple and no After=multi-user.target, so it never holds up
+# or cycles with the boot target.
 [Unit]
 Description=AshipaOS boot report on the SD boot partition
-After=multi-user.target local-fs.target
+After=local-fs.target
 
 [Service]
-Type=oneshot
-ExecStartPre=/bin/sleep 60
-ExecStart=/usr/libexec/ashipaos-boot-report
+Type=simple
+ExecStart=/bin/sh -c 'for delay in 60 120 420; do sleep $delay; /usr/libexec/ashipaos-boot-report; done'
 
 [Install]
 WantedBy=multi-user.target

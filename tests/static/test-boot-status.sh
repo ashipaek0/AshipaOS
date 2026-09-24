@@ -41,4 +41,13 @@ for unit in "$SERVICE" "$SUCCESS"; do
     [[ -f "$OVERLAY/etc/systemd/system/$dep" || -f "$APP_UNITS/$dep" ]] || fail "$(basename "$unit") depends on missing unit $dep"
   done < <(grep -E '^(Requires|Wants|After|BindsTo)=' "$unit" | cut -d= -f2 | tr ' ' '\n' | grep '^ashipaos-' || true)
 done
+# The appliance boots with or without a network: nothing waits for one.
+APP_UNIT="$ROOT/layers/layer5-application/files/etc/systemd/system/ashipaos-jellyfin-mpv-shim.service"
+! grep -q 'network-online' "$SERVICE" "$SUCCESS" "$APP_UNIT" || fail "a boot unit waits for network-online.target"
+grep -q 'systemd-networkd-wait-online.service' "$ROOTFS_SCRIPT" || fail "systemd-networkd-wait-online must be masked"
+# The boot report must not be ordered after the target that wants it (that is
+# an ordering cycle) and must not block boot.
+REPORT="$OVERLAY/etc/systemd/system/ashipaos-boot-report.service"
+! grep -Eq '^After=.*multi-user.target' "$REPORT" || fail "boot report is ordered after multi-user.target (ordering cycle)"
+grep -qx 'Type=simple' "$REPORT" || fail "boot report must not block boot"
 printf '%s\n' 'PASS: boot-status static contract'

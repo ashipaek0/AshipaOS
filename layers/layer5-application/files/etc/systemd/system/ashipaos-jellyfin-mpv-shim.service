@@ -2,8 +2,9 @@
 # on the HDMI output via DRM/KMS, started at boot on tty1.
 [Unit]
 Description=AshipaOS Jellyfin MPV Shim
-Wants=network-online.target
-After=network-online.target systemd-user-sessions.service
+# Boots with or without a network: the shim starts at once and handles
+# connectivity itself (its browser shows the server/login screen).
+After=network.target systemd-user-sessions.service
 # The shim owns tty1 and the display; no login prompt is drawn over it.
 Conflicts=getty@tty1.service
 After=getty@tty1.service

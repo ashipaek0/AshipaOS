@@ -23,7 +23,7 @@ packages = [p for group in config["packages"].values() for p in group]
 assert config["architecture"] == "arm64"
 assert target["mainline_boot"]["kernel_package"] in packages
 assert {"initramfs-tools", "python3", "libmpv2", "libgl1-mesa-dri", "libegl-mesa0", "libgbm1",
-        "fonts-dejavu-core", "busybox", "systemd-resolved"} <= set(packages)
+        "fonts-dejavu-core", "busybox", "systemd-resolved", "systemd-timesyncd"} <= set(packages)
 import re
 debian = config["debian"]
 assert re.fullmatch(r"\d{8}T\d{6}Z", debian["snapshot"]), "Debian must be pinned to a snapshot timestamp"

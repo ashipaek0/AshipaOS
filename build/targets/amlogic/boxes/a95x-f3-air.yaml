@@ -77,15 +77,20 @@ coreelec_baseline:
 # from the same kernel package: the internal-PHY (100 Mbit) variant, matching
 # this unit. The vendor U-Boot chain-loads a pinned mainline U-Boot
 # (layers/layer2-image/config/u-boot/) which boots the kernel.
-# PROVISIONAL until a boot on the exact unit is evidenced (no UART: the SD
-# boot-stage logs are the evidence path).
+# CONFIRMED to Linux userspace on the exact unit (SD boot-stage logs; the unit
+# has no UART). Display output, playback and hardware decode are separate facts.
 mainline_boot:
   kernel_package: linux-image-arm64
   device_tree: amlogic/meson-sm1-a95xf3-air.dtb
   bootloader: mainline-u-boot-chainload
   console: ttyAML0
-  status: PROVISIONAL
-  evidence: []
+  status: CONFIRMED
+  evidence:
+    - class: HARDWARE
+      runner: human
+      target: a95x-f3-air
+      source: evidence/amlogic/a95x-f3-air/boot-2026-09-24/
+      facts: [vendor U-Boot chain-loaded u-boot.ext, booti of 6.1.0-52-arm64, systemd reached multi-user, meson-drm and panfrost bound, HDMI framebuffer console]
 
 stock_firmware:
   value: slimBOXtv ATV 9.20 (A95X_F3_AIR_M-9.0.0-202006121521, Android 9)

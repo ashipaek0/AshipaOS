@@ -11,11 +11,16 @@ tmp="$report.partial"
     echo "== AshipaOS boot report (stage 3: Linux userspace) =="
     date -u '+%Y-%m-%dT%H:%M:%SZ (may be wrong before NTP)'
     echo "uptime: $(cat /proc/uptime)"
+    echo "report written by: $0 (rewritten 1, 3 and 10 minutes after boot)"
     echo "kernel: $(uname -a)"
     echo "cmdline: $(cat /proc/cmdline)"
     echo "model: $(tr -d '\0' </proc/device-tree/model 2>/dev/null)"
     echo; echo "== failed units =="; systemctl --failed --no-pager --no-legend
-    echo; echo "== jellyfin mpv shim =="; systemctl status ashipaos-jellyfin-mpv-shim.service --no-pager -l -n 60
+    echo; echo "== jellyfin mpv shim =="; systemctl status ashipaos-jellyfin-mpv-shim.service --no-pager -l -n 0
+    echo; echo "== jellyfin mpv shim log (this boot, all priorities) =="
+    journalctl -b -u ashipaos-jellyfin-mpv-shim.service --no-pager -o short-monotonic -n 600
+    echo; echo "== jellyfin mpv shim config =="; ls -la /storage/jellyfin-mpv-shim 2>&1
+    echo; echo "== clock =="; timedatectl 2>&1
     echo; echo "== display/input/audio devices =="; ls -l /dev/dri /dev/input /dev/snd 2>&1
     echo; echo "== network =="; ip -brief address 2>&1
     echo; echo "== journal warnings (this boot) =="; journalctl -b -p warning --no-pager -n 300
