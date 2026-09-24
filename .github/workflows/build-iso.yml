@@ -1,0 +1,138 @@
+name: Build AshipaOS offline appliance installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [mpv-shim-flatpak]
+permissions: {contents: read}
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install static-test fixture tools
+        run: sudo apt-get update && sudo apt-get install -y cpio dosfstools mtools zstd ostree
+      - run: tests/run.sh
+      - run: scripts/static-tests.sh
+      - run: git diff --check
+  build:
+    needs: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install appliance build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mmdebstrap debootstrap parted gdisk dosfstools e2fsprogs \
+            grub-pc-bin grub-efi-amd64-bin grub-common xorriso zstd qemu-system-x86 \
+            qemu-utils ovmf flatpak ostree gnupg cpio gzip file binutils util-linux cloud-image-utils syslinux mtools lvm2 mdadm kmod
+      - name: Build locked Flatpak payload
+        run: scripts/build-flatpak-payload.sh
+      - name: Verify offline Flatpak graph
+        run: scripts/test-flatpak-payload-offline.sh
+      - name: Build sealed appliance root filesystem
+        env:
+          ADMIN_SSH_PUBKEY: ${{ secrets.ADMIN_SSH_PUBKEY }}
+        run: sudo -E scripts/build-rootfs.sh
+      - run: sudo scripts/assemble-disk-image.sh
+      - run: sudo scripts/build-installer-initramfs.sh
+      - run: sudo scripts/check-initramfs-closure.sh out/installer-initramfs.gz
+      - run: sudo scripts/build-iso.sh
+      - run: sha256sum --check out/ashipaos-installer.iso.sha256
+      - run: scripts/validate-iso-assets.sh out/ashipaos-installer.iso
+      - run: cp out/ashipaos-installer.iso.sha256 out/build-iso.sha256
+      - name: Write build evidence manifest
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, platform, subprocess, time
+          files=['out/appliance.img.zst','out/appliance.img.manifest','out/installer-initramfs.gz','out/ashipaos-installer.iso','out/flatpak-lock.json','out/rootfs-build.lock']
+          hashes={p:hashlib.file_digest(open(p,'rb'),'sha256').hexdigest() for p in files}
+          tools={x:subprocess.run([x,'--version'],text=True,capture_output=True).stdout.splitlines()[:1] for x in ['xorriso','flatpak','ostree','grub-mkrescue','qemu-system-x86_64']}
+          json.dump({'repo':os.environ['GITHUB_REPOSITORY'],'ref':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],'run_attempt':os.environ['GITHUB_RUN_ATTEMPT'],'job':os.environ['GITHUB_JOB'],'runner_os':platform.platform(),'arch':platform.machine(),'timestamp':int(time.time()),'hashes':hashes,'tools':tools,'debian_snapshot':open('out/rootfs-build.lock').read()}, open('out/evidence-manifest.json','w'), sort_keys=True)
+          PY
+      - name: Stream artifact hashes
+        run: sha256sum out/appliance.img.zst out/appliance.img.manifest out/installer-initramfs.gz out/ashipaos-installer.iso out/flatpak-lock.json out/rootfs-build.lock
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ashipaos-installer
+          path: |
+            out/ashipaos-installer.iso*
+            out/appliance.img.zst
+            out/appliance.img.manifest
+            out/installer-initramfs.gz
+            out/flatpak-lock.json
+            out/rootfs-build.lock
+            out/build-iso.sha256
+            out/evidence-manifest.json
+          if-no-files-found: error
+  vm-bios:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ashipaos-installer
+          path: out
+      - name: Install VM dependencies
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils
+      - run: bash -c 'source installer/config.sh; truncate -s "$MIN_INSTALL_DISK_BYTES" out/vm-disk.img'
+      - run: sha256sum --check out/ashipaos-installer.iso.sha256
+      - run: sudo --preserve-env=GITHUB_SHA,GITHUB_RUN_ID,GITHUB_JOB,GITHUB_ACTIONS,CI VM_TIMEOUT_SECONDS=420 scripts/vm-test.sh bios out/ashipaos-installer.iso
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ashipaos-vm-bios-evidence
+          path: |
+            out/evidence/vm-bios-install.log
+            out/evidence/vm-bios-installed.log
+            out/evidence/vm-bios-guard.log
+            out/evidence/vm-bios-force.log
+            out/evidence/vm-bios-force-installed.log
+            out/evidence/vm-bios-manifest.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ashipaos-vm-bios-diagnostics
+          path: out/evidence/vm-bios-*.log
+          if-no-files-found: warn
+  vm-uefi:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ashipaos-installer
+          path: out
+      - name: Install VM dependencies
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils ovmf
+      - run: bash -c 'source installer/config.sh; truncate -s "$MIN_INSTALL_DISK_BYTES" out/vm-disk.img'
+      - run: sha256sum --check out/ashipaos-installer.iso.sha256
+      - run: sudo --preserve-env=GITHUB_SHA,GITHUB_RUN_ID,GITHUB_JOB,GITHUB_ACTIONS,CI,OVMF_CODE,OVMF_VARS VM_TIMEOUT_SECONDS=420 scripts/vm-test.sh uefi out/ashipaos-installer.iso
+        env:
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS.fd
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ashipaos-vm-uefi-evidence
+          path: |
+            out/evidence/vm-uefi-install.log
+            out/evidence/vm-uefi-installed.log
+            out/evidence/vm-uefi-guard.log
+            out/evidence/vm-uefi-force.log
+            out/evidence/vm-uefi-force-installed.log
+            out/evidence/vm-uefi-manifest.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ashipaos-vm-uefi-diagnostics
+          path: out/evidence/vm-uefi-*.log
+          if-no-files-found: warn
