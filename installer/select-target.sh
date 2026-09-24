@@ -4,12 +4,11 @@ set -Eeuo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT_DIR/installer/config.sh"
 source "$ROOT_DIR/installer/partition-path.sh"
-sysfs=${SYSFS_ROOT:-/sys}; devroot=${DEV_ROOT:-/dev}; export DEV_ROOT="$devroot"; explicit=${INSTALL_TARGET:-}; source=${INSTALL_SOURCE:-}; force=0; fixture=0
+sysfs=${SYSFS_ROOT:-/sys}; devroot=${DEV_ROOT:-/dev}; export DEV_ROOT="$devroot"; explicit=${INSTALL_TARGET:-}; source=${INSTALL_SOURCE:-}; fixture=0
 for arg in "$@"; do
   case "$arg" in
     ashipaos.install_target=*) explicit=${arg#*=};;
     ashipaos.install_source=*) source=${arg#*=};;
-    ashipaos.force=1) force=1;;
     --fixture-root) fixture=1;;
   esac
 done
@@ -61,7 +60,7 @@ marker_valid() {
   if (( fixture )) && [[ -n "${FIXTURE_MARKER_ROOT:-}" ]]; then
     marker=${FIXTURE_MARKER_ROOT%/}/var/lib/ashipaos/install-complete
     [[ -f "$marker" ]] && grep -qx 'installed' "$marker" || return 1
-    # Fixture force paths still model the exact three-partition product layout.
+    # Fixture markers still model the exact three-partition product layout.
     local fixture_child fixture_name
     for fixture_child in "$sysfs/block/${disk##*/}"/*; do
       [[ -e "$fixture_child" ]] || continue
@@ -84,7 +83,7 @@ marker_valid() {
   return "$result"
 }
 is_safe() {
-  local path=$1 name=${1##*/} base="$sysfs/block/${1##*/}" size removable ro loop=0 ram=0 marker_ok=0
+  local path=$1 name=${1##*/} base="$sysfs/block/${1##*/}" size removable ro loop=0 ram=0
   [[ -e "$path" && -e "$base" ]] || return 1
   (( fixture == 1 )) || [[ -b "$path" ]] || return 1
   if [[ -f "$base/attrs" ]]; then { read -r size; read -r removable; read -r ro; read -r _; } < "$base/attrs"; else
@@ -95,7 +94,7 @@ is_safe() {
   [[ ${removable:-1} == 0 && ${ro:-1} == 0 && $loop == 0 && $ram == 0 ]] || return 1
   [[ "$name" != sr* && "$name" != loop* && "$name" != ram* && "$name" != fd* ]] || return 1
   [[ "$name" != "$source_name" && "$name" != "$source_disk" ]] || return 1
-  local child kind canonical_child sysnode signature fstype label parttype expected_parttype
+  local child kind canonical_child sysnode signature
   local -a descendants=()
   if (( fixture )) && [[ "${SELECTOR_PRODUCTION_PROBES:-0}" != 1 ]]; then
     descendants+=("$path")
@@ -108,12 +107,12 @@ is_safe() {
     done < <(lsblk -nrpo NAME,TYPE "$path" 2>/dev/null)
     [[ ${descendants[0]:-} == "$path" ]] || return 1
   fi
+  # Only blank disks are installable. A completed AshipaOS disk is reported
+  # as REFUSED_MARKER so the guard is distinguishable from other refusals.
   if (( ${#descendants[@]} > 1 )); then
-    if marker_valid "$path"; then
-      if (( force == 1 )); then marker_ok=1; else marker_invalid=1; return 1; fi
-    fi
+    if marker_valid "$path"; then marker_invalid=1; fi
+    return 1
   fi
-  (( ${#descendants[@]} == 1 || marker_ok == 1 )) || return 1
   local -a mounts=() swaps=()
   local mount_output mount_status
   mount_output=$(findmnt -rn -o SOURCE 2>/dev/null) && mount_status=0 || mount_status=$?
@@ -137,32 +136,8 @@ is_safe() {
     # the protective MBR), so only an exported md superblock means RAID.
     if command -v mdadm >/dev/null && [[ "$(mdadm --examine --export "$child" 2>/dev/null || true)" == *MD_UUID=* ]]; then return 1; fi
     if command -v dmsetup >/dev/null && dmsetup info "$child" >/dev/null 2>&1; then return 1; fi
-    signature=$(blkid -p -o export "$child" 2>/dev/null || true)
-    if (( marker_ok == 0 )); then [[ -z "$signature" ]] || return 1; continue; fi
-    if [[ "$child" == "$path" ]]; then
-      [[ "$signature" == *$'PTTYPE=gpt'* ]] || return 1
-      while IFS= read -r line; do
-        [[ "$line" == PTTYPE=gpt || "$line" == PTUUID=* || "$line" == DEVNAME=* ]] || return 1
-      done <<< "$signature"
-      continue
-    fi
-    fstype=$(printf '%s\n' "$signature" | awk -F= '$1=="TYPE"{print $2}')
-    label=$(printf '%s\n' "$signature" | awk -F= '$1=="LABEL"{print $2}')
-    case "$child" in
-      "$(partition_path "$path" 1)") [[ -z "$fstype" && -z "$label" ]] || return 1; expected_parttype=21686148-6449-6e6f-744e-656564454649;;
-      "$(partition_path "$path" 2)") [[ "$fstype" == vfat && "$label" == ASHIPAOS ]] || return 1; expected_parttype=c12a7328-f81f-11d2-ba4b-00a0c93ec93b;;
-      "$(partition_path "$path" 3)") [[ "$fstype" == ext4 && "$label" == ASHIPAOS_ROOT ]] || return 1; expected_parttype=0fc63daf-8483-4772-8e79-3d69d8477de4;;
-      *) return 1;;
-    esac
-    parttype=$(lsblk -nro PARTTYPE "$child" 2>/dev/null || true)
-    [[ "${parttype,,}" == "$expected_parttype" ]] || return 1
-    [[ "$signature" != *'LVM2_member'* && "$signature" != *'linux_raid_member'* && "$signature" != *'crypto_LUKS'* ]] || return 1
-    [[ "$signature" != *$'USAGE=raid'* && "$signature" != *$'USAGE=crypto'* ]] || return 1
-    while IFS= read -r line; do
-      [[ -z "$line" || "$line" == DEVNAME=* || "$line" == UUID=* || "$line" == PARTUUID=* || "$line" == PART_ENTRY_* || "$line" == BLOCK_SIZE=* || "$line" == VERSION=* || "$line" == USAGE=* || "$line" == LABEL=* || "$line" == TYPE=* ]] || return 1
-    done <<< "$signature"
+    [[ -z "$(blkid -p -o export "$child" 2>/dev/null || true)" ]] || return 1
   done
-  (( marker_ok == 1 || force == 0 )) || return 1
 }
 if [[ -n "$explicit" ]]; then
   [[ "$explicit" == /dev/* && -n "${explicit#/dev/}" ]] || { printf 'ASHIPAOS_INSTALL_REFUSED_UNSAFE\n' >&2; exit 1; }

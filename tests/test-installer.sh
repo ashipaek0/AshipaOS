@@ -9,7 +9,7 @@ printf 'sha256=%s\nsize=%s\n' "$hash" "$size" > "$tmp/in/appliance.img.manifest"
 case "$mode" in
   corrupt) printf 'sha256=%064d\nsize=%s\n' 1 "$size" > "$tmp/in/appliance.img.manifest"; ! INSTALLER_ROOT="$tmp/in" TARGET_ROOT="$tmp/target" "$ROOT/installer/install.sh" --check-only ;;
   complete) mkdir -p "$tmp/target/var/lib/ashipaos"; printf installed > "$tmp/target/var/lib/ashipaos/install-complete"; ! INSTALLER_ROOT="$tmp/in" TARGET_ROOT="$tmp/target" "$ROOT/installer/install.sh" --check-only ;;
-  force-invalid) mkdir -p "$tmp/target"; ! INSTALLER_ROOT="$tmp/in" TARGET_ROOT="$tmp/target" "$ROOT/installer/install.sh" --check-only ashipaos.force=1 ;;
-  force-valid) mkdir -p "$tmp/target/var/lib/ashipaos"; printf installed > "$tmp/target/var/lib/ashipaos/install-complete"; INSTALLER_ROOT="$tmp/in" TARGET_ROOT="$tmp/target" "$ROOT/installer/install.sh" --check-only ashipaos.force=1 ;;
+  complete-force-arg) mkdir -p "$tmp/target/var/lib/ashipaos"; printf installed > "$tmp/target/var/lib/ashipaos/install-complete"; ! INSTALLER_ROOT="$tmp/in" TARGET_ROOT="$tmp/target" "$ROOT/installer/install.sh" --check-only ashipaos.force=1 ;;
+  blank) INSTALLER_ROOT="$tmp/in" TARGET_ROOT="$tmp/target" "$ROOT/installer/install.sh" --check-only ;;
   *) exit 2 ;;
 esac

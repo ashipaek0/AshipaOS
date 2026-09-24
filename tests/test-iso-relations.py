@@ -35,7 +35,7 @@ El Torito img path :   2  /efi.img
 '''
         files = {
             'boot/vmlinuz': b'kernel', 'boot/initramfs.gz': b'initramfs',
-            'boot/grub/grub.cfg': b'menuentry install {\n linux /boot/vmlinuz quiet\n initrd /boot/initramfs.gz\n}\nmenuentry force {\n linux /boot/vmlinuz quiet ashipaos.force=1\n initrd /boot/initramfs.gz\n}\n',
+            'boot/grub/grub.cfg': b'menuentry install {\n linux /boot/vmlinuz quiet\n initrd /boot/initramfs.gz\n}\n',
             'boot/grub/i386-pc/eltorito.img': b'GRUB',
             'EFI/BOOT/BOOTX64.EFI': b'efi',
         }
@@ -148,9 +148,14 @@ El Torito img path :   2  /efi.img
         (self.tree / 'boot/grub/grub.cfg').write_text('linux /boot/vmlinuz\n')
         self.bad()
 
-    def test_force_menu_missing_initrd(self):
+    def test_force_menu_rejected(self):
         config = self.tree / 'boot/grub/grub.cfg'
-        config.write_text(config.read_text().rsplit(' initrd /boot/initramfs.gz\n', 1)[0] + '}\n')
+        config.write_text(config.read_text().replace(' quiet\n', ' quiet ashipaos.force=1\n'))
+        self.bad()
+
+    def test_second_menu_rejected(self):
+        config = self.tree / 'boot/grub/grub.cfg'
+        config.write_text(config.read_text() * 2)
         self.bad()
 
     def test_duplicate_manifest(self):

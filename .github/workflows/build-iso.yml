@@ -90,8 +90,6 @@ jobs:
             out/evidence/vm-bios-install.log
             out/evidence/vm-bios-installed.log
             out/evidence/vm-bios-guard.log
-            out/evidence/vm-bios-force.log
-            out/evidence/vm-bios-force-installed.log
             out/evidence/vm-bios-manifest.json
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
@@ -126,8 +124,6 @@ jobs:
             out/evidence/vm-uefi-install.log
             out/evidence/vm-uefi-installed.log
             out/evidence/vm-uefi-guard.log
-            out/evidence/vm-uefi-force.log
-            out/evidence/vm-uefi-force-installed.log
             out/evidence/vm-uefi-manifest.json
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

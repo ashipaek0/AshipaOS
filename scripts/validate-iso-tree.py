@@ -96,15 +96,15 @@ def validate(report, tree, iso, boot_hybrid, mdir='mdir', zstd='zstd'):
             fail('ISO asset missing: ' + relative)
     config = (tree / 'boot/grub/grub.cfg').read_text()
     menus = re.findall(r'^menuentry\s+[^\n{]+\{([^{}]*)\}', config, re.M | re.S)
-    if len(menus) != 2:
-        fail('expected normal and force GRUB entries')
-    for number, menu in enumerate(menus):
+    if len(menus) != 1:
+        fail('expected exactly one GRUB install entry')
+    if 'ashipaos.force' in config:
+        fail('GRUB config must not offer a force reinstall')
+    for menu in menus:
         linux = re.findall(r'^\s*linux\s+(/\S+)(.*)$', menu, re.M)
         initrd = re.findall(r'^\s*initrd\s+(\S+)\s*$', menu, re.M)
         if len(linux) != 1 or linux[0][0] != '/boot/vmlinuz' or initrd != ['/boot/initramfs.gz']:
             fail('GRUB linux/initrd directive missing')
-        if (number == 1) != ('ashipaos.force=1' in linux[0][1]):
-            fail('GRUB force reinstall kernel argument missing or misplaced')
     for asset in tree.rglob('*'):
         relative = asset.relative_to(tree).as_posix().lower()
         if re.search(r'(^|[/_.-])(d-i|install\.amd|preseed|netinst|isolinux)([/_.-]|$)', relative):

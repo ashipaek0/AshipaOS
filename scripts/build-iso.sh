@@ -16,10 +16,6 @@ menuentry 'Install AshipaOS offline' {
  linux /boot/vmlinuz console=ttyS0,115200 console=tty0 quiet
  initrd /boot/initramfs.gz
 }
-menuentry 'Force reinstall AshipaOS offline' {
- linux /boot/vmlinuz console=ttyS0,115200 console=tty0 quiet ashipaos.force=1
- initrd /boot/initramfs.gz
-}
 GRUB
 # The standalone image's root is its own memdisk, so its embedded config must
 # find the installer medium first; otherwise /boot/vmlinuz is "not found".

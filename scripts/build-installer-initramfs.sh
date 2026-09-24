@@ -90,7 +90,7 @@ source=$(
 )
 [[ -n "$source" ]] || { echo 'installer source medium missing verified payload/manifest' >&2; printf 'ASHIPAOS_INSTALL_REFUSED_SOURCE\n' > /dev/ttyS0; exec /usr/bin/env bash; }
 [[ -b "$source" && -s /run/iso/install/appliance.img.zst && -s /run/iso/install/appliance.img.manifest ]] || { echo 'source discovery returned no qualified mounted media' >&2; exit 1; }
-for arg in $cmdline; do case "$arg" in ashipaos.install_target=*|ashipaos.install_source=*|ashipaos.force=1|ashipaos.vm_test=1) set -- "$@" "$arg";; esac; done
+for arg in $cmdline; do case "$arg" in ashipaos.install_target=*|ashipaos.install_source=*|ashipaos.vm_test=1) set -- "$@" "$arg";; esac; done
 case " $cmdline " in *' ashipaos.vm_test=1 '*) export VM_TEST=1;; esac
 export INSTALL_SOURCE="$source" INSTALLER_ROOT=/run/iso/install
 if target=$(/installer/select-target.sh "$@" 2>/run/ashipaos/selector.err); then

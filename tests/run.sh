@@ -26,17 +26,14 @@ run selector_rejects_canonical_source_symlink bash "$ROOT/tests/test-selector.sh
 run selector_handles_nvme_names bash "$ROOT/tests/test-selector.sh" nvme
 run selector_rejects_bad_explicit_target bash "$ROOT/tests/test-selector.sh" explicit
 run selector_rejects_device_holders bash "$ROOT/tests/test-selector.sh" holder
-run selector_rejects_forced_child_without_marker bash "$ROOT/tests/test-selector.sh" child_signature
-run selector_accepts_forced_valid_marker bash "$ROOT/tests/test-selector-descendants.sh" sata
-run selector_rejects_forced_extra_partition bash "$ROOT/tests/test-selector.sh" force_extra_partition
-run selector_rejects_env_only_force_approval bash "$ROOT/tests/test-selector.sh" force_env_only
+run selector_refuses_completed_install_even_with_force_arg bash "$ROOT/tests/test-selector.sh" completed
 run selector_requires_explicit_fixture_mode bash "$ROOT/tests/test-selector.sh" no_fixture_flag
 run selector_rejects_wrong_marker bash "$ROOT/tests/test-selector.sh" wrong_marker
 run installer_rejects_corrupt_manifest bash "$ROOT/tests/test-installer.sh" corrupt
 run installer_honors_completion_guard bash "$ROOT/tests/test-installer.sh" complete
-run installer_rejects_invalid_force_marker bash "$ROOT/tests/test-installer.sh" force-invalid
-run installer_accepts_valid_force_marker bash "$ROOT/tests/test-installer.sh" force-valid
-run installer_unmounts_then_revalidates_before_stream bash "$ROOT/tests/test-installer-revalidation.sh"
+run installer_ignores_removed_force_arg bash "$ROOT/tests/test-installer.sh" complete-force-arg
+run installer_accepts_blank_target bash "$ROOT/tests/test-installer.sh" blank
+run installer_revalidates_before_stream bash "$ROOT/tests/test-installer-revalidation.sh"
 run validator_negative_cases bash "$ROOT/tests/test-negative-validators.sh"
 tmpkey=$(mktemp -d)
 trap 'rm -rf "$tmpkey"' EXIT
@@ -46,7 +43,7 @@ run ssh_rejects_malformed_key bash -c "! '$ROOT/provision/validate-admin-key.sh'
 run ssh_rejects_multiline_key bash -c "! '$ROOT/provision/validate-admin-key.sh' 'ssh-ed25519 AAAA
 ssh-ed25519 BBBB'"
 
-for mode in sata nvme mmc mount mount-subpath mount-subpath-force findmnt-fail findmnt-fail-force swap holder unexpected lvm-signature raid-signature extra-signature wrong-parttype pvs mdadm dmsetup extra normal; do
+for mode in installed-sata installed-nvme installed-mmc installed-force-arg blank mount mount-subpath findmnt-fail swap holder signature pvs mdadm dmsetup; do
   run "selector_descendants_${mode}" bash "$ROOT/tests/test-selector-descendants.sh" "$mode"
 done
 for mode in explicit payload-only manifest-only empty optical partitioned-usb whole-usb nonremovable-usb wrong-explicit ancestry; do
@@ -60,10 +57,9 @@ run flatpak_export_real_collection_refs bash "$ROOT/tests/test-flatpak-export-re
 run flatpak_keyring_rejects_extra_real_primary bash "$ROOT/tests/test-flatpak-key-validation.sh"
 run flatpak_offline_unprivileged_sideload bash "$ROOT/tests/test-flatpak-offline.sh"
 run iso_relational_fixtures python3 -B "$ROOT/tests/test-iso-relations.py"
-run vm_bios_force_mock bash "$ROOT/tests/test-vm-harness.sh" bios
-run vm_uefi_force_mock bash "$ROOT/tests/test-vm-harness.sh" uefi
+run vm_bios_mock bash "$ROOT/tests/test-vm-harness.sh" bios
+run vm_uefi_mock bash "$ROOT/tests/test-vm-harness.sh" uefi
 run vm_guard_rejects_embedded_token bash "$ROOT/tests/test-vm-harness.sh" bad-guard
-run vm_force_requires_grub_to_accept_keys bash "$ROOT/tests/test-vm-harness.sh" deaf-grub
 
 if (( failures )); then
   printf '%d passed, %d failed\n' "$pass" "$failures" >&2

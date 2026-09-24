@@ -44,48 +44,8 @@ stage_args() {
 run_stage() {
   local stage=$1 mode=$2 token=$3 log="out/evidence/vm-${firmware}-${1}.log" status=0
   stage_args "$stage" "$mode"
-  if [[ "$stage" == force ]]; then
-    local socket="out/evidence/vm-${firmware}-force.monitor" pid
-    rm -f "$socket"
-    timeout --foreground "$timeout_s" qemu-system-x86_64 "${args[@]}" -monitor "unix:$socket,server,nowait" > "$log" 2>&1 & pid=$!
-    # Select the actual second GRUB entry through QEMU's monitor. Refuse to
-    # claim force coverage if the menu was never observed or no monitor exists.
-    if ! python3 - "$socket" "$log" "$pid" <<'PY'
-import os,re,socket,sys,time
-path,log,pid=sys.argv[1:]
-def screen():
-    try: text=open(log,errors='replace').read()
-    except FileNotFoundError: return ''
-    return re.sub(r'\x1b\[[0-9;?=:]*[A-Za-z]','',text.replace('\r',''))
-def alive():
-    try: os.kill(int(pid),0)
-    except ProcessLookupError: return False
-    return True
-deadline=time.monotonic()+90
-while 'Force reinstall AshipaOS offline' not in screen() or not os.path.exists(path):
-    if not alive(): raise SystemExit('VM exited before GRUB force menu')
-    if time.monotonic()>deadline: raise SystemExit('GRUB force menu/monitor not observed')
-    time.sleep(.2)
-with socket.socket(socket.AF_UNIX) as client:
-    client.connect(path)
-    # GRUB may not read input the instant its menu is drawn (seen under KVM):
-    # repeat Down until it redraws the highlight on the force entry (the first
-    # accepted key also stops the countdown), and only then press Enter.
-    for _ in range(16):
-        client.sendall(b'sendkey down\n')
-        time.sleep(.5)
-        if '*Force reinstall AshipaOS offline' in screen(): break
-    else: raise SystemExit('GRUB did not accept key input: force entry never highlighted')
-    client.sendall(b'sendkey ret\n')
-    time.sleep(.5)
-PY
-    then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; return 1; fi
-    wait "$pid" || status=$?
-  else
-    timeout --foreground "$timeout_s" qemu-system-x86_64 "${args[@]}" > "$log" 2>&1 || status=$?
-  fi
+  timeout --foreground "$timeout_s" qemu-system-x86_64 "${args[@]}" > "$log" 2>&1 || status=$?
   (( status == 0 || status == 124 )) || { echo "VM $stage failed with $status" >&2; show_tail "$log"; return 1; }
-  if [[ "$stage" == force ]]; then has_line "$log" ASHIPAOS_FORCE_REINSTALL_BEGIN || { echo 'force selector/write path not reached' >&2; show_tail "$log"; return 1; }; fi
   has_line "$log" "$token" || { echo "VM $stage milestone $token missing" >&2; show_tail "$log"; return 1; }
 }
 run_stage install iso ASHIPAOS_INSTALL_OK
@@ -93,8 +53,6 @@ run_stage installed disk ASHIPAOS_BOOT_OK
 baseline=$(sha256sum "$disk" | awk '{print $1}')
 run_stage guard iso ASHIPAOS_INSTALL_REFUSED_MARKER
 [[ "$baseline" == "$(sha256sum "$disk" | awk '{print $1}')" ]] || { echo 'guard stage changed target disk' >&2; exit 1; }
-run_stage force iso ASHIPAOS_INSTALL_OK
-run_stage force-installed disk ASHIPAOS_BOOT_OK
 python3 - "$firmware" "$iso" "$disk" "$baseline" "$qemu_version" "${vars_files[@]}" <<'PY'
 import hashlib,json,os,platform,subprocess,sys,time
 firmware,iso,disk,guard_hash,qemu,*vars_files=sys.argv[1:]
@@ -105,5 +63,5 @@ commit=os.environ.get('GITHUB_SHA'); run_id=os.environ.get('GITHUB_RUN_ID'); job
 if ci and not all((commit,run_id,job)): raise SystemExit('CI evidence identity is incomplete')
 firmware_path=os.environ.get('OVMF_CODE') if firmware=='uefi' else next((p for p in ('/usr/share/seabios/bios.bin','/usr/share/qemu/bios.bin') if os.path.isfile(p)), None)
 firmware_evidence={'path':firmware_path,'sha256':digest(firmware_path) if firmware_path and os.path.isfile(firmware_path) else None}
-json.dump({'commit':commit or 'local','run_id':run_id or 'local','job':job or 'local','timestamp':int(time.time()),'iso_sha256':digest(iso),'disk_sha256':digest(disk),'result':'PASS','firmware':firmware_evidence,'ovmf_vars':{p:digest(p) for p in vars_files},'qemu_version':qemu,'guard_sha256':guard_hash,'runner_os':platform.platform(),'arch':platform.machine(),'stages':['install','installed','guard','force','force-installed']},open(f'out/evidence/vm-{firmware}-manifest.json','w'),sort_keys=True)
+json.dump({'commit':commit or 'local','run_id':run_id or 'local','job':job or 'local','timestamp':int(time.time()),'iso_sha256':digest(iso),'disk_sha256':digest(disk),'result':'PASS','firmware':firmware_evidence,'ovmf_vars':{p:digest(p) for p in vars_files},'qemu_version':qemu,'guard_sha256':guard_hash,'runner_os':platform.platform(),'arch':platform.machine(),'stages':['install','installed','guard']},open(f'out/evidence/vm-{firmware}-manifest.json','w'),sort_keys=True)
 PY

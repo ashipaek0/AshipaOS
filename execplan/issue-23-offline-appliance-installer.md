@@ -52,6 +52,8 @@ A release build will create a complete AshipaOS appliance before installation, p
   Rationale: Shape-only keys can still be unusable credentials.
 - Decision: Permit force selection only after reading `/var/lib/ashipaos/install-complete` from target partition 3 read-only; synthetic roots require an explicit fixture flag and can never reach destructive installation.
   Rationale: An environment variable or generic occupied-disk bypass cannot prove that existing data is an AshipaOS installation.
+- Decision (2026-09-24, superseded the one above): remove the force-reinstall option (GRUB entry, `ashipaos.force=1`, VM force stages). Only blank disks are installable; a completed installation is always refused with `ASHIPAOS_INSTALL_REFUSED_MARKER`, even if `ashipaos.force=1` is passed.
+  Rationale: The owner does not need in-place reinstalls; wiping the disk is the reinstall path, and dropping the overwrite branch removes the riskiest selector code.
 - Decision: Treat the installed-disk hash captured after successful installation and boot as the sole guard baseline.
   Rationale: Comparing guard output with the pre-install hash would incorrectly report the legitimate installation write as a guard mutation.
 - Decision: Lock every installed Flatpak ref and commit and install from `create-usb`'s `.ostree/repo` inside a network namespace.
@@ -111,7 +113,7 @@ The release artifact names are `out/ashipaos-installer.iso`, `out/ashipaos-insta
 
 Every new shell script starts with `#!/usr/bin/env bash` and `set -Eeuo pipefail`. `installer/select-target.sh` exports or prints exactly one canonical `/dev/<disk>` path and returns nonzero for every ambiguous or unsafe state. It accepts `ashipaos.install_target=` only as an exact device name or canonical device path after validating it against the same policy as automatic selection.
 
-`installer/install.sh` reads `ashipaos.force=1` as the sole reinstall override. It verifies SHA-256 and size values from `appliance.img.manifest`, streams `appliance.img.zst` to the selected whole disk, hashes exactly the raw image byte count back from that disk, expands partition 3 and its ext4 filesystem, writes `/var/lib/ashipaos/install-complete` last, synchronizes, and reboots or powers off for the VM test mode.
+`installer/install.sh` has no reinstall override (the former `ashipaos.force=1` was removed on 2026-09-24). It verifies SHA-256 and size values from `appliance.img.manifest`, streams `appliance.img.zst` to the selected whole disk, hashes exactly the raw image byte count back from that disk, expands partition 3 and its ext4 filesystem, writes `/var/lib/ashipaos/install-complete` last, synchronizes, and reboots or powers off for the VM test mode.
 
 CI dependencies include `mmdebstrap`, `debootstrap`, `parted`, `gdisk`, `dosfstools`, `e2fsprogs`, `grub-pc-bin`, `grub-efi-amd64-bin`, `grub-common`, `xorriso`, `zstd`, `qemu-system-x86`, `qemu-utils`, `ovmf`, `flatpak`, and `ostree`.
 

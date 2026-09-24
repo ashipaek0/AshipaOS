@@ -6,8 +6,8 @@ source "$ROOT_DIR/installer/config.sh"
 source "$ROOT_DIR/installer/partition-path.sh"
 manifest=$root/appliance.img.manifest
 payload=$root/appliance.img.zst
-force=0; check_only=0
-for arg in "$@"; do case "$arg" in --check-only) check_only=1;; ashipaos.force=1) force=1;; esac; done
+check_only=0
+for arg in "$@"; do case "$arg" in --check-only) check_only=1;; esac; done
 [[ -r "$manifest" && -r "$payload" ]] || { printf 'installer payload missing\n' >&2; exit 1; }
 read_manifest() { awk -F= -v key="$1" '$1==key {print $2; exit}' "$manifest"; }
 payload_hash=$(read_manifest payload_sha256); payload_size=$(read_manifest payload_size)
@@ -26,9 +26,9 @@ fi
 if [[ -n "$mount_root" ]]; then
   [[ -d "$mount_root" && ! -b "$mount_root" ]] || { printf 'target root must be a mounted directory\n' >&2; exit 1; }
   marker="$mount_root/var/lib/ashipaos/install-complete"
-  if (( force == 1 )) && [[ ! -e "$marker" && ! -e "$mount_root/install-complete" ]]; then printf 'force requires a valid AshipaOS completion marker\n' >&2; exit 1; fi
-  if [[ -n "$mount_root" && ( -e "$marker" || -e "$mount_root/install-complete" ) ]]; then
-    (( force == 1 )) || { printf 'completed appliance refused; use ashipaos.force=1\n' >&2; exit 1; }
+  # A completed appliance is never overwritten; wipe the disk to reinstall.
+  if [[ -e "$marker" || -e "$mount_root/install-complete" ]]; then
+    printf 'completed appliance refused\n' >&2; exit 1
   fi
 fi
 (( check_only == 1 )) && exit 0
@@ -37,13 +37,6 @@ fi
 [[ "$TARGET_DEVICE" == /dev/* && "$TARGET_DEVICE" != /dev/*/* ]] || { [[ "${TEST_MODE:-0}" == 1 && -n "${TARGET_ROOT:-}" && -f "$TARGET_DEVICE" ]] || { printf 'invalid target device\n' >&2; exit 1; }; }
 DEV_ROOT=/dev
 root_partition=$(partition_path "$TARGET_DEVICE" 3)
-if (( force == 1 )); then
-  marker_probe=$(mktemp -d "${MARKER_TMP_ROOT:-/run}/ashipaos-marker.XXXXXX")
-  mount -o ro,noload,nosuid,nodev,noexec "$root_partition" "$marker_probe" 2>/dev/null || { rm -rf "$marker_probe"; printf 'force requires a readable target partition\n' >&2; exit 1; }
-  marker="$marker_probe/var/lib/ashipaos/install-complete"
-  grep -qx 'installed' "$marker" || { umount "$marker_probe" 2>/dev/null || true; rm -rf "$marker_probe"; printf 'force requires a valid AshipaOS completion marker\n' >&2; exit 1; }
-  umount "$marker_probe"; rm -rf "$marker_probe"
-fi
 # Do not mount the target read-write until the selector has completed its
 # final safety revalidation and the raw image write has finished.
 mount_root=${TARGET_ROOT:-}
@@ -54,12 +47,6 @@ for tool in zstd dd stat sha256sum awk head install mount partprobe udevadm sfdi
 # Re-run the complete selector policy immediately before the destructive stream.
 selector_args=("ashipaos.install_target=$TARGET_DEVICE")
 [[ -n "${INSTALL_SOURCE:-}" ]] && selector_args+=("ashipaos.install_source=$INSTALL_SOURCE")
-(( force == 1 )) && selector_args+=(ashipaos.force=1)
-if (( force == 1 )); then
-  serial=/dev/ttyS0
-  if [[ "${TEST_MODE:-0}" == 1 && -n "${TARGET_ROOT:-}" ]]; then serial=${INSTALL_TEST_SERIAL:-$serial}; fi
-  printf 'ASHIPAOS_FORCE_REINSTALL_BEGIN\n' > "$serial"
-fi
 selector_script="$ROOT_DIR/installer/select-target.sh"
 if [[ "${TEST_MODE:-0}" == 1 && -n "${TARGET_ROOT:-}" ]]; then selector_script=${SELECTOR_TEST_SCRIPT:-$selector_script}; fi
 revalidated=$(

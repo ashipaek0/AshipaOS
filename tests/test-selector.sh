@@ -26,11 +26,8 @@ case "$mode" in
   nvme) make_disk nvme0n1 22000000000; [[ $(run ashipaos.install_target=/dev/nvme0n1) == "$tmp/dev/nvme0n1" ]];;
   explicit) make_disk sda 22000000000; ! run ashipaos.install_target=/dev/sdb; [[ $(run ashipaos.install_target=/dev/sda) == "$tmp/dev/sda" ]];;
   holder) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/holders"; : > "$tmp/sys/block/sda/holders/dm-0"; ! run ;;
-  child_signature) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1"; : > "$tmp/dev/sda1"; ! run ashipaos.force=1 ;;
-  force_marker) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1" "$tmp/sys/block/sda/sda2" "$tmp/sys/block/sda/sda3" "$tmp/marker/var/lib/ashipaos"; printf 'installed\n' > "$tmp/marker/var/lib/ashipaos/install-complete"; : > "$tmp/dev/sda1"; : > "$tmp/dev/sda2"; : > "$tmp/dev/sda3"; export FIXTURE_MARKER_ROOT="$tmp/marker"; run ashipaos.force=1 | grep -Fx "$tmp/dev/sda" ;;
-  force_extra_partition) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1" "$tmp/sys/block/sda/sda2" "$tmp/sys/block/sda/sda3" "$tmp/sys/block/sda/sda4" "$tmp/marker/var/lib/ashipaos"; printf 'installed\n' > "$tmp/marker/var/lib/ashipaos/install-complete"; : > "$tmp/dev/sda1"; : > "$tmp/dev/sda2"; : > "$tmp/dev/sda3"; : > "$tmp/dev/sda4"; export FIXTURE_MARKER_ROOT="$tmp/marker"; ! run ashipaos.force=1 ;;
-  force_env_only) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1"; : > "$tmp/dev/sda1"; export ASHIPAOS_FORCE_VALID_MARKER=1; ! run ashipaos.force=1 ;;
+  completed) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1" "$tmp/sys/block/sda/sda2" "$tmp/sys/block/sda/sda3" "$tmp/marker/var/lib/ashipaos"; printf 'installed\n' > "$tmp/marker/var/lib/ashipaos/install-complete"; : > "$tmp/dev/sda1"; : > "$tmp/dev/sda2"; : > "$tmp/dev/sda3"; export FIXTURE_MARKER_ROOT="$tmp/marker"; ! run 2> "$tmp/err"; grep -qx ASHIPAOS_INSTALL_REFUSED_MARKER "$tmp/err"; ! run ashipaos.force=1 2> "$tmp/err"; grep -qx ASHIPAOS_INSTALL_REFUSED_MARKER "$tmp/err" ;;
   no_fixture_flag) make_disk sda 22000000000; ! SYSFS_ROOT="$tmp/sys" DEV_ROOT="$tmp/dev" "$ROOT/installer/select-target.sh" ;;
-  wrong_marker) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1" "$tmp/marker/var/lib/ashipaos"; printf 'not-installed\n' > "$tmp/marker/var/lib/ashipaos/install-complete"; : > "$tmp/dev/sda1"; export FIXTURE_MARKER_ROOT="$tmp/marker"; ! run ashipaos.force=1 ;;
+  wrong_marker) make_disk sda 22000000000; mkdir -p "$tmp/sys/block/sda/sda1" "$tmp/marker/var/lib/ashipaos"; printf 'not-installed\n' > "$tmp/marker/var/lib/ashipaos/install-complete"; : > "$tmp/dev/sda1"; export FIXTURE_MARKER_ROOT="$tmp/marker"; ! run ;;
   *) exit 2;;
 esac
