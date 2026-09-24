@@ -23,7 +23,7 @@ copy_runtime() {
     done < <(ldd "$src" 2>/dev/null || true)
   fi
 }
-runtime_commands=(bash env ln tee mount umount switch_root zstd dd stat sha256sum awk head install readlink sed cat sync sfdisk sgdisk parted flock grep find findmnt blkid lsblk e2fsck resize2fs partprobe udevadm modprobe pvs dmsetup mdadm reboot poweroff mktemp rm rmdir dirname mkdir readelf)
+runtime_commands=(bash env ln tee sleep mount umount switch_root zstd dd stat sha256sum awk head install readlink sed cat sync sfdisk sgdisk parted flock grep find findmnt blkid lsblk e2fsck resize2fs partprobe udevadm modprobe pvs dmsetup mdadm reboot poweroff mktemp rm rmdir dirname mkdir readelf)
 for cmd in "${runtime_commands[@]}"; do
   src=$(command -v "$cmd" || true)
   [[ -n "$src" ]] || { echo "missing initramfs runtime command: $cmd" >&2; exit 1; }

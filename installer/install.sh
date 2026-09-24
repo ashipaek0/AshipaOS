@@ -97,4 +97,7 @@ if (( mounted == 1 )); then
 fi
 sync
 printf 'ASHIPAOS_INSTALL_OK\n' > /dev/ttyS0
+# A forced reboot drops bytes still queued for the UART, so the milestone could
+# vanish under KVM; let the serial line drain first.
+sleep 2
 if command -v poweroff >/dev/null && [[ "${VM_TEST:-0}" == 1 ]]; then poweroff -f; elif command -v reboot >/dev/null; then reboot -f; fi
