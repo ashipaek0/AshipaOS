@@ -14,49 +14,62 @@ on:
         type: choice
         options:
           - a95x-f3-air
+      allow_unsigned:
+        description: 'Development run: allow PLACEHOLDER signatures when no GPG key is configured (never for tags)'
+        required: false
+        default: false
+        type: boolean
+
+# One build per ref. A newer run supersedes an older one instead of queueing
+# behind it (a full arm64 debootstrap under QEMU is slow and expensive).
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # -e -o pipefail on every run step, not just the ones that remember `set`.
+    shell: bash
 
 jobs:
   static-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-      
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap qemu-user-static binfmt-support libguestfs-tools gpg jq shellcheck util-linux python3-packaging
+          sudo apt-get install -y --no-install-recommends \
+            gpg jq shellcheck python3-packaging parted dosfstools u-boot-tools device-tree-compiler
 
-      - name: Run static tests
-        run: |
-          echo "=== Running Static Tests ==="
-          bash tests/static/test-rootfs-ownership.sh
-          bash tests/static/test-signing-safety.sh
-          for layer in layers/layer*/; do
-            if [ -f "${layer}tests/static-tests.sh" ]; then
-              echo "Testing ${layer}"
-              bash "${layer}tests/static-tests.sh"
-            fi
-          done
-
-      - name: Validate immutable CoreELEC pin shape
-        run: bash tests/static/test-coreelec-pin.sh
+      # One entry point shared with pr.yml. Runs every gate, reports all
+      # failures at once, and skips only the explicitly deferred x86-era layers.
+      - name: Run static gates
+        run: bash tests/static/run-static.sh
 
       - name: Validate immutable CoreELEC pin against authorized fork
         run: bash build/coreelec/validate-pin.sh
 
-
   build-a95x-f3-air:
     needs: static-tests
-    runs-on: ubuntu-latest
+    # Pinned image: "ubuntu-latest" moves under you (new libguestfs/qemu/gnupg).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     # Note: Uses libguestfs + QEMU emulation for ARM64 - no privileged mode needed
     if: github.event.inputs.target == 'a95x-f3-air' || github.event_name == 'push'
+    env:
+      # Job-level, so every step sees it. (An `export` inside one step does not
+      # persist to later steps.)
+      LIBGUESTFS_BACKEND: direct
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-      
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             debootstrap \
             qemu-user-static \
             qemu-system-arm \
@@ -71,25 +84,32 @@ jobs:
             u-boot-tools \
             util-linux \
             device-tree-compiler
-          
-          # Register QEMU binaries for ARM64 emulation
           sudo update-binfmts --enable qemu-aarch64
-          
-          # Configure libguestfs to use direct mode (no FUSE needed)
-          export LIBGUESTFS_BACKEND=direct
 
       - name: Verify libguestfs appliance
         run: |
           # The appliance uses the runner's kernel while it populates the target image.
           sudo chmod a+r /boot/vmlinuz-*
-          export LIBGUESTFS_BACKEND=direct
           timeout 120s libguestfs-test-tool
 
+      # Secrets are passed through env, never interpolated into the script text.
       - name: Configure GPG
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes
+          if [[ -z "$GPG_PRIVATE_KEY" ]]; then
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              echo "::error::GPG_PRIVATE_KEY is required for tag releases"
+              exit 1
+            fi
+            echo "::warning::GPG_PRIVATE_KEY not set; signing will fail unless 'allow_unsigned' was selected"
+            exit 0
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
           echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "GPG_PASSPHRASE=${{ secrets.GPG_PASSPHRASE }}" >> "$GITHUB_ENV"
+          gpgconf --kill gpg-agent || true
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --yes --import
 
       - name: Build Layer 1 (RootFS)
         run: |
@@ -97,7 +117,6 @@ jobs:
 
       - name: Resolve and probe Layer 5 dependency closure (A95X ARM64)
         run: |
-          set -Eeuo pipefail
           python3 layers/layer5-application/scripts/resolve-dependencies-arm64.py \
             --rootfs output/rootfs-a95x-f3-air.tar.gz \
             --artifacts-dir output/evidence/layer5-arm64-artifacts \
@@ -112,7 +131,6 @@ jobs:
 
       - name: Gate A95X Jellyfin application bundle
         run: |
-          set -Eeuo pipefail
           tar -tzf output/rootfs-a95x-f3-air.tar.gz > output/evidence/a95x-rootfs-members.txt
           grep -Fx 'usr/libexec/ashipaos-jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
           grep -Fx 'usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/bin/jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
@@ -128,39 +146,40 @@ jobs:
 
       - name: Build Layer 2 (Disk Image)
         run: |
-          export LIBGUESTFS_BACKEND=direct
           bash layers/layer2-image/tests/layout-tests.sh
           bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
 
       - name: Gate A95X image contents
+        env:
+          ASHIPAOS_IMAGE_DEEP: '1'
         run: |
-          set -Eeuo pipefail
           image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-a95x-f3-air-*.img' -print -quit)
-          [[ -n "$image" ]] || { echo 'A95X image not found; content gate cannot be skipped' >&2; exit 1; }
+          [[ -n "$image" ]] || { echo '::error::A95X image not found; content gate cannot be skipped' >&2; exit 1; }
           bash layers/layer2-image/tests/image-content-tests.sh "$image"
-
 
       - name: Build Layer 10 (Release Engineering)
         run: |
           bash layers/layer10-release/tests/package-tests.sh
           bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
 
-      - name: Sign Artefacts
-        working-directory: ${{ github.workspace }}
+      - name: Verify release artefacts exist before signing
         run: |
-          set -Eeuo pipefail
-          echo "Signing artifacts from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          compgen -G 'output/images/*.img.gz' >/dev/null \
+            || { echo '::error::no output/images/*.img.gz was produced'; exit 1; }
+          test -s "output/images/SHA256SUMS-a95x-f3-air"
+
+      - name: Sign Artefacts
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          # Explicit, visible opt-in for development runs only. Tags never get placeholders.
+          CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ inputs.allow_unsigned && '1' || '0' }}
+        run: |
           bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
             "$GITHUB_WORKSPACE/output/images" \
             "$GITHUB_WORKSPACE/output/ota"
 
       - name: Generate SBOM
-        working-directory: ${{ github.workspace }}
         run: |
-          set -Eeuo pipefail
-          echo "Generating SBOM from: $(pwd)"
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
             "$GITHUB_WORKSPACE/output/sbom.json"
 
@@ -168,6 +187,8 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: ashipaos-a95x-f3-air-${{ github.run_id }}
+          # A build that produced no image must fail, not upload an empty bundle.
+          if-no-files-found: error
           path: |
             output/images/*.img.gz
             output/images/*.img.gz.sig
@@ -182,15 +203,29 @@ jobs:
             output/evidence/a95x-jellyfin-manifest.json
           retention-days: 90
 
+      # Keep evidence from failed runs so a failure can be diagnosed without a re-run.
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: build-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            output/evidence/
+            layers/*/evidence/
+            output/images/*.meta.json
+          retention-days: 14
+
   create-release:
     needs: build-a95x-f3-air
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-      
+
       - name: Download all artefacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
@@ -206,8 +241,10 @@ jobs:
                 "$GITHUB_REF_NAME" == *beta* || "$GITHUB_REF_NAME" == *rc* ]]; then
             prerelease+=(--prerelease)
           fi
+          dirs=()
+          for d in images ota; do [[ -d "$d" ]] && dirs+=("$d"); done
           mapfile -d '' assets < <(
-            find images ota -type f \
+            find "${dirs[@]}" -type f \
               \( -name '*.img.gz' -o -name '*.img.gz.sig' -o -name '*.img.gz.asc' \
                  -o -name 'SHA256SUMS-*' -o -name '*.pkg' -o -name '*.pkg.sig' \
                  -o -name '*.pkg.asc' \) -print0
