@@ -9,11 +9,10 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 [[ -f "$HELPER" ]] || fail "ownership helper exists"
 for producer in \
   "$ROOT/layers/layer1-rootfs/scripts/build-rootfs.sh" \
-  "$ROOT/layers/layer3-display/scripts/build-display.sh" \
-  "$ROOT/scripts/setup-build-environment.sh"; do
-  grep -Fq 'source "$ROOT_REPO/scripts/rootfs-ownership.sh"' "$producer" 2>/dev/null \
-    || grep -Fq 'source "$REPO_ROOT/scripts/rootfs-ownership.sh"' "$producer" \
-    || grep -Fq 'source "$SCRIPT_DIR/rootfs-ownership.sh"' "$producer" \
+  "$ROOT/layers/layer5-application/scripts/build-application.sh" \
+  "$ROOT/layers/layer2-image/scripts/build-image.sh"; do
+  # shellcheck disable=SC2016 # literal source line, not an expansion
+  grep -Fq 'source "$REPO_ROOT/scripts/rootfs-ownership.sh"' "$producer" \
     || fail "$producer sources ownership helper"
   grep -Fq 'rootfs_output_owner' "$producer" || fail "$producer restores ownership"
 done

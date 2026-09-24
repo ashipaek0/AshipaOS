@@ -1,5 +1,12 @@
-target_support:
-  - a95x-f3-air
+# Layer 5: Jellyfin MPV Shim application bundle for the A95X F3 Air.
+target_support: [a95x-f3-air]
 architecture: arm64
-runtime: coreelec
 application: jellyfin-mpv-shim
+version: 3.0.0
+# Debian's target interpreter and libmpv (Layer 1); never Debian python3-mpv.
+runtime: {python: /usr/bin/python3, python_tag: cp311, libmpv: libmpv2}
+dependency_lock: dependencies.lock.json
+bundle_path: /usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0
+launcher: /usr/libexec/ashipaos-jellyfin-mpv-shim
+state: {config: /storage/jellyfin-mpv-shim, slots: /storage/apps/jellyfin-mpv-shim/slots}
+service_user: ashipa

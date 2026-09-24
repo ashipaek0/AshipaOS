@@ -13,13 +13,14 @@ for name,(path,value) in mutations.items():
  d[path[-1]]=value
  (out/(name+'.json')).write_text(json.dumps(q),encoding='utf8')
 PY
-python3 - "$TMP" <<'PY'
-import json, pathlib, re, sys
-root=pathlib.Path(sys.argv[1])
-for f in root.glob('*.json'):
- p=json.loads(f.read_text()); good=(p['source']['fork']['full_name']=='ashipaek0/CoreELEC' and p['source']['ref']['value']=='21.3-Omega' and p['source']['commit']=='fc61125e8900ab0c2593a29b615980ed0cd5b939' and p['source']['archive']['sha256']=='c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a' and p['builder']['dockerfile']['sha256']=='4f0d46fdf9709230f29e6ea8c423a292024287f653b30f67be01d567a08125a2' and p['builder']['base_image']['digest']=='sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02' and p['build']=={'PROJECT':'Amlogic-ce','DEVICE':'Amlogic-ng','ARCH':'arm','OFFICIAL':'yes'} and p['artifact']['path']=='target/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz')
- assert not good, f
-PY
+# Every mutated pin must be rejected by the real build entry point before any
+# download (pin validation runs first; CI=true only lifts the local-run block).
+for mutated in "$TMP"/wrong-*.json; do
+  if CI=true bash "$ROOT/build/coreelec/ce2a-build.sh" --ci "$mutated" "$TMP/work" "$TMP/evidence" >/dev/null 2>&1; then
+    echo "accepted mutated pin: $(basename "$mutated")" >&2; exit 1
+  fi
+done
+[[ ! -e "$TMP/work/source.tar.gz" ]] || { echo 'a mutated pin reached the download step' >&2; exit 1; }
 # A shaped manifest with evil provenance must fail schema validation.
 python3 - "$ROOT/schemas/coreelec-ce2a-manifest.schema.json" <<'PY'
 import copy, json, sys
@@ -38,12 +39,12 @@ head -c 40 /dev/zero > "$TMP/sm1_s905x3_4g_1gbit.dtb"
 printf 'not an image' | gzip -c > "$TMP/valid-gzip.img.gz"
 if bash "$ROOT/build/coreelec/ce2a-inspect-image.sh" "$TMP/bad.img.gz" "$PIN" "$TMP/sm1_s905x3_4g_1gbit.dtb" "$TMP/out" >/dev/null 2>&1; then echo 'accepted malformed image' >&2; exit 1; fi
 if CE2A_DTB_SHA256=$(sha256sum "$TMP/sm1_s905x3_4g_1gbit.dtb" | cut -d' ' -f1) bash "$ROOT/build/coreelec/ce2a-inspect-image.sh" "$TMP/valid-gzip.img.gz" "$PIN" "$TMP/sm1_s905x3_4g_1gbit.dtb" "$TMP/out-dtb" >/dev/null 2>&1; then echo 'accepted malformed same-name DTB' >&2; exit 1; fi
-if CI=true bash "$ROOT/build/coreelec/ce2a-build.sh" --ci "$TMP/wrong.json" "$TMP/work" "$TMP/evidence" >/dev/null 2>&1; then echo 'accepted malformed/wrong pin' >&2; exit 1; fi
+if CI=true bash "$ROOT/build/coreelec/ce2a-build.sh" --ci "$TMP/missing.json" "$TMP/work" "$TMP/evidence" >/dev/null 2>&1; then echo 'accepted missing pin' >&2; exit 1; fi
 if bash "$ROOT/build/coreelec/ce2a-build.sh" "$PIN" "$TMP/work" "$TMP/evidence" >/dev/null 2>&1; then echo 'local build was accepted' >&2; exit 1; fi
 # Manifest status mutations are rejected by the schema's literal contract.
-python3 - <<'PY'
-import json
-s=json.load(open('schemas/coreelec-ce2a-manifest.schema.json'))
+python3 - "$ROOT/schemas/coreelec-ce2a-manifest.schema.json" <<'PY'
+import json, sys
+s=json.load(open(sys.argv[1]))
 assert s['properties']['runtime']['properties']['runtime_status']['const']=='UNRESOLVED'
 assert s['properties']['kodi']['properties']['classification']['const']=='stock-kodi-containing/rejected_for_ashipaos'
 PY

@@ -27,6 +27,7 @@ for x in (s['commit'],s['archive']['sha256'],b['dockerfile']['sha256'],base['dig
 print(s['archive']['url']); print(a['path']); print(b['dockerfile']['path']); print(base['pinned_reference'])
 PY
 )
+[[ ${#v[@]} -eq 8 ]] || { echo "CE-2A pin validation failed: $PIN" >&2; exit 1; }
 commit=${v[0]}; archive_sha=${v[1]}; docker_sha=${v[2]}; base_digest=${v[3]}; archive_url=${v[4]}; artifact_rel=${v[5]}; dockerfile_rel=${v[6]}; base_ref=${v[7]}
 exec > >(tee "$EVIDENCE/ce2a-build.log") 2>&1
 printf '%s\n' "CE-2A pinned source build" "commit=$commit" "archive_sha256=$archive_sha" "base=$base_ref"
@@ -70,10 +71,15 @@ mkdir -p "$WORKSPACE/source/.coreelec"
 printf '%s\n' "$mirror_options_content" > "$WORKSPACE/source/.coreelec/options"
 mirror_options_sha256=$(sha256sum "$WORKSPACE/source/.coreelec/options" | cut -d' ' -f1)
 [[ "$(sha256sum "$WORKSPACE/source/$dockerfile_rel" | cut -d' ' -f1)" == "$docker_sha" ]] || { echo 'Dockerfile hash mismatch' >&2; exit 1; }
-grep -Fxq 'PROJECT=Amlogic-ce' "$WORKSPACE/source/.config" 2>/dev/null || true
-# The Dockerfile is rebuilt with the exact pinned base; no host build path is accepted.
+# The pinned Dockerfile hard-codes `FROM ubuntu:jammy`. Pull the pinned digest,
+# verify it, and tag it locally as ubuntu:jammy so the no-pull build can only
+# use the pinned base; no host build path is accepted.
+docker pull --platform linux/amd64 "$base_ref"
+docker image inspect --format '{{join .RepoDigests "\n"}}' "$base_ref" | grep -Fxq "ubuntu@$base_digest" \
+  || { echo "pulled base image does not carry the pinned digest $base_digest" >&2; exit 1; }
+docker tag "$base_ref" ubuntu:jammy
 image="ce2a-builder:${commit:0:12}"
-docker build --pull=false --build-arg "BASE_IMAGE=$base_ref" --tag "$image" --file "$WORKSPACE/source/$dockerfile_rel" "$WORKSPACE/source"
+docker build --pull=false --tag "$image" --file "$WORKSPACE/source/$dockerfile_rel" "$WORKSPACE/source"
 chmod -R a+rwX "$WORKSPACE/source"
 docker run --rm --init --user docker -w /build -e PROJECT=Amlogic-ce -e DEVICE=Amlogic-ng -e ARCH=arm -e OFFICIAL=yes -e CUSTOM_GIT_HASH="$commit" -v "$WORKSPACE/source:/build" "$image" bash -lc 'PROJECT=Amlogic-ce DEVICE=Amlogic-ng ARCH=arm OFFICIAL=yes make image'
 # Make the runner-readable

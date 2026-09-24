@@ -1,27 +1,20 @@
-# Layer 1 Configuration: Amlogic ARM64 Debian Root Filesystem
+# Layer 1: A95X F3 Air arm64 Debian root filesystem.
+# build-rootfs.sh reads this file; it is the single source of the package set.
+# DEBIAN_SUITE / DEBIAN_MIRROR / DEBIAN_SECURITY_MIRROR override the values
+# below (for example to point at a snapshot.debian.org mirror).
 debian:
   suite: bookworm
   mirror: http://deb.debian.org/debian
+  security_mirror: http://security.debian.org/debian-security
   components: [main, contrib, non-free-firmware]
-architectures: [arm64]
-architecture_map:
-  arm64: arm64
+architecture: arm64
 packages:
-  base: [base-files, base-passwd, bash, bsdutils, coreutils, dash, debianutils, diffutils, dpkg, e2fsprogs, findutils, grep, gzip, hostname, init-system-helpers, libc6, login, ncurses-base, ncurses-bin, perl-base, sed, sensible-utils, sysvinit-utils, tar, util-linux]
-  essential: [apt, systemd, dbus, kmod, udev]
-  networking: [iproute2, netbase, ifupdown]
-  utilities: [busybox, ca-certificates, curl, wget, vim-tiny, less]
-kernel:
-  packages:
-    arm64: [linux-image-arm64]
-  required_files: [/vmlinuz, /initrd.img]
-initramfs:
-  packages: [initramfs-tools]
-  generate: true
-  validate_versioned_files: true
-exclude_patterns: ["/usr/share/doc/*", "/usr/share/man/*", "/usr/share/info/*", "/var/cache/apt/archives/*", "/var/log/*.log", "/tmp/*", "/var/tmp/*"]
-verification:
-  class: BUILD
-  checks: [rootfs_boots_in_vm, essential_packages_present, kernel_and_initramfs_present, no_unnecessary_files, size_within_limits]
-  size_limits:
-    arm64: 200M
+  # Kernel and DTBs come from the same package; see build/targets mainline_boot.
+  kernel: [linux-image-arm64, initramfs-tools]
+  # busybox serves the boot-status endpoint; systemd-resolved pairs with the
+  # systemd-networkd DHCP configuration in rootfs-overlay.
+  system: [busybox, ca-certificates, dbus, systemd-resolved]
+  # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv.
+  application_runtime: [python3, libmpv2]
+hostname: ashipaos
+service_user: ashipa

@@ -1,84 +1,103 @@
 #!/usr/bin/env bash
+# Layer 5: install the Jellyfin MPV Shim bundle into the Layer 1 rootfs.
+# Verification Class: BUILD (CI only; consumes the hash-verified output of
+# `jellyfin-bundle.py resolve` and performs no network access)
 set -Eeuo pipefail
-# Layer 5: reproducible Jellyfin MPV Shim application bundle.
-# The resolver supplies exact target wheels and native ABI evidence.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
-source "$REPO_ROOT/scripts/rootfs-ownership.sh"
-CONFIG="$LAYER_DIR/config/application-config.yaml"
-SOURCE_URL="https://github.com/jellyfin/jellyfin-mpv-shim/archive/9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315.tar.gz"
-SOURCE_SHA256="c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731"
-VERSION="3.0.0"
-INPUT="${1:-}"
-TARGET="${2:-}"
-RESOLUTION="${3:-}"
+BUNDLE_TOOL="$SCRIPT_DIR/jellyfin-bundle.py"
+LOCK="$LAYER_DIR/config/dependencies.lock.json"
+LAUNCHER="$LAYER_DIR/files/usr/libexec/ashipaos-jellyfin-mpv-shim"
+APP_NAME="jellyfin-mpv-shim"
+APP_VERSION="3.0.0"
+BUNDLE_REL="usr/lib/ashipaos/apps/$APP_NAME/$APP_VERSION"
+SERVICE_USER="ashipa"
+
+usage() { printf 'Usage: %s <rootfs.tar.gz> a95x-f3-air <resolution.json> <artifacts-dir>\n' "$(basename "$0")"; }
 error() { printf '[L5-APPLICATION ERROR] %s\n' "$*" >&2; exit 1; }
-[[ $# -eq 3 ]] || { printf 'Usage: %s <rootfs-tar.gz> a95x-f3-air <resolution.json>\n' "$(basename "$0")"; exit 2; }
+
+if [[ $# -ne 4 ]]; then
+    usage >&2
+    exit 2
+fi
+INPUT="$1" TARGET="$2" RESOLUTION="$3" ARTIFACTS="$4"
 [[ "$TARGET" == a95x-f3-air ]] || error "unsupported target: $TARGET"
-[[ -s "$INPUT" && -s "$RESOLUTION" && -f "$CONFIG" ]] || error "application inputs are incomplete"
+[[ -s "$INPUT" && -s "$RESOLUTION" && -d "$ARTIFACTS" && -f "$LOCK" ]] || error "application inputs are incomplete"
 
-TMP=$(mktemp -d "${TMPDIR:-/tmp}/ashipaos-application.XXXXXX")
-cleanup() { rm -rf -- "$TMP"; return 0; }
-trap cleanup EXIT
-ARCHIVE="$TMP/source.tar.gz"
-python3 - "$ARCHIVE" "$SOURCE_URL" "$SOURCE_SHA256" <<'PY'
-import hashlib, pathlib, sys, urllib.request
-out, url, expected = sys.argv[1:]
-with urllib.request.urlopen(url, timeout=120) as response, open(out, 'wb') as handle:
-    while chunk := response.read(1024 * 1024): handle.write(chunk)
-actual = hashlib.sha256(pathlib.Path(out).read_bytes()).hexdigest()
-if actual != expected: raise SystemExit(f'source archive SHA-256 mismatch: {actual} != {expected}')
+# Root is required to keep the rootfs ownership intact across the repack.
+if [[ $EUID -ne 0 ]]; then
+    exec sudo bash "${BASH_SOURCE[0]}" "$@"
+fi
+# shellcheck source=scripts/rootfs-ownership.sh
+source "$REPO_ROOT/scripts/rootfs-ownership.sh"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf --one-file-system -- "$TMP"' EXIT
+ROOTFS="$TMP/rootfs"
+BUNDLE="$ROOTFS/$BUNDLE_REL"
+mkdir -p "$ROOTFS"
+tar -C "$ROOTFS" --numeric-owner --xattrs --acls -xpzf "$INPUT"
+[[ ! -e "$BUNDLE" ]] || error "rootfs already contains $BUNDLE_REL"
+
+mkdir -p "$BUNDLE/bin"
+python3 "$BUNDLE_TOOL" --lock "$LOCK" install \
+    --resolution "$RESOLUTION" --artifacts-dir "$ARTIFACTS" --site "$BUNDLE/site-packages"
+install -m 0644 "$ARTIFACTS/source.tar.gz" "$BUNDLE/source.tar.gz"
+install -m 0644 "$LOCK" "$BUNDLE/dependencies.lock.json"
+install -m 0644 "$RESOLUTION" "$BUNDLE/dependency-resolution.json"
+
+cat >"$BUNDLE/bin/$APP_NAME" <<'EOF'
+#!/bin/sh
+# Runs the bundled Jellyfin MPV Shim on the target interpreter and libmpv.
+bundle=$(dirname "$(dirname "$(readlink -f "$0")")")
+PYTHONPATH="$bundle/site-packages" exec /usr/bin/python3 -s -c \
+    'from jellyfin_mpv_shim.mpv_shim import main; main()' "$@"
+EOF
+
+python3 - "$LOCK" "$BUNDLE" "$APP_NAME" "$APP_VERSION" <<'PY'
+import hashlib, json, pathlib, sys
+lock_path, bundle, name, version = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3], sys.argv[4]
+lock = json.loads(pathlib.Path(lock_path).read_text(encoding="utf-8"))
+target = lock["target"]
+executable = bundle / "bin" / name
+sbom = {
+    "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
+    "metadata": {"component": {"type": "application", "name": name, "version": version,
+                               "purl": f"pkg:github/jellyfin/jellyfin-mpv-shim@{lock['source']['commit']}",
+                               "hashes": [{"alg": "SHA-256", "content": lock["source"]["sha256"]}]}},
+    "components": [{"type": "library", "name": a["name"], "version": a["version"],
+                    "purl": f"pkg:pypi/{a['name'].lower()}@{a['version']}",
+                    "hashes": [{"alg": "SHA-256", "content": a["sha256"]}]} for a in lock["artifacts"]],
+}
+(bundle / "dependency-sbom.json").write_text(json.dumps(sbom, indent=2) + "\n", encoding="utf-8")
+# Exactly the field set the launcher validates.
+manifest = {"schema": "ashipaos.jellyfin-mpv-shim.slot.v1", "name": name, "version": version,
+            "executable": f"bin/{name}", "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+            "python_tag": target["python_tag"], "abi_tag": target["abi_tag"],
+            "platform_tag": target["platform_tag"], "dependency_status": "RESOLVED"}
+(bundle / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PY
 
-ROOTFS_DIR="$TMP/rootfs"
-mkdir -p "$ROOTFS_DIR"
-tar -xzf "$INPUT" -C "$ROOTFS_DIR" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*'
+# The immutable bundle is root-owned and read-only to everyone else; the
+# launcher refuses it otherwise.
+chown -R 0:0 "$BUNDLE"
+find "$BUNDLE" -type d -exec chmod 0755 {} +
+find "$BUNDLE" -type f -exec chmod 0644 {} +
+chmod 0755 "$BUNDLE/bin/$APP_NAME"
+install -D -m 0755 -o 0 -g 0 "$LAUNCHER" "$ROOTFS/usr/libexec/ashipaos-jellyfin-mpv-shim"
 
-python3 - "$RESOLUTION" "$TMP" "$ROOTFS_DIR" "$ARCHIVE" "$TARGET" <<'PY'
-import hashlib, json, pathlib, shutil, sys, urllib.request, zipfile
-resolution, tmp, rootfs, archive, target_name = map(pathlib.Path, sys.argv[1:])
-data = json.loads(resolution.read_text(encoding='utf-8'))
-if data.get('status') != 'RESOLVED': raise SystemExit('dependency resolution is not RESOLVED')
-items = data.get('artifacts')
-if not isinstance(items, list) or not items: raise SystemExit('resolved artifact list is empty')
-wheel_dir = pathlib.Path(tmp) / 'wheels'; wheel_dir.mkdir()
-for item in items:
-    url, expected, filename = item.get('url'), item.get('sha256'), item.get('filename')
-    if not isinstance(url, str) or not url.startswith('https://') or not isinstance(expected, str) or len(expected) != 64 or not isinstance(filename, str) or not filename.endswith('.whl'):
-        raise SystemExit('resolved artifact lacks verified URL/hash/filename')
-    destination = wheel_dir / filename
-    with urllib.request.urlopen(url, timeout=120) as response, destination.open('wb') as out: shutil.copyfileobj(response, out)
-    actual = hashlib.sha256(destination.read_bytes()).hexdigest()
-    if actual != expected: raise SystemExit(f'artifact SHA-256 mismatch: {filename}')
-site = rootfs / 'usr/lib/python3/dist-packages'; site.mkdir(parents=True, exist_ok=True)
-for wheel in sorted(wheel_dir.glob('*.whl')):
-    with zipfile.ZipFile(wheel) as archive_zip: archive_zip.extractall(site)
-source_dst = rootfs / 'usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/source.tar.gz'
-source_dst.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(archive, source_dst)
-(source_dst.parent / 'dependency-resolution.json').write_text(json.dumps(data, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-lock = {'schema':'ashipaos.jellyfin-mpv-shim.dependency-lock.v1','status':'RESOLVED','target':data.get('target',{}),'artifacts':items}
-(source_dst.parent / 'dependencies.lock.json').write_text(json.dumps(lock, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-(source_dst.parent / 'dependency-sbom.json').write_text(json.dumps({'bomFormat':'CycloneDX','specVersion':'1.5','metadata':{'component':{'name':'jellyfin-mpv-shim','version':'3.0.0'}},'components':[{'type':'library','name':i['name'],'version':i['version'],'hashes':[{'alg':'SHA-256','content':i['sha256']}]} for i in items]}, indent=2) + '\n', encoding='utf-8')
-slot = source_dst.parent / 'bin'; slot.mkdir(parents=True, exist_ok=True)
-entry = """#!/bin/sh
-exec /usr/bin/python3 -c 'from jellyfin_mpv_shim.mpv_shim import main; main()' "$@"
-"""
-exe = slot / 'jellyfin-mpv-shim'; exe.write_text(entry, encoding='utf-8'); exe.chmod(0o755)
-manifest = {'schema':'ashipaos.jellyfin-mpv-shim.slot.v1','name':'jellyfin-mpv-shim','version':'3.0.0','executable':'bin/jellyfin-mpv-shim','sha256':hashlib.sha256(exe.read_bytes()).hexdigest(),'python_tag':data['target']['python_tag'],'abi_tag':data['target']['abi_tag'],'platform_tag':data['target']['platform_tag'],'dependency_status':'RESOLVED'}
-(source_dst.parent / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-PY
+# Writable state lives under /storage and belongs to the service user.
+uid="$(awk -F: -v u="$SERVICE_USER" '$1 == u {print $3; exit}' "$ROOTFS/etc/passwd")"
+gid="$(awk -F: -v u="$SERVICE_USER" '$1 == u {print $3; exit}' "$ROOTFS/etc/group")"
+[[ "$uid" =~ ^[0-9]+$ && "$gid" =~ ^[0-9]+$ ]] || error "target rootfs lacks the $SERVICE_USER identity"
+install -d -m 0755 -o 0 -g 0 "$ROOTFS/storage" "$ROOTFS/storage/apps"
+install -d -m 0700 -o "$uid" -g "$gid" "$ROOTFS/storage/$APP_NAME" \
+    "$ROOTFS/storage/apps/$APP_NAME" "$ROOTFS/storage/apps/$APP_NAME/slots"
 
-install -D -m 0755 "$LAYER_DIR/files/usr/libexec/ashipaos-jellyfin-mpv-shim" "$ROOTFS_DIR/usr/libexec/ashipaos-jellyfin-mpv-shim"
-mkdir -p "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim/slots"
-uid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS_DIR/etc/passwd")
-gid=$(awk -F: '$1 == "ashipa" {print $3; exit}' "$ROOTFS_DIR/etc/group")
-[[ "$uid" =~ ^[0-9]+$ && "$gid" =~ ^[0-9]+$ ]] || error "target rootfs lacks ashipa ownership identity"
-chown -R "$uid:$gid" "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim"
-chmod 0700 "$ROOTFS_DIR/storage/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim" "$ROOTFS_DIR/storage/apps/jellyfin-mpv-shim/slots"
-
-OUT="$TMP/rootfs.tar.gz"
-tar -C "$ROOTFS_DIR" --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' -czf "$OUT" .
-mv -f "$OUT" "$INPUT"
-rootfs_output_owner "$INPUT" "$(dirname "$INPUT")"
-printf 'layer5-application: RESOLVED runnable bundle staged for %s\n' "$TARGET"
+partial="$INPUT.partial"
+tar -C "$ROOTFS" --numeric-owner --xattrs --acls -czf "$partial" .
+mv -f -- "$partial" "$INPUT"
+rootfs_output_owner "$INPUT" || error "could not restore rootfs ownership"
+printf 'layer5-application: bundle %s %s installed for %s\n' "$APP_NAME" "$APP_VERSION" "$TARGET"

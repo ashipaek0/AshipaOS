@@ -69,6 +69,17 @@ coreelec_baseline:
     compositor: UNKNOWN
     hwdec: UNKNOWN
 
+# Boot payload the AshipaOS image actually ships. The image boots Debian's
+# mainline arm64 kernel, which cannot use the CoreELEC 4.9 vendor DTB above
+# (or the stock Android meson1.dtb), so it boots the matching mainline DTB
+# from the same kernel package. PROVISIONAL until hardware UART evidence exists.
+mainline_boot:
+  kernel_package: linux-image-arm64
+  device_tree: amlogic/meson-sm1-a95xf3-air-gbit.dtb
+  console: ttyAML0
+  status: PROVISIONAL
+  evidence: []
+
 wifi:
   driver: null
   status: UNKNOWN

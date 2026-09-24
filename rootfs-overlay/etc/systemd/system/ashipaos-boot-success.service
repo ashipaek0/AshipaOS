@@ -1,12 +1,12 @@
 [Unit]
-Description=AshipaOS graphical boot readiness marker
-Requires=ashipaos-display.service
-After=ashipaos-display.service
+Description=AshipaOS boot readiness marker
+Requires=ashipaos-boot-status.service
+After=ashipaos-boot-status.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'systemctl is-active --quiet ashipaos-display.service && printf "ASHIPAOS_BOOT_SUCCESS=1\n" > /dev/console'
+ExecStart=/bin/sh -c 'systemctl is-active --quiet ashipaos-boot-status.service && printf "ASHIPAOS_BOOT_SUCCESS=1\n" > /dev/console'
 RemainAfterExit=yes
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target

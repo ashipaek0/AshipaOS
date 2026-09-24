@@ -1,4 +1,8 @@
-target_support:
-  - a95x-f3-air
+# Layer 10: release artefacts for the A95X F3 Air.
+target_support: [a95x-f3-air]
 architecture: arm64
-release_format: signed-ota
+# Raw SD image, gzip-compressed, with a SHA256SUMS file. Signing and the SBOM
+# are added by scripts/ci-sign-artefacts.sh and scripts/ci-generate-sbom.sh.
+release_format: raw-image-gz
+checksums: SHA256SUMS-a95x-f3-air
+ota: not_implemented

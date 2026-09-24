@@ -12,7 +12,7 @@ ashipa_uid=$(getent passwd ashipa | awk -F: 'NR == 1 {print $3}')
 ashipa_gid=$(getent group ashipa | awk -F: 'NR == 1 {print $3}')
 [[ "$ashipa_uid" =~ ^[0-9]+$ && "$ashipa_gid" =~ ^[0-9]+$ ]] || error "ashipa ownership identity is unavailable"
 owned_mode() {
-    local path="$1" owner="$2" group="$3" mode="$4" label="$5" actual_owner actual_group actual_mode
+    local path="$1" owner="$2" group="$3" mode="$4" actual_owner actual_group actual_mode
     [[ -e "$path" && ! -L "$path" ]] || return 1
     read -r actual_owner actual_group actual_mode < <(stat -c '%u %g %a' "$path") || return 1
     [[ "$actual_owner" == "$owner" && "$actual_group" == "$group" && "$actual_mode" == "$mode" ]]

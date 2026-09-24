@@ -1,7 +1,9 @@
+# Release identity for this branch (validated by schemas/target.schema.json).
 target: a95x-f3-air
 architecture: arm64
-release_channel: dev
-base: coreelec
-image_format: raw
 media: removable-sd
+release_channel: dev
+base: debian-bookworm
+boot: vendor-u-boot-sd-autoscript
+image_format: raw-gz
 full_build: github-actions-only

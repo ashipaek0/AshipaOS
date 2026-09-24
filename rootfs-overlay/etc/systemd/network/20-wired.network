@@ -1,0 +1,6 @@
+# DHCP on any wired interface (mainline names it end0 on the A95X F3 Air).
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes

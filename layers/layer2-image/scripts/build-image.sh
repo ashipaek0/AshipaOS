@@ -1,463 +1,395 @@
 #!/usr/bin/env bash
-# Layer 2: Build Partitioned Disk Image with Bootloader
-# Verification Class: BUILD (VM and HARDWARE remain blocked)
+# Layer 2: A95X F3 Air removable-SD disk image.
+# Verification Class: BUILD (CI only; VM and HARDWARE gates remain open)
+#
+# Builds a DOS/MBR image with a FAT16 boot partition (aml_autoscript, cfgload,
+# Android legacy kernel.img, dtb.img) and an ext4 root partition, entirely from
+# the Layer 1/5 rootfs tarball. Nothing is written before sector 8192, and no
+# bootloader or eMMC payload is ever written.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER_DIR="$(dirname "$SCRIPT_DIR")"
 REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
 CONFIG_FILE="${ASHIPAOS_IMAGE_CONFIG:-$LAYER_DIR/config/image-config.yaml}"
-EVIDENCE_DIR="$LAYER_DIR/evidence"
-OUTPUT_DIR="${GITHUB_WORKSPACE:-$REPO_ROOT}/output/images"
+TARGET="a95x-f3-air"
+TARGET_FILE="$REPO_ROOT/build/targets/amlogic/boxes/$TARGET.yaml"
+OUTPUT_DIR="${ASHIPAOS_IMAGE_DIR:-${GITHUB_WORKSPACE:-$REPO_ROOT}/output/images}"
+EVIDENCE_DIR="${ASHIPAOS_EVIDENCE_DIR:-${GITHUB_WORKSPACE:-$REPO_ROOT}/output/evidence}"
 WORK_DIR=""
 PARTIAL_IMAGE=""
 
-ROOTFS_IMAGE=""
-TARGET="a95x-f3-air"
-IMAGE_SIZE_MB=""
-EFI_SIZE_MB=""
-ROOT_SIZE_MB=""
-EFI_LABEL=""
-ROOT_LABEL=""
-
-BOOT_BLOBS_DIR="$LAYER_DIR/files/a95x-f3-air"
-A95X_PROVENANCE="$BOOT_BLOBS_DIR/provenance.json"
-A95X_BOOT_LABEL="A95XBOOT"
-A95X_BOOTARGS="root=LABEL=RootFS rw console=ttyS0,115200 console=tty0"
-A95X_KERNEL_SOURCE=""
-A95X_INITRD_SOURCE=""
-
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <rootfs-image> [target]
+Usage: $(basename "$0") [OPTIONS] <rootfs.tar.gz> [$TARGET]
 
-Build a target-specific disk image from a Layer 1 rootfs tarball with bootloader installed.
+Build the $TARGET SD image from the Layer 1/5 rootfs tarball (runs as root).
 
 Options:
-    -h, --help       Show this help message
-    --validate       Validate configuration only
-    --layout-only F [target]  Create and validate only the target layout in file F (test aid)
-    --print-repo-root  Print the resolved repository root (test aid)
+  -h, --help                 Show this help
+  --validate                 Validate the configuration only
+  --layout-only FILE         Write only the partition layout to FILE (test aid)
 
-Verification Class: BUILD
-Dependencies: Layer 1 rootfs, util-linux sfdisk, dosfstools (A95X FAT16), libguestfs-tools, dosfstools, u-boot-tools, device-tree-compiler
+Dependencies: python3-yaml, util-linux (sfdisk), dosfstools, mtools,
+              e2fsprogs (mkfs.ext4 -d), u-boot-tools (mkimage)
 EOF
 }
 
-log() { printf '[%(%Y-%m-%d %H:%M:%S)T] %s\n' -1 "$*"; }
-error() { echo "[ERROR] $*" >&2; exit 1; }
+log() { printf '[L2-IMAGE] %(%Y-%m-%d %H:%M:%S)T %s\n' -1 "$*" >&2; }
+error() { printf '[L2-IMAGE ERROR] %s\n' "$*" >&2; exit 1; }
 
 cleanup() {
-    local status="$1"
-    [[ -n "$WORK_DIR" && -d "$WORK_DIR" ]] && rm -rf -- "$WORK_DIR"
-    if (( status != 0 )) && [[ -n "$PARTIAL_IMAGE" ]]; then
-        rm -f -- "$PARTIAL_IMAGE" "$PARTIAL_IMAGE.meta.json"
-    fi
+    local status=$?
+    [[ -n "$WORK_DIR" && -d "$WORK_DIR" ]] && rm -rf --one-file-system -- "$WORK_DIR"
+    [[ -n "$PARTIAL_IMAGE" ]] && rm -f -- "$PARTIAL_IMAGE"
+    return "$status"
 }
-trap 'cleanup $?' EXIT
+trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-yaml_scalar() {
-    local key="$1"
-    awk -v key="$key" '$1 == key ":" {print $2; exit}' "$CONFIG_FILE"
+# Reads and validates image-config.yaml plus the target's mainline DTB, and
+# prints shell assignments. Every layout invariant of the contract is enforced
+# here, so --validate and --layout-only exercise the same checks as a build.
+load_config() {
+    local assignments
+    assignments="$(python3 - "$CONFIG_FILE" "$TARGET_FILE" <<'PY'
+import re, shlex, sys
+import yaml
+
+config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+target = yaml.safe_load(open(sys.argv[2], encoding="utf-8"))
+
+def fail(message):
+    raise SystemExit(f"image-config: {message}")
+
+boot, root = config["partitions"]["boot"], config["partitions"]["root"]
+size_mb = config["image_size_mb"]
+if config["partition_table"] != "dos":
+    fail("partition_table must be dos")
+if config["prepartition_gap"] != {"start_sector": 1, "end_sector": 8191, "contents": "zero"}:
+    fail("the pre-partition gap must be sectors 1..8191, zero")
+if config["raw_sd_payload_writes"] is not False:
+    fail("raw SD payload writes are forbidden")
+if (boot["start_sector"], boot["size_mb"], boot["filesystem"], boot["mbr_type"]) != (8192, 256, "fat16", "0x0e"):
+    fail("boot partition must be FAT16 (0x0e), 256 MiB at sector 8192")
+if root["start_sector"] != boot["start_sector"] + boot["size_mb"] * 2048:
+    fail("root partition must directly follow the boot partition")
+if (root["start_sector"], root["filesystem"], root["mbr_type"]) != (532480, "ext4", "0x83"):
+    fail("root partition must be ext4 (0x83) at sector 532480")
+if root["start_sector"] + root["size_mb"] * 2048 > size_mb * 2048:
+    fail("partitions exceed image_size_mb")
+if not re.fullmatch(r"[A-Z0-9_]{1,11}", boot["label"]) or not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", root["label"]):
+    fail("invalid filesystem label")
+b = config["boot"]
+if b["files"] != ["aml_autoscript", "cfgload", "kernel.img", "dtb.img", "manifest.json"]:
+    fail("boot file set changed")
+header = b["android_header"]
+addresses = {k: int(header[k], 16) for k in ("kernel_base", "kernel_limit", "ramdisk_addr", "tags_addr")}
+load_addr, dtb_addr = int(b["image_load_addr"], 16), int(b["dtb_addr"], 16)
+if header["page_size"] != 2048 or addresses["kernel_base"] % 0x200000:
+    fail("page size must be 2048 and the kernel base 2 MiB aligned")
+if not addresses["kernel_limit"] <= addresses["ramdisk_addr"] < dtb_addr < load_addr:
+    fail("kernel < ramdisk < dtb < kernel.img load address ordering is violated")
+if f"root=LABEL={root['label']}" not in b["bootargs"] or "console=ttyAML0" not in b["bootargs"]:
+    fail("bootargs must select the root label and the mainline ttyAML0 console")
+dtb = target["mainline_boot"]["device_tree"]
+if not re.fullmatch(r"amlogic/meson-[a-z0-9-]+\.dtb", dtb):
+    fail(f"unexpected mainline DTB path: {dtb}")
+values = {
+    "IMAGE_SIZE_MB": size_mb,
+    "BOOT_START": boot["start_sector"], "BOOT_SIZE_MB": boot["size_mb"], "BOOT_LABEL": boot["label"],
+    "BOOT_TYPE": boot["mbr_type"][2:],
+    "ROOT_START": root["start_sector"], "ROOT_SIZE_MB": root["size_mb"], "ROOT_LABEL": root["label"],
+    "ROOT_TYPE": root["mbr_type"][2:],
+    "PAGE_SIZE": header["page_size"], "KERNEL_BASE": header["kernel_base"],
+    "KERNEL_LIMIT": header["kernel_limit"], "RAMDISK_ADDR": header["ramdisk_addr"],
+    "TAGS_ADDR": header["tags_addr"], "IMAGE_LOAD_ADDR": b["image_load_addr"],
+    "DTB_ADDR": b["dtb_addr"], "BOOTARGS": b["bootargs"], "MAINLINE_DTB": dtb,
+}
+for key, value in values.items():
+    print(f"{key}={shlex.quote(str(value))}")
+PY
+)" || error "configuration is invalid: $CONFIG_FILE"
+    eval "$assignments"
+    log "Layout: ${IMAGE_SIZE_MB} MiB; boot FAT16 ${BOOT_SIZE_MB} MiB @${BOOT_START}; root ext4 ${ROOT_SIZE_MB} MiB @${ROOT_START}"
 }
 
-filesystem_label() {
-    local filesystem="$1"
-    awk -v wanted="$filesystem" '
-        /^filesystems:/ { in_filesystems=1; next }
-        in_filesystems && /^[^ ]/ { in_filesystems=0 }
-        in_filesystems && $1 == wanted ":" { in_wanted=1; next }
-        in_wanted && /^  [a-zA-Z0-9_-]+:/ { in_wanted=0 }
-        in_wanted && $1 == "label:" { print $2; exit }
-    ' "$CONFIG_FILE"
-}
-
-require_uint() {
-    local name="$1" value="$2"
-    [[ "$value" =~ ^[1-9][0-9]*$ ]] || error "$name must be a positive integer (got: ${value:-empty})"
-}
-
-parse_and_validate_config() {
-    [[ -f "$CONFIG_FILE" ]] || error "Configuration file not found: $CONFIG_FILE"
-
-    IMAGE_SIZE_MB="$(yaml_scalar image_size_mb)"
-    EFI_SIZE_MB="$(awk '/^partitions:/ {p=1; next} p && $1 == "efi:" {print $2; exit}' "$CONFIG_FILE")"
-    ROOT_SIZE_MB="$(awk '/^partitions:/ {p=1; next} p && $1 == "root:" {print $2; exit}' "$CONFIG_FILE")"
-    EFI_LABEL="$(filesystem_label efi)"
-    ROOT_LABEL="$(filesystem_label root)"
-
-    require_uint image_size_mb "$IMAGE_SIZE_MB"
-    require_uint partitions.efi "$EFI_SIZE_MB"
-    require_uint partitions.root "$ROOT_SIZE_MB"
-    (( EFI_SIZE_MB >= 32 )) || error "EFI partition must be at least 32 MiB"
-    (( ROOT_SIZE_MB >= 64 )) || error "root partition must be at least 64 MiB"
-    [[ "$EFI_LABEL" =~ ^[A-Za-z0-9_-]{1,11}$ ]] || error "EFI label must be 1-11 safe characters"
-    [[ "$ROOT_LABEL" =~ ^[A-Za-z0-9_-]{1,16}$ ]] || error "root label must be 1-16 safe characters"
-
-    local total_sectors=$((IMAGE_SIZE_MB * 2048))
-    local root_end=$((2048 + EFI_SIZE_MB * 2048 + ROOT_SIZE_MB * 2048 - 1))
-    (( total_sectors > 4096 )) || error "image is too small for a GPT disk"
-    (( root_end <= total_sectors - 34 )) ||
-        error "partition sizes exceed image_size_mb (GPT backup table needs 33 trailing sectors)"
-
-    if [[ "$TARGET" == "a95x-f3-air" ]]; then
-        [[ "$EFI_SIZE_MB" -eq 256 && "$ROOT_SIZE_MB" -eq 3584 ]] ||
-            error "A95X layout requires 256 MiB boot and 3584 MiB root partitions"
-        grep -qE '^    type: fat16$' "$CONFIG_FILE" || error "A95X boot filesystem must be FAT16"
-        grep -q '    start_sector: 8192' "$CONFIG_FILE" || error "A95X boot start sector is not recorded"
-        grep -q '    start_sector: 532480' "$CONFIG_FILE" || error "A95X root start sector is not recorded"
-    fi
-
-    log "Image configuration: total=${IMAGE_SIZE_MB}MiB, efi=${EFI_SIZE_MB}MiB, root=${ROOT_SIZE_MB}MiB"
-}
-
-write_sfdisk_spec() {
-    local destination="$1"
-    local efi_sectors=$((EFI_SIZE_MB * 2048))
-    local efi_start=2048
-    [[ "$TARGET" == "a95x-f3-air" ]] && efi_start=8192
-    local root_start=$((efi_start + efi_sectors))
-    local root_sectors=$((ROOT_SIZE_MB * 2048))
-
-    if [[ "$TARGET" == "a95x-f3-air" ]]; then
-        # A95X SD boot uses the DOS/MBR partition table directly.  The verified
-        # contract leaves sectors 1..8191 empty before the FAT16 partition.
-        cat >"$destination" <<EOF
-label: dos
-unit: sectors
-sector-size: 512
-
-start=$efi_start, size=$efi_sectors, type=c, bootable
-start=$root_start, size=$root_sectors, type=83
-EOF
-        return
-    fi
-
-
+make_work_dir() {
+    local parent="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+    WORK_DIR="$(mktemp -d "$parent/ashipaos-image.XXXXXX")"
 }
 
 create_partition_layout() {
     local image="$1"
-    command -v sfdisk >/dev/null || error "sfdisk is required (install the util-linux/fdisk package)"
+    command -v sfdisk >/dev/null || error "sfdisk is required (util-linux/fdisk)"
     truncate -s "${IMAGE_SIZE_MB}M" "$image"
-    write_sfdisk_spec "$WORK_DIR/partitions.sfdisk"
-    sfdisk --wipe always "$image" <"$WORK_DIR/partitions.sfdisk" >/dev/null
+    sfdisk --quiet --wipe always "$image" <<EOF
+label: dos
+unit: sectors
+sector-size: 512
+
+start=$BOOT_START, size=$((BOOT_SIZE_MB * 2048)), type=$BOOT_TYPE, bootable
+start=$ROOT_START, size=$((ROOT_SIZE_MB * 2048)), type=$ROOT_TYPE
+EOF
     sfdisk --verify "$image" >/dev/null
 }
 
-populate_image() {
-    local image="$1" rootfs_tar="$2"
-    [[ "$TARGET" == a95x-f3-air ]] || error "unsupported Layer 2 target: $TARGET"
-    command -v guestfish >/dev/null || error "guestfish is required for a full Layer 2 build; metadata-only output is forbidden"
-    [[ -f "$rootfs_tar" ]] || error "Layer 1 rootfs tarball not found: $rootfs_tar"
-    tar -tzf "$rootfs_tar" >/dev/null || error "Layer 1 rootfs is not a readable gzip tar archive: $rootfs_tar"
-
-    install_a95x_boot_partition "$image" "$rootfs_tar"
+# Resolve a Debian top-level link (/vmlinuz, /initrd.img) strictly inside the
+# extracted rootfs: the link must point at a regular file directly in /boot.
+rootfs_boot_file() {
+    local rootfs="$1" link="$2" prefix="$3" target
+    [[ -L "$rootfs/$link" ]] || error "rootfs /$link is not a symlink"
+    target="$(readlink "$rootfs/$link")"
+    target="/${target#/}"
+    [[ "$target" =~ ^/boot/${prefix//./\\.}-[A-Za-z0-9.+_~-]+$ ]] || error "rootfs /$link points outside /boot: $target"
+    [[ -f "$rootfs$target" && ! -L "$rootfs$target" && -s "$rootfs$target" ]] ||
+        error "rootfs $target is not a regular, non-empty file"
+    printf '%s\n' "$target"
 }
 
-make_a95x_kernel() {
-    local rootfs_tar="$1" output="$2" stage="$WORK_DIR/rootfs"
-    mkdir -p "$stage"
+make_kernel_img() {
+    local rootfs="$1" bootdir="$2" kernel initrd kver dtb
+    kernel="$(rootfs_boot_file "$rootfs" vmlinuz vmlinuz)"
+    initrd="$(rootfs_boot_file "$rootfs" initrd.img initrd.img)"
+    kver="${kernel#/boot/vmlinuz-}"
+    [[ "$initrd" == "/boot/initrd.img-$kver" ]] || error "kernel/initramfs version mismatch: $kernel $initrd"
+    dtb="/usr/lib/linux-image-$kver/$MAINLINE_DTB"
+    [[ -f "$rootfs$dtb" && ! -L "$rootfs$dtb" ]] || error "kernel package lacks the target DTB: $dtb"
+    install -m 0644 "$rootfs$dtb" "$bootdir/dtb.img"
+    printf '%s\n%s\n%s\n' "$kernel" "$initrd" "$dtb" >"$WORK_DIR/boot-sources"
 
-    # Layer 1 intentionally keeps Debian's /vmlinuz and /initrd.img symlinks.
-    # Resolve only within the tar archive: never ask tar to follow a link or
-    # extract an attacker-controlled path on the host filesystem.
-    mapfile -t resolved_sources < <(python3 - "$rootfs_tar" "$stage" <<'PY'
-import posixpath
-import sys
-import tarfile
+    # Self-contained Android legacy v0 writer (Ubuntu's mkbootimg is broken).
+    python3 - "$rootfs$kernel" "$rootfs$initrd" "$bootdir/kernel.img" "$WORK_DIR/kernel-img.json" \
+        "$PAGE_SIZE" "$KERNEL_BASE" "$KERNEL_LIMIT" "$RAMDISK_ADDR" "$TAGS_ADDR" "$DTB_ADDR" "$BOOTARGS" <<'PY'
+import gzip, hashlib, json, struct, sys
 from pathlib import Path
 
-def archive_name(name):
-    if name.startswith('/'):
-        raise ValueError(f'absolute archive member: {name}')
-    name = posixpath.normpath(name)
-    if name in ('', '.'):
-        return ''
-    if name == '..' or name.startswith('../'):
-        raise ValueError(f'traversal archive member: {name}')
-    return name[2:] if name.startswith('./') else name
+kernel_path, ramdisk_path, out_path, info_path = sys.argv[1:5]
+page, base, limit, ramdisk_addr, tags_addr, dtb_addr = (int(v, 0) for v in sys.argv[5:11])
+cmdline = sys.argv[11].encode()
 
-def link_target(name, target):
-    # Debian's rootfs links are absolute /boot links. Permit that one
-    # rootfs-internal form, but reject absolute targets elsewhere.
-    if target.startswith('/') and not target.startswith('/boot/'):
-        raise ValueError(f'absolute symlink target outside /boot: {name} -> {target}')
-    candidate = target.lstrip('/') if target.startswith('/') else posixpath.join(posixpath.dirname(name), target)
-    candidate = posixpath.normpath(candidate)
-    if candidate == '..' or candidate.startswith('../'):
-        raise ValueError(f'traversal symlink target: {name} -> {target}')
-    return candidate
+kernel = Path(kernel_path).read_bytes()
+compression = "none"
+if kernel[:2] == b"\x1f\x8b":
+    # Vendor U-Boot bootm only reliably boots an uncompressed arm64 Image.
+    kernel, compression = gzip.decompress(kernel), "gzip"
+if len(kernel) < 64 or kernel[56:60] != b"ARM\x64":
+    raise SystemExit("kernel is not an arm64 Image (missing ARM\\x64 magic)")
+text_offset, image_size = struct.unpack_from("<QQ", kernel, 8)
+image_size = image_size or len(kernel)
+kernel_addr = base + text_offset
+if kernel_addr + image_size > limit:
+    raise SystemExit(f"kernel footprint 0x{kernel_addr + image_size:x} exceeds limit 0x{limit:x}")
+ramdisk = Path(ramdisk_path).read_bytes()
+if ramdisk_addr + len(ramdisk) > dtb_addr:
+    raise SystemExit("initramfs would overlap the DTB load address")
+if len(cmdline) >= 512:
+    raise SystemExit("bootargs exceed the 512-byte Android header field")
 
-def resolve(entries, name):
-    seen = set()
-    current = name
-    for _ in range(40):
-        if current in seen:
-            raise ValueError(f'symlink cycle at {name}')
-        seen.add(current)
-        member = entries.get(current)
-        if member is None:
-            raise ValueError(f'unresolved rootfs path: {name} -> {current}')
-        if member.isfile():
-            return current, member
-        if member.issym():
-            current = link_target(current, member.linkname)
-            continue
-        raise ValueError(f'non-regular kernel input: {current}')
-    raise ValueError(f'symlink chain too deep: {name}')
+header = bytearray(page)
+header[:8] = b"ANDROID!"
+# kernel_size, kernel_addr, ramdisk_size, ramdisk_addr, second_size,
+# second_addr, tags_addr, page_size, header_version(0), os_version(0)
+struct.pack_into("<10I", header, 8, len(kernel), kernel_addr, len(ramdisk), ramdisk_addr,
+                 0, 0, tags_addr, page, 0, 0)
+header[48:64] = b"AshipaOS-A95X".ljust(16, b"\0")
+header[64:576] = cmdline.ljust(512, b"\0")
+# Legacy ID: SHA-1 over each section followed by its size.
+sha = hashlib.sha1()
+for blob in (kernel, ramdisk, b""):
+    sha.update(blob)
+    sha.update(struct.pack("<I", len(blob)))
+header[576:596] = sha.digest()
 
-archive, stage = sys.argv[1], Path(sys.argv[2])
-try:
-    with tarfile.open(archive, 'r:*') as tf:
-        entries = {}
-        for member in tf.getmembers():
-            name = archive_name(member.name)
-            if not name:
-                continue
-            if name in entries:
-                raise ValueError(f'duplicate archive member: {name}')
-            entries[name] = member
-        with_targets = []
-        for requested, output in (('vmlinuz', 'vmlinuz'), ('initrd.img', 'initrd.img')):
-            source, member = resolve(entries, requested)
-            stream = tf.extractfile(member)
-            if stream is None:
-                raise ValueError(f'cannot read regular archive member: {source}')
-            destination = stage / output
-            with destination.open('xb') as out:
-                while True:
-                    chunk = stream.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    out.write(chunk)
-            with_targets.append((requested, source))
-        for requested, source in with_targets:
-            print(f'{requested}={source}')
-except (OSError, tarfile.TarError, ValueError) as exc:
-    print(f'secure rootfs extraction failed: {exc}', file=sys.stderr)
-    raise SystemExit(1)
+pad = lambda blob: blob + b"\0" * (-len(blob) % page)
+Path(out_path).write_bytes(bytes(header) + pad(kernel) + pad(ramdisk))
+Path(info_path).write_text(json.dumps({
+    "format": "android-legacy-v0", "page_size": page,
+    "kernel": {"source_compression": compression, "size": len(kernel), "text_offset": hex(text_offset),
+               "image_size": hex(image_size), "load_addr": hex(kernel_addr),
+               "sha256": hashlib.sha256(kernel).hexdigest()},
+    "ramdisk": {"size": len(ramdisk), "load_addr": hex(ramdisk_addr),
+                "sha256": hashlib.sha256(ramdisk).hexdigest()},
+    "tags_addr": hex(tags_addr), "cmdline": cmdline.decode(),
+}), encoding="utf-8")
 PY
-) || error "A95X rootfs kernel/initramfs entries failed secure resolution"
-    for source in "${resolved_sources[@]}"; do
-        case "$source" in
-            vmlinuz=*) A95X_KERNEL_SOURCE="${source#vmlinuz=}" ;;
-            initrd.img=*) A95X_INITRD_SOURCE="${source#initrd.img=}" ;;
-            *) error "unexpected secure extraction result: $source" ;;
-        esac
-    done
-    [[ -f "$stage/vmlinuz" && -f "$stage/initrd.img" ]] ||
-        error "A95X kernel inputs must be regular files inside the target rootfs"
-
-    # Ubuntu 24.04's android-tools mkbootimg imports a missing gki module.
-    # Generate the pinned legacy v0 format directly instead of trusting it.
-    python3 - "$stage/vmlinuz" "$stage/initrd.img" "$output" <<'PY'
-import hashlib, struct, sys
-from pathlib import Path
-kernel, ramdisk, out = (Path(x) for x in sys.argv[1:])
-kernel_data, ramdisk_data = kernel.read_bytes(), ramdisk.read_bytes()
-page = 2048
-header = bytearray(608)
-header[:8] = b'ANDROID!'
-struct.pack_into('<10I', header, 8, len(kernel_data), 0x01080000,
-                 len(ramdisk_data), 0x01000000, 0, 0x00f00000,
-                 0x00000100, page, 0, 0)
-# Android legacy v0 has name at [48:64], cmdline at [64:576], and the
-# 20-byte ID at [576:596].
-name = b'AshipaOS-A95X'
-cmdline = b'root=LABEL=RootFS rw console=ttyS0,115200 console=tty0'
-assert len(name) <= 16 and len(cmdline) <= 512
-header[48:64] = name.ljust(16, b'\0')
-header[64:576] = cmdline.ljust(512, b'\0')
-header[576:596] = hashlib.sha1(kernel_data + ramdisk_data).digest()
-def padded(data): return data + b'\0' * ((-len(data)) % page)
-out.write_bytes(bytes(header).ljust(page, b'\0') + padded(kernel_data) + padded(ramdisk_data))
-PY
-    [[ "$(dd if="$output" bs=1 count=8 status=none)" == "ANDROID!" ]] ||
-        error "self-contained legacy Android generator did not create a valid header"
+    [[ "$(head -c 8 "$bootdir/kernel.img")" == "ANDROID!" ]] || error "kernel.img has no Android header"
 }
 
-make_a95x_scripts() {
-    local outdir="$1"
-    command -v mkimage >/dev/null || error "u-boot-tools (mkimage) is required for A95X scripts"
-    cat >"$WORK_DIR/AML_AUTOSCRIPT.txt" <<'EOF'
+make_boot_scripts() {
+    local bootdir="$1"
+    command -v mkimage >/dev/null || error "u-boot-tools (mkimage) is required"
+    # Run by the vendor U-Boot recovery path. The environment is reset in RAM
+    # only; the environment is never persisted, because that would write eMMC.
+    cat >"$WORK_DIR/aml_autoscript.txt" <<EOF
 defenv
-setenv loadaddr 0x01000000
-setenv dtb_mem_addr 0x10000000
-setenv cfgloadsd 'fatload mmc 0:1 ${loadaddr} CFGLOAD'
+setenv ashipa_script_addr 0x01000000
+setenv ashipa_img_addr $IMAGE_LOAD_ADDR
+setenv dtb_mem_addr $DTB_ADDR
 setenv device mmc
 setenv devnr 0
 setenv partnr 1
-run cfgloadsd
-autoscr ${loadaddr}
+if fatload \${device} \${devnr}:\${partnr} \${ashipa_script_addr} cfgload; then autoscr \${ashipa_script_addr}; fi
 EOF
-    cat >"$WORK_DIR/CFGLOAD.txt" <<EOF
-setenv bootargs '$A95X_BOOTARGS'
-fatload \${device} \${devnr}:\${partnr} \${loadaddr} KERNEL.IMG
+    cat >"$WORK_DIR/cfgload.txt" <<EOF
+setenv bootargs '$BOOTARGS'
 fatload \${device} \${devnr}:\${partnr} \${dtb_mem_addr} dtb.img
-bootm \${loadaddr}
-bootm start
-bootm loados
-bootm prep
-bootm go
+fatload \${device} \${devnr}:\${partnr} \${ashipa_img_addr} kernel.img
+bootm \${ashipa_img_addr}
 EOF
-    mkimage -A arm64 -T script -C none -n A95X-AUTOSCRIPT -d "$WORK_DIR/AML_AUTOSCRIPT.txt" "$outdir/AML_AUTOSCRIPT" >/dev/null || error "failed to compile AML_AUTOSCRIPT"
-    mkimage -A arm64 -T script -C none -n A95X-CFGLOAD -d "$WORK_DIR/CFGLOAD.txt" "$outdir/CFGLOAD" >/dev/null || error "failed to compile CFGLOAD"
+    mkimage -A arm64 -O linux -T script -C none -n A95X-AUTOSCRIPT \
+        -d "$WORK_DIR/aml_autoscript.txt" "$bootdir/aml_autoscript" >/dev/null
+    mkimage -A arm64 -O linux -T script -C none -n A95X-CFGLOAD \
+        -d "$WORK_DIR/cfgload.txt" "$bootdir/cfgload" >/dev/null
 }
 
-format_a95x_boot_partition() {
-    local image="$1" filesystem="$WORK_DIR/a95x-fat16.img"
-    local partition_bytes=$((256 * 1024 * 1024))
-    command -v mkfs.fat >/dev/null || error "dosfstools (mkfs.fat) is required for A95X FAT16 formatting"
-    # The optional guestfish filesystem-formatting API is not available on all
-    # CI runners. Format a bounded userspace file, then copy only the FAT16
-    # partition bytes into the existing image; this cannot alter MBR geometry.
-    truncate -s "$partition_bytes" "$filesystem"
-    mkfs.fat -F 16 -S 512 -n "$A95X_BOOT_LABEL" "$filesystem" >/dev/null
-    dd if="$filesystem" of="$image" bs=512 seek=8192 conv=notrunc status=none
+write_boot_manifest() {
+    local bootdir="$1" rootfs_tar="$2"
+    local sources
+    mapfile -t sources <"$WORK_DIR/boot-sources"
+    python3 - "$bootdir" "$WORK_DIR/kernel-img.json" "$rootfs_tar" "$TARGET" "$BOOT_LABEL" "$ROOT_LABEL" \
+        "$BOOT_START" "$ROOT_START" "$IMAGE_LOAD_ADDR" "$DTB_ADDR" "${sources[@]}" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+bootdir, info, rootfs_tar = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+target, boot_label, root_label, boot_start, root_start, load_addr, dtb_addr, kernel, initrd, dtb = sys.argv[4:14]
+digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+manifest = {
+    "format": "ashipaos-a95x-boot-v2",
+    "target": target,
+    "partition": {"table": "dos", "start_sector": int(boot_start), "filesystem": "fat16", "label": boot_label},
+    "root_partition": {"start_sector": int(root_start), "filesystem": "ext4", "label": root_label},
+    "files": {name: digest(bootdir / name) for name in ("aml_autoscript", "cfgload", "kernel.img", "dtb.img")},
+    "kernel_img": json.loads(info.read_text(encoding="utf-8")),
+    "load_addresses": {"kernel_img": load_addr, "dtb": dtb_addr},
+    "rootfs": {"archive_sha256": digest(rootfs_tar), "kernel": kernel, "initrd": initrd, "dtb": dtb},
+    "provenance": "layers/layer2-image/files/a95x-f3-air/provenance.json",
+    "hardware_claim": "none; physical boot is unverified",
+}
+(bootdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+PY
 }
 
-install_a95x_boot_partition() {
-    local image="$1" rootfs_tar="$2" bootdir="$WORK_DIR/a95x-boot"
-    [[ -f "$A95X_PROVENANCE" ]] || error "missing exact A95X provenance manifest"
-    mkdir -p "$bootdir"
-    make_a95x_kernel "$rootfs_tar" "$bootdir/KERNEL.IMG"
-    cp -- "$BOOT_BLOBS_DIR/meson1.dtb" "$bootdir/dtb.img"
-    format_a95x_boot_partition "$image"
-    make_a95x_scripts "$bootdir"
-    cat >"$bootdir/manifest" <<EOF
-{
-  "format": "ashipaos-a95x-boot-v1",
-  "target": "a95x-f3-air",
-  "partition": {"table": "dos", "start_sector": 8192, "filesystem": "FAT16", "label": "$A95X_BOOT_LABEL"},
-  "root_partition": {"start_sector": 532480, "filesystem": "ext4", "label": "RootFS"},
-  "files": {"AML_AUTOSCRIPT": "$(sha256sum "$bootdir/AML_AUTOSCRIPT" | awk '{print $1}')", "CFGLOAD": "$(sha256sum "$bootdir/CFGLOAD" | awk '{print $1}')", "KERNEL.IMG": "$(sha256sum "$bootdir/KERNEL.IMG" | awk '{print $1}')", "dtb.img": "$(sha256sum "$bootdir/dtb.img" | awk '{print $1}')"},
-  "kernel_contract": {"source": "CoreELEC 21.3-Omega inspected boot partition", "header": "ANDROID!", "page_size": 2048, "kernel_offset": "0x01080000", "ramdisk_offset": "0x01000000", "second_offset": "0x00f00000", "tags_offset": "0x00000100"},
-  "rootfs_kernel_provenance": {"archive_sha256": "$(sha256sum "$rootfs_tar" | awk '{print $1}')", "kernel_entry": "/vmlinuz", "kernel_resolved": "/$A95X_KERNEL_SOURCE", "initrd_entry": "/initrd.img", "initrd_resolved": "/$A95X_INITRD_SOURCE"},
-  "ddr_usb_relationship": {"file": "ddr-usb.bin", "sha256": "$(sha256sum "$BOOT_BLOBS_DIR/ddr-usb.bin" | awk '{print $1}')", "role": "matching stock USB DDR-training payload", "used_in_sd_image": false},
-  "bootargs": "$A95X_BOOTARGS",
-  "provenance": "layers/layer2-image/files/a95x-f3-air/provenance.json"
-}
-EOF
-    guestfish -a "$image" <<EOF
-run
-set-label /dev/sda1 $A95X_BOOT_LABEL
-mkfs ext4 /dev/sda2
-set-label /dev/sda2 RootFS
-mount /dev/sda2 /
-tar-in "$rootfs_tar" / compress:gzip
-mount /dev/sda1 /boot
-upload $bootdir/AML_AUTOSCRIPT /boot/AML_AUTOSCRIPT
-upload $bootdir/CFGLOAD /boot/CFGLOAD
-upload $bootdir/KERNEL.IMG /boot/KERNEL.IMG
-upload $bootdir/dtb.img /boot/dtb.img
-upload $bootdir/manifest /boot/manifest
-write /etc/fstab "LABEL=RootFS / ext4 defaults,noatime 0 1\n"
-umount-all
-EOF
+build_boot_partition() {
+    local image="$1" bootdir="$2" fat="$WORK_DIR/boot.fat" name
+    truncate -s "${BOOT_SIZE_MB}M" "$fat"
+    mkfs.fat -F 16 -S 512 -n "$BOOT_LABEL" "$fat" >/dev/null
+    export MTOOLS_SKIP_CHECK=1
+    for name in aml_autoscript cfgload kernel.img dtb.img manifest.json; do
+        mcopy -o -i "$fat" "$bootdir/$name" "::$name"
+    done
+    dd if="$fat" of="$image" bs=512 seek="$BOOT_START" conv=notrunc,sparse status=none
 }
 
-create_metadata() {
-    local image="$1" rootfs="$2" boot_type=fat16 boot_label="$A95X_BOOT_LABEL" boot_mount=/boot
-    cat >"$image.meta.json" <<EOF
-{
-  "image_type": "disk_image",
-  "target": "$TARGET",
-  "total_size_mb": $IMAGE_SIZE_MB,
-  "partitions": {
-    "efi": {"size_mb": $EFI_SIZE_MB, "type": "$boot_type", "label": "$boot_label", "mount": "$boot_mount"},
-    "root": {"size_mb": $ROOT_SIZE_MB, "type": "ext4", "label": "$ROOT_LABEL", "mount": "/"}
-  },
-  "partition_table": "dos",
-  "bootloader": "not_configured",
-  "rootfs_source": "$rootfs",
-  "rootfs_size_bytes": $(stat -c%s "$rootfs"),
-  "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
+build_root_partition() {
+    local image="$1" rootfs="$2" ext4="$WORK_DIR/root.ext4"
+    printf 'LABEL=%s\t/\text4\tdefaults,noatime\t0\t1\n' "$ROOT_LABEL" >"$rootfs/etc/fstab"
+    truncate -s "${ROOT_SIZE_MB}M" "$ext4"
+    mkfs.ext4 -q -F -L "$ROOT_LABEL" -d "$rootfs" "$ext4"
+    dd if="$ext4" of="$image" bs=512 seek="$ROOT_START" conv=notrunc,sparse status=none
 }
 
-generate_evidence() {
-    local image="$1"
-    local runner=human run_id=local job_id=local commit_sha
-    [[ "${GITHUB_ACTIONS:-false}" == true ]] && runner=github-actions
-    run_id="${GITHUB_RUN_ID:-$run_id}"
-    job_id="${GITHUB_JOB:-$job_id}"
-    commit_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-    mkdir -p "$EVIDENCE_DIR"
-    cat >"$EVIDENCE_DIR/build-evidence.json" <<EOF
-{
-  "layer": 2,
-  "task_id": "layer2-partitioned-disk-image",
-  "verification_class": "BUILD",
-  "runner": "$runner",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "target": "$TARGET",
-  "result": "PASS",
-  "evidence_path": "$image",
-  "commit_sha": "$commit_sha",
-  "ci_run_id": "$run_id",
-  "ci_job_id": "$job_id",
-  "build_mode": "full_image_guestfs",
-  "artefacts": {"image": "$image", "image_meta": "$image.meta.json"},
-  "dependencies": {"layer1_rootfs": "$ROOTFS_IMAGE"},
-  "blocked_gates": ["VM", "HARDWARE"],
-  "boot_status": "not_configured"
+write_metadata() {
+    local image="$1" rootfs_tar="$2"
+    python3 - "$image" "$rootfs_tar" "$TARGET" "$IMAGE_SIZE_MB" "$BOOT_SIZE_MB" "$BOOT_LABEL" \
+        "$ROOT_SIZE_MB" "$ROOT_LABEL" "$EVIDENCE_DIR" "${GITHUB_RUN_ID:-local}" \
+        "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf unknown)" <<'PY'
+import hashlib, json, os, sys, time
+image, rootfs_tar, target, size_mb, boot_mb, boot_label, root_mb, root_label, evidence_dir, run_id, commit = sys.argv[1:]
+def digest(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+meta = {
+    "image_type": "disk_image", "target": target, "total_size_mb": int(size_mb),
+    "partition_table": "dos",
+    "partitions": {"boot": {"size_mb": int(boot_mb), "type": "fat16", "label": boot_label},
+                   "root": {"size_mb": int(root_mb), "type": "ext4", "label": root_label, "mount": "/"}},
+    "bootloader": "stock vendor U-Boot on eMMC (not in image); SD boot via aml_autoscript",
+    "image": os.path.basename(image), "image_sha256": digest(image),
+    "rootfs_sha256": digest(rootfs_tar),
+    "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
 }
-EOF
+with open(image + ".meta.json", "w", encoding="utf-8") as stream:
+    json.dump(meta, stream, indent=2)
+    stream.write("\n")
+os.makedirs(evidence_dir, exist_ok=True)
+evidence = {"layer": 2, "task_id": "layer2-a95x-sd-image", "verification_class": "BUILD",
+            "result": "PASS", "commit_sha": commit, "ci_run_id": run_id,
+            "blocked_gates": ["VM", "HARDWARE"], **meta}
+with open(os.path.join(evidence_dir, "layer2-image.json"), "w", encoding="utf-8") as stream:
+    json.dump(evidence, stream, indent=2)
+    stream.write("\n")
+PY
+}
+
+build_image() {
+    local rootfs_tar="$1" rootfs bootdir final_image
+    for cmd in sfdisk mkfs.fat mcopy mkfs.ext4 mkimage python3 tar; do
+        command -v "$cmd" >/dev/null || error "missing dependency: $cmd"
+    done
+    [[ -f "$rootfs_tar" ]] || error "rootfs tarball not found: $rootfs_tar"
+    rootfs_tar="$(realpath "$rootfs_tar")"
+    mkdir -p "$OUTPUT_DIR"
+    final_image="$OUTPUT_DIR/ashipaos-$TARGET-$(date -u +%Y%m%d).img"
+    [[ ! -e "$final_image" ]] || error "refusing to overwrite $final_image"
+
+    make_work_dir
+    rootfs="$WORK_DIR/rootfs"
+    bootdir="$WORK_DIR/boot"
+    mkdir -p "$rootfs" "$bootdir"
+    log "Extracting $rootfs_tar"
+    tar -C "$rootfs" --numeric-owner --xattrs --acls -xpzf "$rootfs_tar"
+
+    make_kernel_img "$rootfs" "$bootdir"
+    make_boot_scripts "$bootdir"
+    write_boot_manifest "$bootdir" "$rootfs_tar"
+
+    PARTIAL_IMAGE="$final_image.partial"
+    create_partition_layout "$PARTIAL_IMAGE"
+    build_boot_partition "$PARTIAL_IMAGE" "$bootdir"
+    build_root_partition "$PARTIAL_IMAGE" "$rootfs"
+    mv -f -- "$PARTIAL_IMAGE" "$final_image"
+    PARTIAL_IMAGE=""
+    write_metadata "$final_image" "$rootfs_tar"
+
+    # shellcheck source=scripts/rootfs-ownership.sh
+    source "$REPO_ROOT/scripts/rootfs-ownership.sh"
+    rootfs_output_owner "$final_image" "$final_image.meta.json" "$OUTPUT_DIR" \
+        "$EVIDENCE_DIR" "$EVIDENCE_DIR/layer2-image.json" || error "could not restore output ownership"
+    log "Layer 2 build complete: $final_image"
+    printf '%s\n' "$final_image"
 }
 
 main() {
-    local mode=build layout_path=""
     case "${1:-}" in
         -h|--help) usage; return 0 ;;
-        --validate) mode=validate; shift ;;
-        --layout-only) [[ $# -ge 2 ]] || error "--layout-only requires an output file"; mode=layout; layout_path="$2"; shift 2; TARGET="a95x-f3-air"; [[ $# -eq 0 || $# -eq 1 ]] || error "--layout-only accepts only [target]"; [[ $# -eq 0 ]] || shift ;;
-        --print-repo-root) printf '%s\n' "$REPO_ROOT"; return 0 ;;
+        --validate)
+            [[ $# -eq 1 ]] || error "--validate takes no arguments"
+            load_config
+            return 0 ;;
+        --layout-only)
+            [[ $# -eq 2 ]] || error "--layout-only requires exactly one output file"
+            load_config
+            PARTIAL_IMAGE="$2"
+            create_partition_layout "$2"
+            PARTIAL_IMAGE=""
+            return 0 ;;
     esac
-
-    if [[ "$mode" == "validate" ]]; then
-        parse_and_validate_config
-        return 0
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        usage >&2
+        exit 2
     fi
-    if [[ "$mode" == "layout" ]]; then
-        parse_and_validate_config
-        local temp_parent="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}"
-        mkdir -p "$temp_parent"
-        WORK_DIR="$(mktemp -d "$temp_parent/ashipaos-image.XXXXXX")"
-        PARTIAL_IMAGE="$layout_path"
-        create_partition_layout "$layout_path"
-        PARTIAL_IMAGE=""
-        return 0
+    [[ "${2:-$TARGET}" == "$TARGET" ]] || error "unsupported target: $2"
+    if [[ $EUID -ne 0 ]]; then
+        # Root keeps rootfs ownership intact while the ext4 tree is staged.
+        exec sudo --preserve-env=GITHUB_WORKSPACE,GITHUB_RUN_ID,RUNNER_TEMP,ASHIPAOS_IMAGE_CONFIG,ASHIPAOS_IMAGE_DIR,ASHIPAOS_EVIDENCE_DIR \
+            bash "${BASH_SOURCE[0]}" "$@"
     fi
-
-    [[ $# -ge 1 && $# -le 2 ]] || error "expected <rootfs-image> [target]; use --help for usage"
-    ROOTFS_IMAGE="$1"
-    TARGET="a95x-f3-air"
-    parse_and_validate_config
-    [[ -f "$ROOTFS_IMAGE" ]] || error "Layer 1 rootfs tarball not found: $ROOTFS_IMAGE"
-    local temp_parent="${RUNNER_TEMP:-${REPO_ROOT}/.tmp}"
-    mkdir -p "$temp_parent"
-    WORK_DIR="$(mktemp -d "$temp_parent/ashipaos-image.XXXXXX")"
-    tar -tzf "$ROOTFS_IMAGE" >/dev/null || error "Layer 1 rootfs is not a readable gzip tar archive: $ROOTFS_IMAGE"
-    mkdir -p "$OUTPUT_DIR"
-    local final_image temp_image
-    final_image="$OUTPUT_DIR/ashipaos-${TARGET}-$(date +%Y%m%d).img"
-    temp_image="$WORK_DIR/$(basename "$final_image").partial"
-    [[ ! -e "$final_image" && ! -e "$final_image.meta.json" ]] ||
-        error "refusing to overwrite existing Layer 2 output: $final_image"
-    PARTIAL_IMAGE="$temp_image"
-
-    create_partition_layout "$temp_image"
-    populate_image "$temp_image" "$ROOTFS_IMAGE"
-    mv -- "$temp_image" "$final_image"
-    PARTIAL_IMAGE="$final_image"
-    create_metadata "$final_image" "$ROOTFS_IMAGE"
-    generate_evidence "$final_image"
-    PARTIAL_IMAGE=""
-    log "Layer 2 build complete: $final_image"
-    echo "$final_image"
+    load_config
+    build_image "$1"
 }
 
 main "$@"

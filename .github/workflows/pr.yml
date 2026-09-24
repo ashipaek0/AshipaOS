@@ -1,7 +1,7 @@
 name: pr
 on:
   pull_request:
-    branches: [main]
+    branches: [main, A95XF3-Air]
 
 permissions:
   contents: read
@@ -19,32 +19,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            gpg jq shellcheck parted dosfstools u-boot-tools device-tree-compiler python3-packaging
+            gpg shellcheck python3-yaml python3-jsonschema python3-packaging \
+            fdisk dosfstools mtools e2fsprogs u-boot-tools device-tree-compiler busybox curl
 
       # Same entry point as build-images.yml, so PR and release gates cannot drift.
+      # Includes the Layer 1/2 usage, config and layout contracts.
       - name: Run static gates
         run: bash tests/static/run-static.sh
 
       - name: Validate immutable CoreELEC pin against authorized fork
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash build/coreelec/validate-pin.sh
-
-      - name: Smoke test Layer 1 (rootfs)
-        run: |
-          echo "=== Smoke Test Layer 1 (STATIC: syntax + usage contract) ==="
-          bash -n layers/layer1-rootfs/scripts/build-rootfs.sh
-          # Usage exits 2 by design; capture output first so pipefail does not mask the check.
-          usage_out="$(bash layers/layer1-rootfs/scripts/build-rootfs.sh 2>&1 || true)"
-          grep -q "Usage" <<<"$usage_out"
-
-      - name: Smoke test Layer 2 (image)
-        run: |
-          echo "=== Smoke Test Layer 2 (STATIC: config validation) ==="
-          bash -n layers/layer2-image/scripts/build-image.sh
-          bash layers/layer2-image/scripts/build-image.sh --validate
-          bash layers/layer2-image/tests/layout-tests.sh

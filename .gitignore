@@ -1,31 +1,18 @@
-# Build artifacts and outputs
+# CI build outputs (full builds run in GitHub Actions only)
 output/
-build/
 dist/
+.tmp/
 
-# Evidence and build logs
+# Evidence written by layer scripts outside output/
 layers/*/evidence/
-build-evidence*.json
-!layers/layer5-application/evidence/
-!layers/layer5-application/evidence/build-evidence.json
 
-# Compressed images and packages
+# Images, packages and signatures
+*.img
 *.img.gz
 *.pkg
-*.tar.gz
-
-# Generated system files
-output/init/etc/machine-id
-output/init/etc/hostname
-
-# GPG keys and signatures
-output/gpg_*.txt
-output/gpg_*.asc
+*.asc
 *.sig
 
-# Checksums and SBOM
-output/*/SHA256SUMS
-output/sbom.json
-
-# Temporary build scripts
-build/scripts/
+# Python bytecode
+__pycache__/
+*.pyc

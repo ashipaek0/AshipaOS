@@ -1,7 +1,10 @@
+# Hardware lab safety facts. No automated hardware runner exists yet; hardware
+# evidence is collected manually per contracts/hardware-facts.md.
 targets:
   a95x-f3-air:
     type: amlogic-a95x-f3-air
     architecture: arm64
     media: removable-sd
     uart: ttl-3v3
+    uart_vcc: never-connect
     emmc_write: prohibited

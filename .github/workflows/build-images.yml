@@ -7,28 +7,20 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      target:
-        description: 'Target device (a95x-f3-air)'
-        required: true
-        default: 'a95x-f3-air'
-        type: choice
-        options:
-          - a95x-f3-air
       allow_unsigned:
-        description: 'Development run: allow PLACEHOLDER signatures when no GPG key is configured (never for tags)'
+        description: 'Development run: write PLACEHOLDER signatures when no release key is configured (never for tags)'
         required: false
         default: false
         type: boolean
 
-# One build per ref. A newer run supersedes an older one instead of queueing
-# behind it (a full arm64 debootstrap under QEMU is slow and expensive).
+# One build per ref; a newer run supersedes an older one.
 concurrency:
   group: build-images-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
   run:
-    # -e -o pipefail on every run step, not just the ones that remember `set`.
+    # bash -eo pipefail on every step.
     shell: bash
 
 jobs:
@@ -36,61 +28,42 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            gpg jq shellcheck python3-packaging parted dosfstools u-boot-tools device-tree-compiler
+            gpg shellcheck python3-yaml python3-jsonschema python3-packaging \
+            fdisk dosfstools mtools e2fsprogs u-boot-tools device-tree-compiler busybox curl
 
-      # One entry point shared with pr.yml. Runs every gate, reports all
-      # failures at once, and skips only the explicitly deferred x86-era layers.
+      # Same entry point as pr.yml, so PR and release gates cannot drift.
       - name: Run static gates
         run: bash tests/static/run-static.sh
 
       - name: Validate immutable CoreELEC pin against authorized fork
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash build/coreelec/validate-pin.sh
 
   build-a95x-f3-air:
     needs: static-tests
-    # Pinned image: "ubuntu-latest" moves under you (new libguestfs/qemu/gnupg).
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    # Note: Uses libguestfs + QEMU emulation for ARM64 - no privileged mode needed
-    if: github.event.inputs.target == 'a95x-f3-air' || github.event_name == 'push'
+    timeout-minutes: 150
     env:
-      # Job-level, so every step sees it. (An `export` inside one step does not
-      # persist to later steps.)
-      LIBGUESTFS_BACKEND: direct
+      ROOTFS: output/rootfs-a95x-f3-air.tar.gz
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            debootstrap \
-            qemu-user-static \
-            qemu-system-arm \
-            binfmt-support \
-            libguestfs-tools \
-            linux-image-generic \
-            gpg \
-            jq \
-            shellcheck \
-            python3-packaging \
-            dosfstools \
-            u-boot-tools \
-            util-linux \
-            device-tree-compiler
+            debootstrap qemu-user-static binfmt-support \
+            python3-yaml python3-packaging gpg \
+            fdisk dosfstools mtools e2fsprogs u-boot-tools
           sudo update-binfmts --enable qemu-aarch64
-
-      - name: Verify libguestfs appliance
-        run: |
-          # The appliance uses the runner's kernel while it populates the target image.
-          sudo chmod a+r /boot/vmlinuz-*
-          timeout 120s libguestfs-test-tool
+          test -e /proc/sys/fs/binfmt_misc/qemu-aarch64
 
       # Secrets are passed through env, never interpolated into the script text.
       - name: Configure GPG
@@ -102,7 +75,7 @@ jobs:
               echo "::error::GPG_PRIVATE_KEY is required for tag releases"
               exit 1
             fi
-            echo "::warning::GPG_PRIVATE_KEY not set; signing will fail unless 'allow_unsigned' was selected"
+            echo "::warning::GPG_PRIVATE_KEY not set; signing fails unless 'allow_unsigned' was selected"
             exit 0
           fi
           mkdir -p ~/.gnupg
@@ -111,108 +84,69 @@ jobs:
           gpgconf --kill gpg-agent || true
           printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --yes --import
 
-      - name: Build Layer 1 (RootFS)
-        run: |
-          sudo bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
+      - name: Build Layer 1 (rootfs)
+        run: bash layers/layer1-rootfs/scripts/build-rootfs.sh arm64 "$ROOTFS" a95x-f3-air
 
-      - name: Resolve and probe Layer 5 dependency closure (A95X ARM64)
+      - name: Resolve and probe Layer 5 closure (arm64 under qemu)
         run: |
-          python3 layers/layer5-application/scripts/resolve-dependencies-arm64.py \
-            --rootfs output/rootfs-a95x-f3-air.tar.gz \
-            --artifacts-dir output/evidence/layer5-arm64-artifacts \
-            --output output/evidence/layer5-arm64-dependency-resolution.json
+          python3 layers/layer5-application/scripts/jellyfin-bundle.py resolve \
+            --rootfs "$ROOTFS" \
+            --artifacts-dir output/layer5-artifacts \
+            --output output/evidence/layer5-resolution.json
 
-      - name: Build Layer 5 Application (A95X ARM64)
+      - name: Build Layer 5 (application bundle)
         run: |
-          sudo --preserve-env=SUDO_UID,SUDO_GID \
-            bash layers/layer5-application/scripts/build-application.sh \
-            output/rootfs-a95x-f3-air.tar.gz a95x-f3-air \
-            output/evidence/layer5-arm64-dependency-resolution.json
+          bash layers/layer5-application/scripts/build-application.sh \
+            "$ROOTFS" a95x-f3-air output/evidence/layer5-resolution.json output/layer5-artifacts
 
-      - name: Gate A95X Jellyfin application bundle
-        run: |
-          tar -tzf output/rootfs-a95x-f3-air.tar.gz > output/evidence/a95x-rootfs-members.txt
-          grep -Fx 'usr/libexec/ashipaos-jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
-          grep -Fx 'usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/bin/jellyfin-mpv-shim' output/evidence/a95x-rootfs-members.txt
-          tar -xOf output/rootfs-a95x-f3-air.tar.gz ./usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/manifest.json > output/evidence/a95x-jellyfin-manifest.json
-          python3 - <<'PY'
-          import json
-          value = json.load(open('output/evidence/a95x-jellyfin-manifest.json', encoding='utf-8'))
-          assert value['dependency_status'] == 'RESOLVED'
-          assert value['platform_tag'] == 'manylinux_2_27_aarch64'
-          assert value['executable'] == 'bin/jellyfin-mpv-shim'
-          print('A95X Jellyfin application bundle gate: PASS')
-          PY
-
-      - name: Build Layer 2 (Disk Image)
+      - name: Build Layer 2 (disk image)
         run: |
           bash layers/layer2-image/tests/layout-tests.sh
-          bash layers/layer2-image/scripts/build-image.sh output/rootfs-a95x-f3-air.tar.gz a95x-f3-air
+          bash layers/layer2-image/scripts/build-image.sh "$ROOTFS" a95x-f3-air
 
       - name: Gate A95X image contents
-        env:
-          ASHIPAOS_IMAGE_DEEP: '1'
         run: |
           image=$(find output/images -maxdepth 1 -type f -name 'ashipaos-a95x-f3-air-*.img' -print -quit)
-          [[ -n "$image" ]] || { echo '::error::A95X image not found; content gate cannot be skipped' >&2; exit 1; }
+          [[ -n "$image" ]] || { echo '::error::A95X image not found; content gate cannot be skipped'; exit 1; }
           bash layers/layer2-image/tests/image-content-tests.sh "$image"
 
-      - name: Build Layer 10 (Release Engineering)
-        run: |
-          bash layers/layer10-release/tests/package-tests.sh
-          bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
+      - name: Build Layer 10 (release artefacts)
+        run: bash layers/layer10-release/scripts/build-10-release.sh a95x-f3-air
 
-      - name: Verify release artefacts exist before signing
-        run: |
-          compgen -G 'output/images/*.img.gz' >/dev/null \
-            || { echo '::error::no output/images/*.img.gz was produced'; exit 1; }
-          test -s "output/images/SHA256SUMS-a95x-f3-air"
+      - name: Generate SBOM
+        run: bash scripts/ci-generate-sbom.sh output/sbom.json "$ROOTFS" output/images
 
-      - name: Sign Artefacts
+      - name: Sign artefacts
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # Explicit, visible opt-in for development runs only. Tags never get placeholders.
           CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ inputs.allow_unsigned && '1' || '0' }}
-        run: |
-          bash "$GITHUB_WORKSPACE/scripts/ci-sign-artefacts.sh" \
-            "$GITHUB_WORKSPACE/output/images" \
-            "$GITHUB_WORKSPACE/output/ota"
+        run: bash scripts/ci-sign-artefacts.sh output/images output/sbom.json
 
-      - name: Generate SBOM
-        run: |
-          bash "$GITHUB_WORKSPACE/scripts/ci-generate-sbom.sh" \
-            "$GITHUB_WORKSPACE/output/sbom.json"
-
-      - name: Upload Images
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      - name: Upload release artefacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: ashipaos-a95x-f3-air-${{ github.run_id }}
           # A build that produced no image must fail, not upload an empty bundle.
           if-no-files-found: error
           path: |
             output/images/*.img.gz
-            output/images/*.img.gz.sig
             output/images/*.img.gz.asc
             output/images/SHA256SUMS-*
-            output/ota/*.pkg
-            output/ota/*.pkg.sig
-            output/ota/*.pkg.asc
-            output/ota/SHA256SUMS-*
             output/sbom.json
-            output/evidence/layer5-arm64-*
-            output/evidence/a95x-jellyfin-manifest.json
+            output/sbom.json.asc
+            output/evidence/
           retention-days: 90
 
       # Keep evidence from failed runs so a failure can be diagnosed without a re-run.
       - name: Upload failure diagnostics
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: build-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
           path: |
             output/evidence/
-            layers/*/evidence/
             output/images/*.meta.json
           retention-days: 14
 
@@ -224,32 +158,25 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-
-      - name: Download all artefacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      - name: Download release artefacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           pattern: ashipaos-*
           merge-multiple: true
 
-      - name: Create GitHub Release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           prerelease=()
-          if [[ "$GITHUB_REF_NAME" == *dev* || "$GITHUB_REF_NAME" == *alpha* || \
-                "$GITHUB_REF_NAME" == *beta* || "$GITHUB_REF_NAME" == *rc* ]]; then
+          if [[ "$GITHUB_REF_NAME" =~ (dev|alpha|beta|rc) ]]; then
             prerelease+=(--prerelease)
           fi
-          dirs=()
-          for d in images ota; do [[ -d "$d" ]] && dirs+=("$d"); done
           mapfile -d '' assets < <(
-            find "${dirs[@]}" -type f \
-              \( -name '*.img.gz' -o -name '*.img.gz.sig' -o -name '*.img.gz.asc' \
-                 -o -name 'SHA256SUMS-*' -o -name '*.pkg' -o -name '*.pkg.sig' \
-                 -o -name '*.pkg.asc' \) -print0
+            find images -maxdepth 1 -type f \
+              \( -name '*.img.gz' -o -name '*.img.gz.asc' -o -name 'SHA256SUMS-*' \) -print0
           )
-          assets+=(./sbom.json)
+          assets+=(sbom.json sbom.json.asc)
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --generate-notes \

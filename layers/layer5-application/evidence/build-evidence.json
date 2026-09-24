@@ -1,6 +1,0 @@
-{
-  "target": "a95x-f3-air",
-  "architecture": "arm64",
-  "verification_class": "BUILD",
-  "status": "PENDING_CI"
-}

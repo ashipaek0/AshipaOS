@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 rootfs="$TMP/rootfs.tar.gz"
 printf 'not-a-tar' > "$rootfs"
 if bash "$ROOT/layers/layer5-application/scripts/build-application.sh" "$rootfs" a95x-f3-air >/dev/null 2>&1; then
-  echo 'mutation/fail-closed: non-x86 target was accepted' >&2; exit 1
+  echo 'mutation/fail-closed: incomplete invocation was accepted' >&2; exit 1
 fi
 
 # Build a structurally valid but wrongly owned slot. Mutating ownership
@@ -29,7 +29,10 @@ PY
 chmod 0600 "$TMP/active.json" "$TMP/slots/A/manifest.json"
 # Supply a target-like ashipa identity for the host-only fixture.
 mkdir -p "$TMP/bin"
-printf '#!/bin/sh\ncase "$1" in passwd) printf "ashipa:x:1001:1001::/storage:/bin/sh\\n";; group) printf "ashipa:x:1001:\\n";; esac\n' > "$TMP/bin/getent"
+# Use the caller's real uid/gid so the fixture files are "owned by ashipa".
+uid="$(id -u)" gid="$(id -g)"
+printf '#!/bin/sh\ncase "$1" in passwd) printf "ashipa:x:%s:%s::/storage:/bin/sh\\n";; group) printf "ashipa:x:%s:\\n";; esac\n' \
+  "$uid" "$gid" "$gid" > "$TMP/bin/getent"
 chmod 0755 "$TMP/bin/getent"
 export PATH="$TMP/bin:$PATH"
 # Malformed selectors, mismatched versions, and absent fallback bundles all fail closed.
@@ -53,6 +56,17 @@ import hashlib, json, pathlib, sys
 exe, manifest = map(pathlib.Path, sys.argv[1:])
 data=json.loads(manifest.read_text()); data['sha256']=hashlib.sha256(exe.read_bytes()).hexdigest(); manifest.write_text(json.dumps(data)+'\n')
 PY
+# A group-writable executable violates the slot ownership/mode contract: the
+# real launcher must refuse it, and a launcher with that check removed must
+# accept it. Both outcomes are required for the check to be proven live.
+chmod 0775 "$TMP/slots/A/bin/jellyfin-mpv-shim"
+run_launcher() {
+  ASHIPAOS_ACTIVE="$TMP/active.json" ASHIPAOS_SLOTS="$TMP/slots" ASHIPAOS_CONFIG="$TMP/config" \
+    ASHIPAOS_IMMUTABLE="$TMP/missing" "$1" >/dev/null 2>&1
+}
+if run_launcher "$LAUNCHER"; then
+  echo 'mutation/fail-closed: wrongly-moded executable was accepted' >&2; exit 1
+fi
 mutant="$TMP/mutant-launcher"
 python3 - "$LAUNCHER" "$mutant" <<'PY'
 import pathlib, sys
@@ -62,9 +76,5 @@ if needle not in s: raise SystemExit('ownership mutation fixture missing')
 pathlib.Path(sys.argv[2]).write_text(s.replace(needle, 'true'))
 PY
 chmod 0755 "$mutant"
-if ASHIPAOS_ACTIVE="$TMP/active.json" ASHIPAOS_SLOTS="$TMP/slots" ASHIPAOS_CONFIG="$TMP/config" ASHIPAOS_IMMUTABLE="$TMP/missing" "$mutant" >/dev/null 2>&1; then
-  printf 'layer5-application-mutation: ownership mutant detected (negative fixture changed outcome)\n'
-else
-  echo 'mutation/fail-closed: ownership mutant did not execute changed path' >&2; exit 1
-fi
+run_launcher "$mutant" || { echo 'mutation/fail-closed: ownership mutant did not change the outcome' >&2; exit 1; }
 printf 'layer5-application-mutation: PASS\n'

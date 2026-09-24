@@ -1,48 +1,201 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AshipaOS Amlogic box hardware facts",
-  "description": "Hardware-facts schema for build/targets/amlogic/boxes/*.yaml (Layer 0, per guide Task 0.5.1).",
+  "description": "Hardware-facts schema for build/targets/amlogic/boxes/*.yaml.",
   "type": "object",
-  "required": ["name", "status", "soc", "kernel_branch"],
+  "required": [
+    "name",
+    "features",
+    "status",
+    "soc",
+    "kernel_branch",
+    "device_tree",
+    "mainline_boot"
+  ],
   "properties": {
-    "name": { "type": "string" },
+    "name": {
+      "type": "string"
+    },
     "status": {
       "type": "object",
-      "required": ["device_tree", "wifi", "bluetooth", "ir", "hardware_decode"],
+      "required": [
+        "device_tree",
+        "wifi",
+        "bluetooth",
+        "ir",
+        "hardware_decode"
+      ],
       "properties": {
-        "device_tree": { "type": "string" },
-        "wifi": { "type": "string" },
-        "bluetooth": { "type": "string" },
-        "ir": { "type": "string" },
-        "hardware_decode": { "type": "string" }
+        "device_tree": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        },
+        "wifi": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        },
+        "bluetooth": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        },
+        "ir": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        },
+        "hardware_decode": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        }
       }
     },
     "soc": {
       "type": "object",
-      "required": ["value", "status"],
+      "required": [
+        "value",
+        "status"
+      ],
       "properties": {
-        "value": { "type": ["string", "null"] },
-        "status": { "type": "string" }
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        }
       }
     },
     "kernel_branch": {
       "type": "object",
-      "required": ["value", "status"],
+      "required": [
+        "value",
+        "status"
+      ],
       "properties": {
-        "value": { "type": ["string", "null"] },
-        "status": { "type": "string" }
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        }
       }
     },
-    "device_tree": { "type": "object" },
-    "wifi": { "type": "object" },
-    "bluetooth": { "type": "object" },
-    "ram": { "type": "object" },
-    "ir": { "type": "object" },
-    "cec": { "type": "object" },
-    "audio": { "type": "object" },
-    "power": { "type": "object" },
-    "storage": { "type": "object" },
-    "boot": { "type": "object" }
+    "device_tree": {
+      "type": "object",
+      "required": [
+        "value",
+        "install_as",
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "wifi": {
+      "type": "object"
+    },
+    "bluetooth": {
+      "type": "object"
+    },
+    "ram": {
+      "type": "object"
+    },
+    "ir": {
+      "type": "object"
+    },
+    "cec": {
+      "type": "object"
+    },
+    "audio": {
+      "type": "object"
+    },
+    "power": {
+      "type": "object"
+    },
+    "storage": {
+      "type": "object"
+    },
+    "boot": {
+      "type": "object"
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "boot_status": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mainline_boot": {
+      "type": "object",
+      "required": [
+        "kernel_package",
+        "device_tree",
+        "console",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "kernel_package": {
+          "type": "string"
+        },
+        "device_tree": {
+          "type": "string",
+          "pattern": "^amlogic/meson-[a-z0-9-]+\\.dtb$"
+        },
+        "console": {
+          "const": "ttyAML0"
+        },
+        "status": {
+          "enum": [
+            "CONFIRMED",
+            "PROVISIONAL",
+            "UNKNOWN"
+          ]
+        },
+        "evidence": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "coreelec_baseline": {
+      "type": "object"
+    }
   },
   "additionalProperties": true
 }

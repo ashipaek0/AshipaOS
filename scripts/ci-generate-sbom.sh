@@ -1,109 +1,83 @@
-#!/bin/bash
-# CI Script: Generate Software Bill of Materials (SBOM)
-# Usage: ci-generate-sbom.sh <output_file>
+#!/usr/bin/env bash
+# CI: CycloneDX SBOM for the A95X image, generated from what was actually built:
+# the rootfs dpkg database, the Jellyfin MPV Shim lock, and the release images.
+# Usage: ci-generate-sbom.sh <output.json> <rootfs.tar.gz> <images_dir>
+set -Eeuo pipefail
 
-set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ $# -eq 3 ]] || { printf 'Usage: %s <output.json> <rootfs.tar.gz> <images_dir>\n' "$(basename "$0")" >&2; exit 2; }
+OUTPUT="$1" ROOTFS="$2" IMAGES="$3"
+[[ -s "$ROOTFS" ]] || { printf 'rootfs tarball not found: %s\n' "$ROOTFS" >&2; exit 1; }
+[[ -d "$IMAGES" ]] || { printf 'images directory not found: %s\n' "$IMAGES" >&2; exit 1; }
 
-OUTPUT_FILE="${1:-output/sbom.json}"
+commit="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+tag="$(git -C "$REPO_ROOT" describe --tags --exact-match 2>/dev/null || printf '')"
+mkdir -p "$(dirname "$OUTPUT")"
 
-echo "=== Generating SBOM ==="
+python3 - "$OUTPUT" "$ROOTFS" "$IMAGES" "$REPO_ROOT/layers/layer5-application/config/dependencies.lock.json" \
+    "$commit" "$tag" "${GITHUB_REPOSITORY:-ashipaek0/AshipaOS}" <<'PY'
+import hashlib, json, pathlib, sys, tarfile, time
+output, rootfs, images, lock_path, commit, tag, repository = sys.argv[1:]
 
-# Capture repository root at start - CRITICAL for CI where working directory may change
-REPO_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+def dpkg_status(archive):
+    with tarfile.open(archive, "r:gz") as tar:
+        for member in tar:
+            if member.name.lstrip("./") == "var/lib/dpkg/status":
+                return tar.extractfile(member).read().decode("utf-8")
+    raise SystemExit("rootfs has no var/lib/dpkg/status")
 
-# Get current timestamp
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+def packages(text):
+    for stanza in text.split("\n\n"):
+        fields = {}
+        for line in stanza.splitlines():
+            if line and not line[0].isspace() and ":" in line:
+                key, value = line.split(":", 1)
+                fields[key] = value.strip()
+        if fields.get("Status") == "install ok installed":
+            yield fields
 
-# Get git commit info using explicit repo path
-if git -C "$REPO_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
-    GIT_COMMIT=$(git -C "$REPO_ROOT" rev-parse HEAD)
-    GIT_BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
-    GIT_TAG=$(git -C "$REPO_ROOT" describe --tags --exact-match 2>/dev/null || echo "none")
-else
-    # Fallback to GITHUB_SHA if available (CI environment)
-    GIT_COMMIT="${GITHUB_SHA:-unknown}"
-    GIT_BRANCH="${GITHUB_REF_NAME:-unknown}"
-    GIT_TAG="none"
-fi
+components = []
+for pkg in sorted(packages(dpkg_status(rootfs)), key=lambda p: p["Package"]):
+    arch = pkg.get("Architecture", "all")
+    component = {"type": "library", "name": pkg["Package"], "version": pkg["Version"],
+                 "purl": f"pkg:deb/debian/{pkg['Package']}@{pkg['Version']}?arch={arch}&distro=debian-12",
+                 "supplier": {"name": pkg.get("Maintainer", "Debian")}}
+    if pkg.get("Source"):
+        component["properties"] = [{"name": "debian:source", "value": pkg["Source"]}]
+    components.append(component)
 
-# Create SBOM JSON
-cat > "$OUTPUT_FILE" << EOF
-{
-  "bomFormat": "CycloneDX",
-  "specVersion": "1.4",
-  "version": 1,
-  "metadata": {
-    "timestamp": "$TIMESTAMP",
-    "tools": [
-      {
-        "vendor": "AshipaOS",
-        "name": "build-system",
-        "version": "0.1.0"
-      }
-    ],
-    "component": {
-      "type": "operating-system",
-      "name": "AshipaOS",
-      "version": "${GIT_TAG:-0.1.0-alpha}",
-      "description": "AshipaOS Bootable Image",
-      "purl": "pkg:github/ashipaos/ashipaos@${GIT_COMMIT}"
+lock = json.loads(pathlib.Path(lock_path).read_text(encoding="utf-8"))
+source = lock["source"]
+components.append({"type": "application", "name": source["name"], "version": source["version"],
+                   "purl": f"pkg:github/jellyfin/jellyfin-mpv-shim@{source['commit']}",
+                   "hashes": [{"alg": "SHA-256", "content": source["sha256"]}]})
+for artifact in lock["artifacts"]:
+    components.append({"type": "library", "name": artifact["name"], "version": artifact["version"],
+                       "purl": f"pkg:pypi/{artifact['name'].lower()}@{artifact['version']}",
+                       "hashes": [{"alg": "SHA-256", "content": artifact["sha256"]}]})
+
+image_hashes = []
+for image in sorted(pathlib.Path(images).glob("*.img.gz")):
+    h = hashlib.sha256()
+    with image.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            h.update(chunk)
+    image_hashes.append({"name": image.name, "sha256": h.hexdigest()})
+if not image_hashes:
+    raise SystemExit("no release images to describe")
+
+sbom = {
+    "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
+    "metadata": {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "tools": [{"vendor": "AshipaOS", "name": "ci-generate-sbom.sh"}],
+        "component": {"type": "operating-system", "name": "AshipaOS A95X F3 Air",
+                      "version": tag or commit, "purl": f"pkg:github/{repository}@{commit}",
+                      "properties": [{"name": "image", "value": f"{i['name']} sha256:{i['sha256']}"}
+                                     for i in image_hashes]},
     },
-    "properties": [
-      {
-        "name": "git:commit",
-        "value": "$GIT_COMMIT"
-      },
-      {
-        "name": "git:branch",
-        "value": "$GIT_BRANCH"
-      },
-      {
-        "name": "git:tag",
-        "value": "$GIT_TAG"
-      }
-    ]
-  },
-  "components": [
-    {
-      "type": "operating-system",
-      "name": "Debian",
-      "version": "bookworm",
-      "purl": "pkg:deb/debian/bookworm",
-      "supplier": {
-        "name": "Debian Project"
-      }
-    },
-    {
-      "type": "framework",
-      "name": "systemd",
-      "version": "latest",
-      "purl": "pkg:deb/debian/systemd"
-    },
-    {
-      "type": "library",
-      "name": "GStreamer",
-      "version": "1.22+",
-      "purl": "pkg:deb/debian/gstreamer1.0-tools",
-      "scope": "optional"
-    },
-    {
-      "type": "application",
-      "name": "cloud-init",
-      "version": "latest",
-      "purl": "pkg:deb/debian/cloud-init",
-      "scope": "optional"
-    },
-    {
-      "type": "firmware",
-      "name": "U-Boot",
-      "version": "device-specific",
-      "scope": "required"
-    }
-  ],
-  "dependencies": []
+    "components": components,
 }
-EOF
-
-echo "SBOM generated: $OUTPUT_FILE"
-echo "Components included:"
-jq -r '.components[] | "  - \(.name) (\(.version))"' "$OUTPUT_FILE"
+pathlib.Path(output).write_text(json.dumps(sbom, indent=2) + "\n", encoding="utf-8")
+print(f"SBOM: {len(components)} components -> {output}")
+PY

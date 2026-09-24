@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Layer 10: Release engineering for the A95X F3 Air image.
-# Verification Class: BUILD (gzip + SHA-256 only; signing is scripts/ci-sign-artefacts.sh)
+# Verification Class: BUILD (gzip + SHA-256 only; signing is scripts/ci-sign-artefacts.sh,
+# the SBOM is scripts/ci-generate-sbom.sh)
 #
 # Consumes the raw Layer 2 image(s) and produces exactly what the CI signing,
 # upload and release steps look for:
@@ -9,8 +10,8 @@
 # It fails if there is no image: a release step that succeeds without an image
 # is what previously let green runs upload nothing.
 #
-# OTA (.pkg) packaging is NOT implemented yet (contracts/release.md is a stub).
-# This script says so explicitly instead of printing a fake PASS.
+# OTA (.pkg) packaging is not implemented; this script says so explicitly
+# instead of emitting a placeholder package.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,282 +1,342 @@
 #!/usr/bin/env bash
+# Layer 1: A95X F3 Air arm64 Debian root filesystem.
+# Verification Class: BUILD (CI only: debootstrap under qemu-user, Debian mirror)
+#
+# Produces a gzip rootfs tarball holding the target kernel, initramfs, the
+# matching mainline DTB, the application runtime and the boot-status overlay.
+# Layer 2 consumes the kernel/initramfs/DTB from this tarball; nothing is taken
+# from the build host.
 set -Eeuo pipefail
-
-# Layer 1: Minimal Debian Root Filesystem Builder
-# Verification Class: BUILD (requires debootstrap and a Debian package mirror)
-# Kernel/initramfs are resolved and installed inside the target rootfs.
-
-# Auto-elevate to root if not already running as root.
-if [[ $EUID -ne 0 ]]; then
-    exec sudo "$0" "$@"
-fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAYER1_DIR="$(dirname "$SCRIPT_DIR")"
-
-DEBIAN_SUITE="${DEBIAN_SUITE:-bookworm}"
-DEBIAN_MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
-COMPONENTS="${COMPONENTS:-main,contrib,non-free-firmware}"
-
-# Product architecture is fixed to arm64 for this branch.
-declare -A ARCH_MAP=(
-    ["arm64"]="arm64"
-)
-declare -A KERNEL_PACKAGES=(
-    ["arm64"]="linux-image-arm64"
-)
-INITRAMFS_PACKAGE="initramfs-tools"
-COREUTILS_PACKAGE="coreutils"
-BUSYBOX_PACKAGE="busybox"
-CA_CERTIFICATES_PACKAGE="ca-certificates"
 REPO_ROOT="$(cd "$LAYER1_DIR/../.." && pwd)"
-# The archive and its containing directory must remain writable by the user
-# who invoked sudo so the unprivileged downstream layers can use temp files.
-source "$REPO_ROOT/scripts/rootfs-ownership.sh"
+CONFIG_FILE="$LAYER1_DIR/config/rootfs-config.yaml"
+EVIDENCE_DIR="${ASHIPAOS_EVIDENCE_DIR:-${GITHUB_WORKSPACE:-$REPO_ROOT}/output/evidence}"
+SUPPORTED_TARGET="a95x-f3-air"
+TARGET_FILE="$REPO_ROOT/build/targets/amlogic/boxes/$SUPPORTED_TARGET.yaml"
+OVERLAY_DIR="$REPO_ROOT/rootfs-overlay"
+QEMU_STATIC="/usr/bin/qemu-aarch64-static"
 
 usage() {
     cat <<EOF
 Usage: $(basename "$0") <target_arch> <output_file> [target]
 
-Creates a Debian root filesystem with a target-resolved kernel and initramfs.
+Creates the $SUPPORTED_TARGET Debian arm64 root filesystem tarball.
 
 Arguments:
-  target_arch   Product architecture (arm64)
-  output_file   Output path for the rootfs tarball
-  target        Optional product target; enables target features from build/targets
+  target_arch   Product architecture (arm64 only)
+  output_file   Output path for the rootfs tarball (.tar.gz)
+  target        Product target (default and only value: $SUPPORTED_TARGET)
 
-Environment Variables:
-  DEBIAN_SUITE      Debian suite (default: bookworm)
-  DEBIAN_MIRROR     Debian mirror URL (default: http://deb.debian.org/debian)
-  COMPONENTS        Debian components (default: main,contrib,non-free-firmware)
+Environment (override $CONFIG_FILE):
+  DEBIAN_SUITE, DEBIAN_MIRROR, DEBIAN_SECURITY_MIRROR (empty disables security)
 EOF
-    return 2
 }
 
-log() { echo "[L1-ROOTFS] $(date '+%Y-%m-%d %H:%M:%S') - $*"; }
-error() { echo "[L1-ROOTFS ERROR] $*" >&2; exit 1; }
+# Logs go to stderr: several helpers return values on stdout.
+log() { printf '[L1-ROOTFS] %(%Y-%m-%d %H:%M:%S)T - %s\n' -1 "$*" >&2; }
+error() { printf '[L1-ROOTFS ERROR] %s\n' "$*" >&2; exit 1; }
+
+# Validate arguments before elevating, so a usage error never prompts for sudo.
+if [[ $# -lt 2 || $# -gt 3 ]]; then
+    usage >&2
+    exit 2
+fi
+[[ "$1" == arm64 ]] || error "Invalid architecture: $1 (valid: arm64)"
+[[ "${3:-$SUPPORTED_TARGET}" == "$SUPPORTED_TARGET" ]] || error "Unsupported target: $3"
+
+if [[ $EUID -ne 0 ]]; then
+    exec sudo --preserve-env=DEBIAN_SUITE,DEBIAN_MIRROR,DEBIAN_SECURITY_MIRROR,ASHIPAOS_EVIDENCE_DIR,GITHUB_WORKSPACE \
+        bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+# The archive and its directory are handed back to the sudo caller so the
+# unprivileged downstream layers can read and replace it.
+# shellcheck source=scripts/rootfs-ownership.sh
+source "$REPO_ROOT/scripts/rootfs-ownership.sh"
+
+OUTPUT_FILE="$2"
+ROOTFS=""
+TEMP_DIR=""
+
+# Config values: environment overrides first, then rootfs-config.yaml.
+read_config() {
+    python3 - "$CONFIG_FILE" "$TARGET_FILE" <<'PY'
+import sys
+import yaml
+
+config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+target = yaml.safe_load(open(sys.argv[2], encoding="utf-8"))
+debian = config["debian"]
+packages = [p for group in config["packages"].values() for p in group]
+boot = target["mainline_boot"]
+if boot["kernel_package"] not in packages:
+    raise SystemExit("target kernel package is not in the rootfs package set")
+print(debian["suite"])
+print(debian["mirror"])
+print(debian.get("security_mirror") or "")
+print(",".join(debian["components"]))
+print(" ".join(packages))
+print(config["hostname"])
+print(config["service_user"])
+print(boot["kernel_package"])
+print(boot["device_tree"])
+PY
+}
+
+mapfile -t CONFIG_VALUES < <(read_config)
+((${#CONFIG_VALUES[@]} == 9)) || error "Could not read $CONFIG_FILE / $TARGET_FILE"
+DEBIAN_SUITE="${DEBIAN_SUITE:-${CONFIG_VALUES[0]}}"
+DEBIAN_MIRROR="${DEBIAN_MIRROR:-${CONFIG_VALUES[1]}}"
+DEBIAN_SECURITY_MIRROR="${DEBIAN_SECURITY_MIRROR-${CONFIG_VALUES[2]}}"
+COMPONENTS="${CONFIG_VALUES[3]}"
+read -r -a PACKAGES <<<"${CONFIG_VALUES[4]}"
+HOSTNAME_VALUE="${CONFIG_VALUES[5]}"
+SERVICE_USER="${CONFIG_VALUES[6]}"
+KERNEL_PACKAGE="${CONFIG_VALUES[7]}"
+DEVICE_TREE="${CONFIG_VALUES[8]}"
 
 cleanup_mounts() {
-    local rootfs="${1:-}"
-    [[ -n "$rootfs" && -d "$rootfs" ]] || return 0
-    for mountpoint in dev/pts dev sys proc; do
-        mountpoint -q "$rootfs/$mountpoint" && umount -l "$rootfs/$mountpoint" || true
+    [[ -n "$ROOTFS" && -d "$ROOTFS" ]] || return 0
+    local mountpoint
+    for mountpoint in dev sys proc; do
+        if mountpoint -q "$ROOTFS/$mountpoint"; then
+            umount -R -l "$ROOTFS/$mountpoint" || true
+        fi
     done
 }
 
+cleanup() {
+    cleanup_mounts
+    [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]] && rm -rf --one-file-system -- "$TEMP_DIR"
+    return 0
+}
+trap cleanup EXIT
+
 check_dependencies() {
-    local debian_arch="$1"
-    local missing=()
-    command -v debootstrap >/dev/null 2>&1 || missing+=(debootstrap)
-    command -v mount >/dev/null 2>&1 || missing+=(mount)
-    if [[ "$debian_arch" != "$(dpkg --print-architecture)" ]]; then
-        compgen -G "/usr/bin/qemu-*-static" >/dev/null || missing+=(qemu-user-static)
-    fi
+    local missing=() cmd
+    for cmd in debootstrap chroot mount mountpoint python3 tar; do
+        command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+    done
+    [[ -x "$QEMU_STATIC" ]] || missing+=(qemu-user-static)
+    python3 -c 'import yaml' 2>/dev/null || missing+=(python3-yaml)
     ((${#missing[@]} == 0)) || error "Missing dependencies: ${missing[*]}"
 }
 
-run_in_rootfs() {
-    local rootfs="$1"
-    shift
-    chroot "$rootfs" "$@"
+in_rootfs() {
+    chroot "$ROOTFS" env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+        DEBIAN_FRONTEND=noninteractive LC_ALL=C "$@"
 }
 
 mount_rootfs_api() {
-    local rootfs="$1"
-    mount -t proc proc "$rootfs/proc"
-    mount --rbind /sys "$rootfs/sys"
-    mount --make-rslave "$rootfs/sys"
-    mount --rbind /dev "$rootfs/dev"
-    mount --make-rslave "$rootfs/dev"
+    mount -t proc proc "$ROOTFS/proc"
+    mount --rbind /sys "$ROOTFS/sys"
+    mount --make-rslave "$ROOTFS/sys"
+    mount --rbind /dev "$ROOTFS/dev"
+    mount --make-rslave "$ROOTFS/dev"
+}
+
+bootstrap() {
+    log "debootstrap $DEBIAN_SUITE arm64 from $DEBIAN_MIRROR"
+    debootstrap --arch=arm64 --components="$COMPONENTS" --foreign \
+        "$DEBIAN_SUITE" "$ROOTFS" "$DEBIAN_MIRROR"
+    # Kept for every chroot step and removed before packaging.
+    install -m 0755 "$QEMU_STATIC" "$ROOTFS$QEMU_STATIC"
+    chroot "$ROOTFS" /debootstrap/debootstrap --second-stage
+
+    local components="${COMPONENTS//,/ }"
+    {
+        printf 'deb %s %s %s\n' "$DEBIAN_MIRROR" "$DEBIAN_SUITE" "$components"
+        printf 'deb %s %s-updates %s\n' "$DEBIAN_MIRROR" "$DEBIAN_SUITE" "$components"
+        if [[ -n "$DEBIAN_SECURITY_MIRROR" ]]; then
+            printf 'deb %s %s-security %s\n' "$DEBIAN_SECURITY_MIRROR" "$DEBIAN_SUITE" "$components"
+        fi
+    } >"$ROOTFS/etc/apt/sources.list"
+}
+
+# Leaves the chroot API filesystems mounted; main unmounts them once every
+# chroot step (packages, configuration, overlay, cleanup) is done.
+install_packages() {
+    # Package maintainer scripts must not start services in the build root.
+    printf '#!/bin/sh\nexit 101\n' >"$ROOTFS/usr/sbin/policy-rc.d"
+    chmod 0755 "$ROOTFS/usr/sbin/policy-rc.d"
+    mount_rootfs_api
+
+    log "Installing: ${PACKAGES[*]}"
+    in_rootfs apt-get update
+    in_rootfs apt-get -y --no-install-recommends -o DPkg::Options::=--force-confold \
+        install "${PACKAGES[@]}"
+    # Kernel postinst normally generates this; make the result explicit.
+    in_rootfs update-initramfs -u -k all
+}
+
+configure_system() {
+    if ! in_rootfs getent passwd "$SERVICE_USER" >/dev/null; then
+        in_rootfs useradd --system --create-home --home-dir "/home/$SERVICE_USER" \
+            --shell /usr/sbin/nologin --user-group "$SERVICE_USER"
+    fi
+    # useradd leaves the password locked ("!"): a service identity, no login.
+
+    printf '%s\n' "$HOSTNAME_VALUE" >"$ROOTFS/etc/hostname"
+    printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n::1\t\tlocalhost ip6-localhost ip6-loopback\n' \
+        "$HOSTNAME_VALUE" >"$ROOTFS/etc/hosts"
+
+    # Every device must generate its own identity on first boot.
+    : >"$ROOTFS/etc/machine-id"
+    rm -f "$ROOTFS/var/lib/dbus/machine-id"
+    # debootstrap copied the build host's resolver; use systemd-resolved instead.
+    ln -sfn ../run/systemd/resolve/stub-resolv.conf "$ROOTFS/etc/resolv.conf"
+
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/network/20-wired.network" \
+        "$ROOTFS/etc/systemd/network/20-wired.network"
+    in_rootfs systemctl enable systemd-networkd.service systemd-resolved.service
 }
 
 target_enables_boot_status() {
-    local target="${1:-}"
-    local target_file="$REPO_ROOT/build/targets/amlogic/boxes/${target}.yaml"
-    [[ -f "$target_file" ]] && grep -q '^  boot_status: true$' "$target_file"
+    python3 - "$TARGET_FILE" <<'PY'
+import sys
+import yaml
+target = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if (target.get("features") or {}).get("boot_status") is True else 1)
+PY
 }
 
 install_boot_status() {
-    local rootfs="$1"
-    local target="${2:-}"
-    target_enables_boot_status "$target" || return 0
-    local overlay="$REPO_ROOT/rootfs-overlay"
-    [[ -f "$overlay/usr/libexec/ashipaos-boot-status-handler" ]] || error "Missing boot-status handler overlay"
-    [[ -f "$overlay/etc/systemd/system/ashipaos-boot-status.service" ]] || error "Missing boot-status service overlay"
-    [[ -f "$overlay/etc/systemd/system/ashipaos-boot-success.service" ]] || error "Missing boot-success service overlay"
-    install -D -m 0755 "$overlay/usr/libexec/ashipaos-boot-status-handler" "$rootfs/usr/libexec/ashipaos-boot-status-handler"
-    install -D -m 0644 "$overlay/etc/systemd/system/ashipaos-boot-status.service" "$rootfs/etc/systemd/system/ashipaos-boot-status.service"
-    install -D -m 0644 "$overlay/etc/systemd/system/ashipaos-boot-success.service" "$rootfs/etc/systemd/system/ashipaos-boot-success.service"
-    mkdir -p "$rootfs/etc/systemd/system/multi-user.target.wants" "$rootfs/etc/systemd/system/graphical.target.wants"
-    ln -sf ../ashipaos-boot-status.service "$rootfs/etc/systemd/system/multi-user.target.wants/ashipaos-boot-status.service"
-    ln -sf ../ashipaos-boot-success.service "$rootfs/etc/systemd/system/graphical.target.wants/ashipaos-boot-success.service"
-}
-
-install_kernel_and_initramfs() {
-    local rootfs="$1"
-    local debian_arch="$2"
-    local kernel_package="${KERNEL_PACKAGES[$debian_arch]:-}"
-    [[ -n "$kernel_package" ]] || error "No kernel package policy for Debian architecture: $debian_arch"
-
-    # Prevent package postinst scripts from starting services in the build root.
-    printf '#!/bin/sh\nexit 101\n' > "$rootfs/usr/sbin/policy-rc.d"
-    chmod 0755 "$rootfs/usr/sbin/policy-rc.d"
-    mount_rootfs_api "$rootfs"
-    trap 'cleanup_mounts "$rootfs"' RETURN
-
-    log "Installing target kernel $kernel_package and $INITRAMFS_PACKAGE"
-    run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -o DPkg::Options::=--force-confold update
-    local packages=("$kernel_package" "$INITRAMFS_PACKAGE" "$COREUTILS_PACKAGE" "$BUSYBOX_PACKAGE" "$CA_CERTIFICATES_PACKAGE" passwd dbus sudo)
-    if [[ "$debian_arch" == arm64 ]]; then
-        # ARM64 Jellyfin MPV Shim uses the target interpreter and Debian's
-        # target-native libmpv; these must be present before the app probe.
-        packages+=(python3 libmpv2)
-    fi
-    run_in_rootfs "$rootfs" env DEBIAN_FRONTEND=noninteractive \
-        apt-get -y --no-install-recommends install "${packages[@]}"
-    if ! run_in_rootfs "$rootfs" getent passwd ashipa >/dev/null 2>&1; then
-        run_in_rootfs "$rootfs" useradd --system --create-home --shell /bin/bash --user-group ashipa
-    fi
-
-    # Kernel postinst normally creates these. Explicitly finish generation so both
-    # native and debootstrap --foreign builds have the same deterministic gate.
-    run_in_rootfs "$rootfs" update-initramfs -u -k all
-    validate_kernel_initramfs "$rootfs" "$debian_arch" "$kernel_package"
-
-    rm -f "$rootfs/usr/sbin/policy-rc.d"
-    trap - RETURN
-    cleanup_mounts "$rootfs"
-}
-
-validate_kernel_initramfs() {
-    local rootfs="$1"
-    local debian_arch="$2"
-    local kernel_package="$3"
-    # Debian's package-managed entry points are root-level symlinks. Do not
-    # substitute host /boot files or require non-existent /boot aliases.
-    local vmlinuz="$rootfs/vmlinuz"
-    local initrd="$rootfs/initrd.img"
-    local vmlinuz_target initrd_target
-
-    [[ -L "$vmlinuz" && -s "$vmlinuz" ]] || error "Missing, non-symlink, or empty $vmlinuz"
-    [[ -L "$initrd" && -s "$initrd" ]] || error "Missing, non-symlink, or empty $initrd"
-    vmlinuz_target=$(readlink -f "$vmlinuz")
-    initrd_target=$(readlink -f "$initrd")
-    [[ "$vmlinuz_target" == "$rootfs/boot/vmlinuz-"* && -s "$vmlinuz_target" ]] \
-        || error "Invalid versioned kernel target: $vmlinuz_target"
-    [[ "$initrd_target" == "$rootfs/boot/initrd.img-"* && -s "$initrd_target" ]] \
-        || error "Invalid versioned initramfs target: $initrd_target"
-    dpkg_status=$(run_in_rootfs "$rootfs" dpkg-query -W -f='${Status}' "$kernel_package" 2>/dev/null) \
-        || error "Kernel package was not resolved: $kernel_package"
-    [[ "$dpkg_status" == "install ok installed" ]] || error "Kernel package not installed: $kernel_package"
-    dpkg_status=$(run_in_rootfs "$rootfs" dpkg-query -W -f='${Status}' "$INITRAMFS_PACKAGE" 2>/dev/null) \
-        || error "Initramfs package was not resolved: $INITRAMFS_PACKAGE"
-    [[ "$dpkg_status" == "install ok installed" ]] || error "Initramfs package not installed: $INITRAMFS_PACKAGE"
-    log "Validated $debian_arch kernel/initramfs: $(basename "$vmlinuz_target"), $(basename "$initrd_target")"
-}
-
-create_rootfs() {
-    local product_arch="$1" output_file="$2" debian_arch="$3" target="${4:-}"
-    local temp_dir rootfs qemu_arch
-    temp_dir=$(mktemp -d)
-    rootfs="$temp_dir/rootfs"
-    trap "cleanup_mounts '$rootfs'; rm -rf '$temp_dir'" EXIT
-    log "Building Debian $DEBIAN_SUITE rootfs for $product_arch ($debian_arch)"
-
-    [[ "$debian_arch" == arm64 ]] || error "Amlogic branch supports only arm64"
-    debootstrap --arch=arm64 --components="$COMPONENTS" --foreign \
-        "$DEBIAN_SUITE" "$rootfs" "$DEBIAN_MIRROR"
-    cp /usr/bin/qemu-aarch64-static "$rootfs/usr/bin/"
-    chroot "$rootfs" /debootstrap/debootstrap --second-stage
-    rm -f "$rootfs/usr/bin/qemu-aarch64-static"
-
-    install_kernel_and_initramfs "$rootfs" "$debian_arch"
-    install_boot_status "$rootfs" "$target"
-    minimize_rootfs "$rootfs"
-    if [[ "$debian_arch" == arm64 ]]; then
-        [[ -x "$rootfs/usr/bin/python3.11" || -x "$rootfs/usr/bin/python3" ]] \
-            || error "ARM64 rootfs lost Python after minimization"
-        compgen -G "$rootfs/usr/lib/aarch64-linux-gnu/libmpv.so*" >/dev/null \
-            || error "ARM64 rootfs lost libmpv after minimization"
-    fi
-    validate_kernel_initramfs "$rootfs" "$debian_arch" "${KERNEL_PACKAGES[$debian_arch]}"
-    mkdir -p "$(dirname "$output_file")"
-    tar -C "$rootfs" \
-        --exclude='./dev/*' --exclude='dev/*' --exclude='./proc/*' --exclude='proc/*' --exclude='./sys/*' --exclude='sys/*' --exclude='./run/*' --exclude='run/*' \
-        -czf "$output_file" .
-    [[ -s "$output_file" ]] || error "Rootfs tarball is empty: $output_file"
-    if [[ "$debian_arch" == arm64 ]]; then
-        local tar_members="$output_file.members"
-        tar -tzf "$output_file" > "$tar_members"
-        grep -Eq '(^|/)usr/bin/python3(\.11)?$' "$tar_members" \
-            || error "ARM64 rootfs tarball lost Python during packaging"
-        grep -Eq '(^|/)libmpv\.so' "$tar_members" \
-            || error "ARM64 rootfs tarball lost libmpv during packaging"
-        rm -f "$tar_members"
-    fi
-    rootfs_output_owner "$output_file" "$(dirname "$output_file")" \
-        || error "Could not restore rootfs output ownership"
-    generate_evidence "$product_arch" "$debian_arch" "$output_file" "$rootfs"
-    log "Rootfs created successfully: $output_file ($(du -h "$output_file" | cut -f1))"
+    target_enables_boot_status || return 0
+    local file
+    for file in usr/libexec/ashipaos-boot-status-handler \
+                etc/systemd/system/ashipaos-boot-status.service \
+                etc/systemd/system/ashipaos-boot-success.service; do
+        [[ -f "$OVERLAY_DIR/$file" ]] || error "Missing boot-status overlay file: $file"
+    done
+    install -D -m 0755 "$OVERLAY_DIR/usr/libexec/ashipaos-boot-status-handler" \
+        "$ROOTFS/usr/libexec/ashipaos-boot-status-handler"
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-boot-status.service" \
+        "$ROOTFS/etc/systemd/system/ashipaos-boot-status.service"
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-boot-success.service" \
+        "$ROOTFS/etc/systemd/system/ashipaos-boot-success.service"
+    in_rootfs systemctl enable ashipaos-boot-status.service ashipaos-boot-success.service
 }
 
 minimize_rootfs() {
-    local rootfs_dir="$1"
-    find "$rootfs_dir/usr/share/doc" -type f ! -name copyright -delete 2>/dev/null || true
-    find "$rootfs_dir/usr/share/man" -type f -delete 2>/dev/null || true
-    find "$rootfs_dir/usr/share/info" -type f -delete 2>/dev/null || true
-    rm -rf "$rootfs_dir/var/cache/apt/archives"/* "$rootfs_dir/tmp"/* "$rootfs_dir/var/tmp"/*
-    find "$rootfs_dir/var/log" -type f -delete 2>/dev/null || true
+    in_rootfs apt-get clean
+    find "$ROOTFS/usr/share/doc" -type f ! -name copyright -delete 2>/dev/null || true
+    find "$ROOTFS/usr/share/man" "$ROOTFS/usr/share/info" -type f -delete 2>/dev/null || true
+    find "$ROOTFS/var/log" -type f -delete 2>/dev/null || true
+    rm -rf "$ROOTFS"/var/lib/apt/lists/* "$ROOTFS"/tmp/* "$ROOTFS"/var/tmp/*
 }
 
-json_escape() {
-    local value="$1"
-    value=${value//\\/\\\\}
-    value=${value//\"/\\\"}
-    value=${value//$'\n'/\\n}
-    printf '%s' "$value"
+# Resolves the Debian /vmlinuz and /initrd.img links (relative or absolute)
+# inside the rootfs and prints: kernel-version, kernel path, initrd path.
+kernel_paths() {
+    local vmlinuz initrd kver
+    [[ -L "$ROOTFS/vmlinuz" && -L "$ROOTFS/initrd.img" ]] || error "Missing /vmlinuz or /initrd.img symlink"
+    vmlinuz="$(readlink "$ROOTFS/vmlinuz")"; vmlinuz="/${vmlinuz#/}"
+    initrd="$(readlink "$ROOTFS/initrd.img")"; initrd="/${initrd#/}"
+    [[ "$vmlinuz" == /boot/vmlinuz-* && -s "$ROOTFS$vmlinuz" ]] || error "Invalid kernel link target: $vmlinuz"
+    [[ "$initrd" == /boot/initrd.img-* && -s "$ROOTFS$initrd" ]] || error "Invalid initramfs link target: $initrd"
+    kver="${vmlinuz#/boot/vmlinuz-}"
+    [[ "$initrd" == "/boot/initrd.img-$kver" ]] || error "Kernel/initramfs version mismatch: $vmlinuz $initrd"
+    printf '%s\n%s\n%s\n' "$kver" "$vmlinuz" "$initrd"
 }
 
-file_metadata_json() {
-    local rootfs="$1" path="$2" resolved
-    resolved=$(readlink -f "$rootfs$path")
-    printf '"path": "%s", "resolved_path": "%s", "size": %s, "sha256": "%s"' \
-        "$path" "${resolved#"$rootfs"}" "$(stat -c %s "$resolved")" "$(sha256sum "$resolved" | cut -d' ' -f1)"
+validate_rootfs() {
+    local paths kver dtb status pkg
+    mapfile -t paths < <(kernel_paths)
+    ((${#paths[@]} == 3)) || error "Kernel/initramfs validation failed"
+    kver="${paths[0]}"
+    dtb="/usr/lib/linux-image-$kver/$DEVICE_TREE"
+    [[ -s "$ROOTFS$dtb" ]] || error "Kernel package does not ship the target DTB: $dtb"
+    for pkg in "${PACKAGES[@]}"; do
+        status="$(in_rootfs dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null)" || error "Package not resolved: $pkg"
+        [[ "$status" == "install ok installed" ]] || error "Package not installed: $pkg ($status)"
+    done
+    [[ -x "$ROOTFS/usr/bin/python3" ]] || error "Rootfs lacks /usr/bin/python3"
+    compgen -G "$ROOTFS/usr/lib/aarch64-linux-gnu/libmpv.so.*" >/dev/null || error "Rootfs lacks libmpv"
+    [[ ! -s "$ROOTFS/etc/machine-id" ]] || error "Rootfs carries a fixed machine-id"
+    log "Validated kernel $kver, initramfs, DTB $DEVICE_TREE and ${#PACKAGES[@]} packages"
+    printf '%s\n%s\n%s\n%s\n' "$kver" "${paths[1]}" "${paths[2]}" "$dtb"
+}
+
+package_rootfs() {
+    rm -f "$ROOTFS$QEMU_STATIC"
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
+    local partial="$OUTPUT_FILE.partial"
+    tar -C "$ROOTFS" --numeric-owner --xattrs --acls \
+        --exclude='./dev/*' --exclude='./proc/*' --exclude='./sys/*' --exclude='./run/*' \
+        -czf "$partial" .
+    mv -f -- "$partial" "$OUTPUT_FILE"
+    [[ -s "$OUTPUT_FILE" ]] || error "Rootfs tarball is empty: $OUTPUT_FILE"
+}
+
+record_packages() {
+    mkdir -p "$EVIDENCE_DIR"
+    in_rootfs dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' \
+        | LC_ALL=C sort >"$EVIDENCE_DIR/layer1-packages.tsv"
 }
 
 generate_evidence() {
-    local product_arch="$1" debian_arch="$2" output_file="$3" rootfs_metadata="$4"
-    local evidence_dir="$LAYER1_DIR/evidence" kernel_package="${KERNEL_PACKAGES[$debian_arch]}"
-    local kernel_version initramfs_version
-    kernel_version=$(run_in_rootfs "$rootfs_metadata" dpkg-query -W -f='${Version}' "$kernel_package")
-    initramfs_version=$(run_in_rootfs "$rootfs_metadata" dpkg-query -W -f='${Version}' "$INITRAMFS_PACKAGE")
-    mkdir -p "$evidence_dir"
-    cat > "$evidence_dir/build-evidence-$(date +%Y%m%d-%H%M%S).json" <<EOF
-{
-  "layer": 1,
-  "task": "minimal-debian-rootfs-kernel-initramfs",
-  "verification_class": "BUILD",
-  "timestamp": "$(date -Iseconds)",
-  "parameters": {"target_arch": "$(json_escape "$product_arch")", "debian_arch": "$(json_escape "$debian_arch")", "debian_suite": "$(json_escape "$DEBIAN_SUITE")", "debian_mirror": "$(json_escape "$DEBIAN_MIRROR")"},
-  "packages": {"kernel": {"name": "$(json_escape "$kernel_package")", "version": "$(json_escape "$kernel_version")"}, "initramfs": {"name": "$(json_escape "$INITRAMFS_PACKAGE")", "version": "$(json_escape "$initramfs_version")"}},
-  "files": {"vmlinuz": {$(file_metadata_json "$rootfs_metadata" /vmlinuz)}, "initrd": {$(file_metadata_json "$rootfs_metadata" /initrd.img)}},
-  "artefacts": {"rootfs_tarball": "$(json_escape "$output_file")", "rootfs_size": $(du -b "$output_file" | cut -f1)},
-  "builder": {"architecture": "$(dpkg --print-architecture)", "debootstrap_version": "$(dpkg-query -W -f='${Version}' debootstrap 2>/dev/null || printf unknown)"}
+    local kver="$1" kernel="$2" initrd="$3" dtb="$4"
+    python3 - "$EVIDENCE_DIR/layer1-rootfs.json" "$ROOTFS" "$OUTPUT_FILE" "$kver" "$kernel" "$initrd" "$dtb" \
+        "$DEBIAN_SUITE" "$DEBIAN_MIRROR" "$DEBIAN_SECURITY_MIRROR" "$KERNEL_PACKAGE" <<'PY'
+import hashlib, json, os, sys, time
+out, rootfs, archive, kver, kernel, initrd, dtb, suite, mirror, security, kernel_package = sys.argv[1:]
+
+def digest(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def entry(path):
+    real = rootfs + path
+    return {"path": path, "size": os.path.getsize(real), "sha256": digest(real)}
+
+evidence = {
+    "layer": 1,
+    "task": "a95x-debian-rootfs",
+    "verification_class": "BUILD",
+    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "debian": {"suite": suite, "mirror": mirror, "security_mirror": security or None},
+    "kernel": {"package": kernel_package, "version": kver,
+               "vmlinuz": entry(kernel), "initrd": entry(initrd), "dtb": entry(dtb)},
+    "package_manifest": "layer1-packages.tsv",
+    "artefact": {"rootfs_tarball": os.path.basename(archive),
+                 "size": os.path.getsize(archive), "sha256": digest(archive)},
 }
-EOF
-    log "Evidence generated in $evidence_dir"
+with open(out, "w", encoding="utf-8") as stream:
+    json.dump(evidence, stream, indent=2)
+    stream.write("\n")
+PY
 }
 
 main() {
-    [[ $# -ge 2 && $# -le 3 ]] || usage
-    local product_arch="$1" output_file="$2"
-    local debian_arch="${ARCH_MAP[$product_arch]:-}"
-    [[ -n "$debian_arch" ]] || error "Invalid architecture: $product_arch (valid: arm64)"
-    check_dependencies "$debian_arch"
-    create_rootfs "$product_arch" "$output_file" "$debian_arch" "${3:-}"
-    # Re-open the tarball for evidence would require extracting it; metadata was
-    # captured before packaging by the same validated target rootfs.
-    log "Layer 1 build completed successfully; kernel/initramfs validation passed"
+    check_dependencies
+    TEMP_DIR="$(mktemp -d)"
+    ROOTFS="$TEMP_DIR/rootfs"
+    log "Building $SUPPORTED_TARGET rootfs: Debian $DEBIAN_SUITE arm64"
+
+    bootstrap
+    install_packages
+    configure_system
+    install_boot_status
+    minimize_rootfs
+    rm -f "$ROOTFS/usr/sbin/policy-rc.d"
+    cleanup_mounts
+
+    local validated
+    mapfile -t validated < <(validate_rootfs)
+    ((${#validated[@]} == 4)) || error "Rootfs validation failed"
+    record_packages
+    package_rootfs
+    generate_evidence "${validated[@]}"
+
+    rootfs_output_owner "$OUTPUT_FILE" "$(dirname "$OUTPUT_FILE")" "$EVIDENCE_DIR" \
+        "$EVIDENCE_DIR/layer1-rootfs.json" "$EVIDENCE_DIR/layer1-packages.tsv" \
+        || error "Could not restore output ownership"
+    log "Rootfs created: $OUTPUT_FILE ($(du -h "$OUTPUT_FILE" | cut -f1))"
 }
 
-main "$@"
+main

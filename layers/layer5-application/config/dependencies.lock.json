@@ -1,22 +1,98 @@
 {
-  "schema": "ashipaos.jellyfin-mpv-shim.dependency-lock.v1",
-  "status": "UNRESOLVED",
-  "reason": "Exact target-compatible wheel closure requires CI resolution; no versions or hashes are invented here.",
-  "python_requires": ">=3.9",
-  "upstream_build_requirements": ["setuptools>=77", "wheel"],
-  "mandatory_requirements_from_upstream": [
-    "python-mpv>=1.0.8",
-    "jellyfin-apiclient-python>=1.18.0",
-    "python-mpv-jsonipc>=1.4.0",
-    "requests",
-    "pillow"
-  ],
-  "excluded_extras": ["systray", "gui", "discord", "pywin32"],
-  "forbidden_debian_package": "python3-mpv",
-  "resolution": {
-    "command": "python3 -m pip install --dry-run --report <report.json> --only-binary=:all: ...",
-    "must_record": ["name", "version", "sha256", "filename", "python_tag", "abi_tag", "platform_tag"],
-    "must_fail_without": ["target-compatible wheels", "hashes for every artifact", "python-mpv ABI evidence"]
+  "schema": "ashipaos.jellyfin-mpv-shim.dependency-lock.v2",
+  "status": "RESOLVED",
+  "target": {
+    "python_version": "3.11",
+    "python_tag": "cp311",
+    "abi_tag": "cp311",
+    "platform_tag": "manylinux_2_27_aarch64",
+    "architecture": "arm64"
   },
-  "sbom": "dependency-sbom.json"
+  "source": {
+    "name": "jellyfin-mpv-shim",
+    "version": "3.0.0",
+    "commit": "9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315",
+    "url": "https://github.com/jellyfin/jellyfin-mpv-shim/archive/9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315.tar.gz",
+    "sha256": "c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731",
+    "requirements": [
+      "python-mpv>=1.0.8",
+      "jellyfin-apiclient-python>=1.18.0",
+      "python-mpv-jsonipc>=1.4.0",
+      "requests",
+      "pillow"
+    ]
+  },
+  "forbidden_debian_package": "python3-mpv",
+  "artifacts": [
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "filename": "certifi-2026.7.22-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
+      "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1",
+      "filename": "charset_normalizer-3.5.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/cc/61/d01fc49b8dea277640b55a9e15960dbca9fdc8c9fde18e572d39c59f4019/charset_normalizer-3.5.1-py3-none-any.whl",
+      "sha256": "6df0ec430f9a831772c23ca5a224cba36517a58a84bb32c32bb59a9fa67c47f6"
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "filename": "idna-3.20-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c"
+    },
+    {
+      "name": "jellyfin-apiclient-python",
+      "version": "1.18.0",
+      "filename": "jellyfin_apiclient_python-1.18.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/73/99/bc0555653d8598d14e25661a308cb1817a94d60efde02acc7216b79a62f6/jellyfin_apiclient_python-1.18.0-py3-none-any.whl",
+      "sha256": "f459c0c785eb08e40f90fd51f09312f58f8d7807dbf64688467640f5cca3d326"
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0",
+      "filename": "pillow-12.3.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/c8/98/766667a4be768150a202836acd9fad19c06824ca86c4286d3cf6b274964e/pillow-12.3.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl",
+      "sha256": "bcb46e2f9feff8d06323983bd83ed00c201fdcab3d74973e7072a889b3979fcd"
+    },
+    {
+      "name": "python-mpv",
+      "version": "1.0.8",
+      "filename": "python_mpv-1.0.8-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/22/f3/4c632eaacebfc62ab9414586137aecf6c0ea2a1e99708cf5a4c0dec13ae0/python_mpv-1.0.8-py3-none-any.whl",
+      "sha256": "b5296403e990fb7348df4ca2211937a030f524bf638657bda7e45a00bc2df0cd"
+    },
+    {
+      "name": "python-mpv-jsonipc",
+      "version": "1.4.0",
+      "filename": "python_mpv_jsonipc-1.4.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/ba/b0/8685d026cd7b4ac509214e1adad5bedda348ca000c43bffdf1469050a72b/python_mpv_jsonipc-1.4.0-py3-none-any.whl",
+      "sha256": "809322f476e164f4391452940eb00c6b8bb221eb05f72dc7dc595c98b164115f"
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "filename": "requests-2.34.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl",
+      "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "filename": "urllib3-2.8.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl",
+      "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3"
+    },
+    {
+      "name": "websocket-client",
+      "version": "1.9.2",
+      "filename": "websocket_client-1.9.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/d5/d2/cc4dc1271e464942db7ee278baae2daa99ee77cb2af744025c04da585a3e/websocket_client-1.9.2-py3-none-any.whl",
+      "sha256": "e1a673830a9c7bfa47b1cd3d5e4178f4c9651d80a4eab02c9c23a1c3ec6250ce"
+    }
+  ]
 }

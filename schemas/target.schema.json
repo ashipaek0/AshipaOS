@@ -1,12 +1,17 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AshipaOS A95X target",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AshipaOS A95X release target (build/config/release.yaml)",
   "type": "object",
-  "required": ["name", "arch", "media"],
+  "required": ["target", "architecture", "media", "release_channel", "base", "boot", "image_format", "full_build"],
   "properties": {
-    "name": {"const": "a95x-f3-air"},
-    "arch": {"const": "arm64"},
-    "media": {"const": "removable-sd"}
+    "target": {"const": "a95x-f3-air"},
+    "architecture": {"const": "arm64"},
+    "media": {"const": "removable-sd"},
+    "release_channel": {"enum": ["dev", "beta", "stable"]},
+    "base": {"const": "debian-bookworm"},
+    "boot": {"const": "vendor-u-boot-sd-autoscript"},
+    "image_format": {"const": "raw-gz"},
+    "full_build": {"const": "github-actions-only"}
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

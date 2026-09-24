@@ -1,16 +1,40 @@
-# A95X F3 Air Build Guide
+# A95X F3 Air build guide
 
 ## Scope
 
-This branch builds only the Amlogic A95X F3 Air appliance. CoreELEC provenance, pinned source validation, boot image inspection, DTB handling, and removable-SD safety are part of this track.
+This branch builds only the Amlogic A95X F3 Air appliance: a Debian bookworm
+arm64 root filesystem with Jellyfin MPV Shim, booted from removable SD by the
+box's stock vendor U-Boot. CoreELEC provenance under `build/coreelec/` is the
+evidence-backed baseline for the target.
+
+## Pins
+
+| Input | Pin |
+|---|---|
+| Jellyfin MPV Shim | commit + archive SHA-256 in `layers/layer5-application/scripts/jellyfin-bundle.py` and `build/coreelec/pin.json` |
+| Python dependency closure | `layers/layer5-application/config/dependencies.lock.json` (versions, PyPI URLs, SHA-256) |
+| Debian packages | suite in `layers/layer1-rootfs/config/rootfs-config.yaml`; the exact installed versions are recorded per build in `output/evidence/layer1-packages.tsv` and the SBOM |
+| GitHub Actions | full commit SHAs, enforced by `tests/static/test-workflow-files.sh` |
+| CoreELEC baseline | `build/coreelec/pin.json` (tag, commit, archive, Dockerfile and base-image digests) |
+| Stock box blobs | SHA-256 in `layers/layer2-image/files/a95x-f3-air/provenance.json` |
+
+To refresh the Python lock, run
+`python3 layers/layer5-application/scripts/jellyfin-bundle.py update-lock`
+and review the diff; CI rejects a lock whose closure pip cannot reproduce with
+`--require-hashes`.
 
 ## Required gates
 
-1. Validate the pinned CoreELEC source and checksum.
-2. Build and inspect the prerequisite image in GitHub Actions.
-3. Validate the A95X boot files, DTB, partition table, FAT16 boot filesystem, and ext4 root filesystem.
-4. Build the AshipaOS image through the CI workflow.
-5. Test only on removable SD media; never overwrite eMMC.
-6. Use 3.3 V TTL UART without connecting VCC; never use RS-232 voltage.
+1. Static gates (`tests/static/run-static.sh`) pass, including the CoreELEC pin
+   validation against the authorized fork.
+2. The rootfs contains the kernel, initramfs and the mainline DTB from one
+   kernel package, and no fixed machine-id.
+3. The Jellyfin closure matches the lock and imports on the target interpreter.
+4. The image gate confirms the MBR layout, the zero gap before sector 8192,
+   the FAT16 boot files, the kernel.img header, and the root filesystem.
+5. Release artefacts are checksummed, signed (tags always), and carry an SBOM.
+6. Hardware testing uses removable SD only (never eMMC) and a 3.3 V TTL UART
+   without VCC (never RS-232 levels).
 
-The exact hardware runtime and Jellyfin playback gates remain hardware evidence, not claims inferred from static tests.
+Hardware boot, display, audio, input and playback remain hardware evidence;
+they are not inferred from these static and build gates.

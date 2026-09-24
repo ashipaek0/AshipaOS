@@ -1,23 +1,21 @@
-# Ownership contract (build guide §1.1)
+# Ownership contract
 
-Every generated artefact has a declared owner. No component may silently
-take ownership of another component's state. A local developer machine is
-not an authoritative build or release environment.
+Every generated artefact has a declared owner. No component may silently take
+ownership of another component's state. A local developer machine is not an
+authoritative build or release environment.
 
 | Area | Owner |
 |---|---|
-| Filesystem contents | Rootfs construction |
-| Target-specific parameters | Target definitions (`build/targets/`) |
-| Partition tables, filesystems, final image assembly | Image assembler |
-| Kernel/initramfs/DTB/bootloader relationships | Boot bundle contract |
-| Update state and activation | Updater |
-| Writable application payload only | Application updater |
-| First-run network configuration | Provisioning |
-| Privileged operations exposed to the UI | `settingsd` |
-| Box-specific values | Target/box configuration (`build/targets/amlogic/boxes/`) |
-| Canonical build execution | CI |
-| Hardware evidence | Hardware lab |
-| Release publication and checksums | Release automation |
+| Root filesystem contents | Layer 1 (`layers/layer1-rootfs`) |
+| Application bundle and launcher | Layer 5 (`layers/layer5-application`) |
+| Partition table, filesystems, boot files, image assembly | Layer 2 (`layers/layer2-image`) |
+| Kernel/initramfs/DTB/bootloader relationships | `boot-bundle.md` |
+| Writable application payload and slot selection | `app-ota.md` |
+| Box-specific values | `build/targets/amlogic/boxes/` |
+| CoreELEC baseline provenance | `build/coreelec/`, `coreelec-integration.md` |
+| Canonical build execution | GitHub Actions |
+| Hardware evidence | Hardware lab (`hardware-lab/`, `hardware-facts.md`) |
+| Release publication, checksums, signatures, SBOM | Layer 10 and `scripts/ci-*.sh` |
 
-Detailed interface contracts: `boot-bundle.md`, `storage.md`,
-`settingsd.md`, `os-ota.md`, `app-ota.md`, `provisioning.md`, `release.md`.
+Detailed interface contracts: `boot-bundle.md`, `storage.md`, `app-ota.md`,
+`coreelec-integration.md`, `hardware-facts.md`.
