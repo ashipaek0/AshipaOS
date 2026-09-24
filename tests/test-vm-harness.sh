@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd); mode=${1:?mode}; bad_guard=0
+root=$(cd "$(dirname "$0")/.." && pwd); mode=${1:?mode}; bad_guard=0; deaf_grub=0
 if [[ "$mode" == bad-guard ]]; then mode=bios; bad_guard=1; fi
+if [[ "$mode" == deaf-grub ]]; then mode=bios; deaf_grub=1; fi
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/work/out"; printf iso > "$tmp/work/out/installer.iso"; printf disk > "$tmp/work/out/vm-disk.img"; printf code > "$tmp/work/code.fd"; printf vars > "$tmp/work/vars.fd"
 cat > "$tmp/bin/stat" <<'SH'
@@ -32,8 +33,14 @@ if '-monitor' in args:
     print('Force reinstall AshipaOS offline',flush=True)
     listener.settimeout(5)
     connection,_=listener.accept()
-    command=connection.recv(1024)
-    if b'sendkey down' not in command or b'sendkey ret' not in command: sys.exit(1)
+    # Like GRUB: redraw the highlight only for an accepted Down, boot on Enter.
+    deaf=os.environ.get('VM_MOCK_DEAF_GRUB')=='1'; received=b''
+    while b'sendkey ret' not in received:
+        chunk=connection.recv(1024)
+        if not chunk: sys.exit(1)
+        received+=chunk
+        if b'sendkey down' in chunk and not deaf: print('*Force reinstall AshipaOS offline',flush=True)
+    if b'sendkey down' not in received: sys.exit(1)
     print('ASHIPAOS_FORCE_REINSTALL_BEGIN',flush=True)
     print('ASHIPAOS_INSTALL_OK',flush=True)
     connection.close();listener.close()
@@ -42,7 +49,13 @@ else:
     print(['ASHIPAOS_INSTALL_OK','ASHIPAOS_BOOT_OK',guard,'', 'ASHIPAOS_BOOT_OK'][index-1],flush=True)
 PY
 chmod +x "$tmp/bin/"*
-export PATH="$tmp/bin:$PATH" VM_MOCK_RECORD="$tmp/record" OVMF_CODE="$tmp/work/code.fd" OVMF_VARS="$tmp/work/vars.fd" VM_MOCK_BAD_GUARD="$bad_guard"
+export PATH="$tmp/bin:$PATH" VM_MOCK_RECORD="$tmp/record" OVMF_CODE="$tmp/work/code.fd" OVMF_VARS="$tmp/work/vars.fd" VM_MOCK_BAD_GUARD="$bad_guard" VM_MOCK_DEAF_GRUB="$deaf_grub"
+if (( deaf_grub )); then
+  # Keys GRUB never acknowledges must fail the force stage, not pass silently.
+  ! (cd "$tmp/work" && VM_TIMEOUT_SECONDS=30 "$root/scripts/vm-test.sh" "$mode" out/installer.iso 2> "$tmp/deaf.err")
+  grep -q 'GRUB did not accept key input' "$tmp/deaf.err"
+  exit 0
+fi
 if (( bad_guard )); then
   ! (cd "$tmp/work" && VM_TIMEOUT_SECONDS=7 "$root/scripts/vm-test.sh" "$mode" out/installer.iso)
   [[ ! -e "$tmp/work/out/evidence/vm-bios-manifest.json" ]]

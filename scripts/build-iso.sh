@@ -7,7 +7,7 @@ kernel=${KERNEL:-out/appliance-rootfs/boot/vmlinuz-*}; kernel=$(printf '%s\n' $k
 mkdir -p "$tmp/boot/grub/i386-pc" "$tmp/install" "$tmp/EFI/BOOT"
 cp "$kernel" "$tmp/boot/vmlinuz"; cp out/installer-initramfs.gz "$tmp/boot/initramfs.gz"; cp out/appliance.img.zst out/appliance.img.manifest "$tmp/install/"
 cat > "$tmp/boot/grub/grub.cfg" <<'GRUB'
-set timeout=3
+set timeout=10
 set default=0
 serial --unit=0 --speed=115200
 terminal_input console serial

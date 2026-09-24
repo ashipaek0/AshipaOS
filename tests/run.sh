@@ -63,6 +63,7 @@ run iso_relational_fixtures python3 -B "$ROOT/tests/test-iso-relations.py"
 run vm_bios_force_mock bash "$ROOT/tests/test-vm-harness.sh" bios
 run vm_uefi_force_mock bash "$ROOT/tests/test-vm-harness.sh" uefi
 run vm_guard_rejects_embedded_token bash "$ROOT/tests/test-vm-harness.sh" bad-guard
+run vm_force_requires_grub_to_accept_keys bash "$ROOT/tests/test-vm-harness.sh" deaf-grub
 
 if (( failures )); then
   printf '%d passed, %d failed\n' "$pass" "$failures" >&2

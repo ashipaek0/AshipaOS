@@ -51,21 +51,33 @@ run_stage() {
     # Select the actual second GRUB entry through QEMU's monitor. Refuse to
     # claim force coverage if the menu was never observed or no monitor exists.
     if ! python3 - "$socket" "$log" "$pid" <<'PY'
-import os,socket,sys,time
+import os,re,socket,sys,time
 path,log,pid=sys.argv[1:]
-deadline=time.monotonic()+90
-while time.monotonic()<deadline:
+def screen():
     try: text=open(log,errors='replace').read()
-    except FileNotFoundError: text=''
-    if 'Force reinstall AshipaOS offline' in text and os.path.exists(path):
-        with socket.socket(socket.AF_UNIX) as client:
-            client.connect(path)
-            client.sendall(b'sendkey down\nsendkey ret\n')
-        break
+    except FileNotFoundError: return ''
+    return re.sub(r'\x1b\[[0-9;?=:]*[A-Za-z]','',text.replace('\r',''))
+def alive():
     try: os.kill(int(pid),0)
-    except ProcessLookupError: raise SystemExit('VM exited before GRUB force menu')
+    except ProcessLookupError: return False
+    return True
+deadline=time.monotonic()+90
+while 'Force reinstall AshipaOS offline' not in screen() or not os.path.exists(path):
+    if not alive(): raise SystemExit('VM exited before GRUB force menu')
+    if time.monotonic()>deadline: raise SystemExit('GRUB force menu/monitor not observed')
     time.sleep(.2)
-else: raise SystemExit('GRUB force menu/monitor not observed')
+with socket.socket(socket.AF_UNIX) as client:
+    client.connect(path)
+    # GRUB may not read input the instant its menu is drawn (seen under KVM):
+    # repeat Down until it redraws the highlight on the force entry (the first
+    # accepted key also stops the countdown), and only then press Enter.
+    for _ in range(16):
+        client.sendall(b'sendkey down\n')
+        time.sleep(.5)
+        if '*Force reinstall AshipaOS offline' in screen(): break
+    else: raise SystemExit('GRUB did not accept key input: force entry never highlighted')
+    client.sendall(b'sendkey ret\n')
+    time.sleep(.5)
 PY
     then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; return 1; fi
     wait "$pid" || status=$?
