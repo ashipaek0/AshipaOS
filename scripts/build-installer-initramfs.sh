@@ -23,7 +23,7 @@ copy_runtime() {
     done < <(ldd "$src" 2>/dev/null || true)
   fi
 }
-runtime_commands=(bash env ln mount umount switch_root zstd dd stat sha256sum awk head install readlink sed cat sync sfdisk sgdisk parted flock grep find findmnt blkid lsblk e2fsck resize2fs partprobe udevadm modprobe pvs dmsetup mdadm reboot poweroff mktemp rm rmdir dirname mkdir readelf)
+runtime_commands=(bash env ln tee mount umount switch_root zstd dd stat sha256sum awk head install readlink sed cat sync sfdisk sgdisk parted flock grep find findmnt blkid lsblk e2fsck resize2fs partprobe udevadm modprobe pvs dmsetup mdadm reboot poweroff mktemp rm rmdir dirname mkdir readelf)
 for cmd in "${runtime_commands[@]}"; do
   src=$(command -v "$cmd" || true)
   [[ -n "$src" ]] || { echo "missing initramfs runtime command: $cmd" >&2; exit 1; }
@@ -65,6 +65,9 @@ mount -t devtmpfs devtmpfs /dev
 # substitution (used by the selector) needs them.
 ln -sfn /proc/self/fd /dev/fd
 ln -sfn /proc/self/fd/0 /dev/stdin; ln -sfn /proc/self/fd/1 /dev/stdout; ln -sfn /proc/self/fd/2 /dev/stderr
+# Mirror installer output to the serial port so headless runs (CI VMs) can see
+# why an install stopped; the screen remains the primary console.
+if [[ -c /dev/ttyS0 ]]; then exec > >(tee /dev/ttyS0) 2>&1; fi
 udevadm trigger --action=add || true
 udevadm settle --timeout=20 || { echo "udev did not settle" >&2; exit 1; }
 essential_modules=(virtio_pci virtio_blk sr_mod isofs ext4)

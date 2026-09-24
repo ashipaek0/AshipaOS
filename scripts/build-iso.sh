@@ -13,11 +13,11 @@ serial --unit=0 --speed=115200
 terminal_input serial
 terminal_output serial
 menuentry 'Install AshipaOS offline' {
- linux /boot/vmlinuz quiet
+ linux /boot/vmlinuz console=ttyS0,115200 console=tty0 quiet
  initrd /boot/initramfs.gz
 }
 menuentry 'Force reinstall AshipaOS offline' {
- linux /boot/vmlinuz quiet ashipaos.force=1
+ linux /boot/vmlinuz console=ttyS0,115200 console=tty0 quiet ashipaos.force=1
  initrd /boot/initramfs.gz
 }
 GRUB

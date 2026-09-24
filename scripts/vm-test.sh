@@ -19,6 +19,11 @@ declare -a vars_files=()
 # lines with CRs stripped. grep without -q reads all input: no SIGPIPE under
 # pipefail.
 has_line() { tr -d '\r' < "$1" | grep -Fx -- "$2" >/dev/null; }
+# Diagnostics artifacts are not always reachable; put the serial tail in the job log.
+show_tail() {
+  echo "--- last serial lines of $1 ---" >&2
+  tr -d '\r' < "$1" | sed -E 's/\x1b\[[0-9;?]*[A-Za-z]//g' | grep -av '^[[:space:]]*$' | tail -n 60 >&2 || true
+}
 stage_args() {
   local stage=$1 mode=$2
   # -nographic would also claim stdio for the monitor and clash with -serial.
@@ -67,9 +72,9 @@ PY
   else
     timeout --foreground "$timeout_s" qemu-system-x86_64 "${args[@]}" > "$log" 2>&1 || status=$?
   fi
-  (( status == 0 || status == 124 )) || { echo "VM $stage failed with $status" >&2; return 1; }
-  if [[ "$stage" == force ]]; then has_line "$log" ASHIPAOS_FORCE_REINSTALL_BEGIN || { echo 'force selector/write path not reached' >&2; return 1; }; fi
-  has_line "$log" "$token" || { echo "VM $stage milestone $token missing" >&2; return 1; }
+  (( status == 0 || status == 124 )) || { echo "VM $stage failed with $status" >&2; show_tail "$log"; return 1; }
+  if [[ "$stage" == force ]]; then has_line "$log" ASHIPAOS_FORCE_REINSTALL_BEGIN || { echo 'force selector/write path not reached' >&2; show_tail "$log"; return 1; }; fi
+  has_line "$log" "$token" || { echo "VM $stage milestone $token missing" >&2; show_tail "$log"; return 1; }
 }
 run_stage install iso ASHIPAOS_INSTALL_OK
 run_stage installed disk ASHIPAOS_BOOT_OK
