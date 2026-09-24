@@ -6,7 +6,7 @@ mkdir -p "$tmp/work/out/flatpak-repo/.ostree/repo" "$tmp/bin"
 printf 'fixture key\n' > "$tmp/work/out/flathub.gpg"
 python3 - "$tmp/work/out/flatpak-lock.json" <<'PY'
 import json,sys
-json.dump({'collection_id':'org.flathub.Stable','app':'com.github.iwalton3.jellyfin-mpv-shim','refs':[{'ref':'app/com.github.iwalton3.jellyfin-mpv-shim/x86_64/stable','commit':'a'*64},{'ref':'runtime/example/x86_64/stable','commit':'b'*64}]},open(sys.argv[1],'w'))
+json.dump({'collection_id':'org.flathub.Stable','app':'com.github.iwalton3.jellyfin-mpv-shim','refs':[{'ref':'app/com.github.iwalton3.jellyfin-mpv-shim/x86_64/stable','commit':'a'*64},{'ref':'runtime/example/x86_64/stable','commit':'b'*64},{'ref':'runtime/example.Locale/x86_64/stable','commit':'b'*64}]},open(sys.argv[1],'w'))
 PY
 # Flatpak refuses user installations as root, so the fixture runs as uid 1000
 # even when the suite itself runs as root.
@@ -57,7 +57,10 @@ PY
    printf '%s\n' "${args[@]:i+1}" >> "$XDG_DATA_HOME/installed"
    echo x >> "$XDG_DATA_HOME/transactions"
    ;;
- *' list '*) sed -E 's#^(app|runtime)/##' "$XDG_DATA_HOME/installed";;
+ *' list '*)
+   # Without --all, Flatpak hides locale/debug extensions of installed refs.
+   if [[ "$*" == *'--all'* ]]; then hidden='^$'; else hidden='\.(Locale|Debug)/'; fi
+   sed -E 's#^(app|runtime)/##' "$XDG_DATA_HOME/installed" | grep -Ev "$hidden" || true;;
  *' info '*--show-ref*) grep -E "^(app|runtime)/${*: -1}\$" "$XDG_DATA_HOME/installed";;
  *' info '*--show-commit*) case "${*: -1}" in *mpv-shim*) printf 'a%.0s' {1..64};; *) printf 'b%.0s' {1..64};; esac; echo;;
  *' info '*) exit 0;;
@@ -81,6 +84,6 @@ printf '%s\n' 'pub:::::::::' 'fpr:::::::::6E5C05D979C76DAF93C081354184DD4D907A7C
 SH
 chmod +x "$tmp/bin/"*
 (cd "$tmp/work" && PATH="$tmp/bin:$PATH" HOME_ROOT="$tmp/test-home" "$root/scripts/test-flatpak-payload-offline.sh")
-[[ $(wc -l < "$tmp/test-home/data/installed") == 2 ]]
+[[ $(wc -l < "$tmp/test-home/data/installed") == 3 ]]
 [[ $(wc -l < "$tmp/test-home/data/transactions") == 1 ]]
 printf '%s\n' 'offline Flatpak unprivileged sideload mock: PASS'

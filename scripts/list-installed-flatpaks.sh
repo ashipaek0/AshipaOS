@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 mode=${1:?usage: list-installed-flatpaks.sh --user|--system}
 [[ "$mode" == --user || "$mode" == --system ]] || { echo 'invalid Flatpak installation mode' >&2; exit 2; }
-listing=$(flatpak "$mode" list --columns=ref)
+listing=$(flatpak "$mode" list --all --columns=ref)
 while IFS= read -r ref; do
   [[ -n "$ref" ]] || continue
   full=$(flatpak "$mode" info --show-ref "$ref")
