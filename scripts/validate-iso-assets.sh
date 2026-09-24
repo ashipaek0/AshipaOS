@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 iso=${1:?ISO path}; command -v xorriso >/dev/null || { echo xorriso required >&2; exit 1; }; command -v mdir >/dev/null || { echo mtools required >&2; exit 1; }; command -v zstd >/dev/null || { echo zstd required >&2; exit 1; }; [[ -s "$iso" ]] || exit 1
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d)
+# xorriso extracts the tree read-only; restore write access so cleanup works
+# for an unprivileged caller instead of turning a pass into a failure.
+trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 xorriso -indev "$iso" -report_el_torito plain > "$tmp/report" 2>/dev/null
 xorriso -osirrox on -indev "$iso" -extract / "$tmp/tree" >/dev/null 2>&1
 template=/usr/lib/grub/i386-pc/boot_hybrid.img
