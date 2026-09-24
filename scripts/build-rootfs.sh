@@ -3,9 +3,12 @@ set -Eeuo pipefail
 out=${ROOTFS_OUT:-out/appliance-rootfs}; tmp=$(mktemp -d)
 # A failed mmdebstrap (root mode) can leave /dev, /proc and /sys mounted in
 # the rootfs. Unmount them before deleting, and never delete across a mount.
+unmount_under() {
+  findmnt -rn -o TARGET | awk -v p="$1/" 'index($0, p) == 1' | sort -r | while read -r m; do umount -l "$m"; done
+}
 cleanup() {
   set +e
-  findmnt -rn -o TARGET | awk -v p="$tmp/" 'index($0, p) == 1' | sort -r | while read -r m; do umount -l "$m"; done
+  unmount_under "$tmp"
   rm -rf --one-file-system "$tmp"
 }
 trap cleanup EXIT
@@ -34,6 +37,9 @@ keyring=/usr/share/keyrings/debian-archive-keyring.gpg
 [[ -s "$keyring" ]] || { echo 'debian-archive-keyring is required to verify the Debian snapshot' >&2; exit 1; }
 mmdebstrap --variant=apt --keyring="$keyring" --architectures=amd64 --components=main --aptopt='Acquire::Check-Valid-Until "false"' --include="$packages" trixie "$tmp/rootfs" "$mirror"
 root="$tmp/rootfs"
+# mmdebstrap reports success even when a busy /sys fails to unmount; nothing
+# from the host may stay mounted in the image tree.
+unmount_under "$root"
 install -d -m 0755 "$root/etc/ssh/sshd_config.d" "$root/etc/greetd" "$root/etc/labwc" "$root/etc/systemd/system" "$root/usr/local/bin" "$root/var/lib/ashipaos" "$root/home/admin/.ssh"
 # Locked appliance accounts; admin access is exclusively through the supplied key.
 chroot "$root" useradd --create-home --shell /bin/bash admin
@@ -103,14 +109,23 @@ stage=/tmp/ashipaos-flatpak
 install -d -m 0755 "$root$stage"
 install -m 0755 scripts/install-flatpak-graph-offline.sh "$root$stage/"
 install -m 0644 scripts/flathub.env "$root$stage/"
+# Flatpak needs /proc (boot_id), /sys and /dev inside the chroot, and its
+# bwrap-run triggers need the chroot root to be a mount point. Mount them only
+# for the install.
+mount --bind "$root" "$root"
+mount -t proc proc "$root/proc"
+mount -t sysfs -o ro,nosuid,nodev,noexec sysfs "$root/sys"
+mount --bind /dev "$root/dev"
 unshare -n chroot "$root" "$stage/install-flatpak-graph-offline.sh" --system /var/lib/ashipaos/flatpak-repo/.ostree/repo "${refs[@]}"
+unmount_under "$root"
+umount "$root"
 rm -rf "$root$stage"
 host_flatpak scripts/list-installed-flatpaks.sh --system > "$tmp/installed-flatpak.tsv"
 python3 scripts/verify-flatpak-lock.py out/flatpak-lock.json "$tmp/installed-flatpak.tsv"
 # Re-check the remote after the install so the image ships the pinned configuration.
 host_flatpak scripts/configure-flathub-remote.sh --system out/flathub.gpg
 chroot "$root" usermod -aG video,render,audio kiosk
-chroot "$root" flatpak --system override --socket=wayland --socket=x11 --device=dri --share=ipc "$APP_ID"
+host_flatpak flatpak --system override --socket=wayland --socket=x11 --device=dri --share=ipc "$APP_ID"
 cp provision/flatpak-permissions "$root/etc/flatpak-permissions"
 cp out/flatpak-lock.json "$root/var/lib/ashipaos/flatpak-lock.json"
 # Seal only after identity material and all operational configuration are ready.
