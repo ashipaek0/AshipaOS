@@ -133,7 +133,9 @@ is_safe() {
     sysnode="$base"; [[ "$child" == "$path" ]] || sysnode="$base/${child##*/}"
     [[ ! -d "$sysnode/holders" || -z "$(find "$sysnode/holders" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] || return 1
     if command -v pvs >/dev/null && pvs --noheadings -o pv_name "$child" 2>/dev/null | grep -q .; then return 1; fi
-    if command -v mdadm >/dev/null && mdadm --examine "$child" >/dev/null 2>&1; then return 1; fi
+    # Plain `mdadm --examine` also succeeds on any partition table (it reports
+    # the protective MBR), so only an exported md superblock means RAID.
+    if command -v mdadm >/dev/null && [[ "$(mdadm --examine --export "$child" 2>/dev/null || true)" == *MD_UUID=* ]]; then return 1; fi
     if command -v dmsetup >/dev/null && dmsetup info "$child" >/dev/null 2>&1; then return 1; fi
     signature=$(blkid -p -o export "$child" 2>/dev/null || true)
     if (( marker_ok == 0 )); then [[ -z "$signature" ]] || return 1; continue; fi

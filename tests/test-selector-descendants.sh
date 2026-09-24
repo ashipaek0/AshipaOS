@@ -57,13 +57,21 @@ cat > "$tmp/bin/findmnt" <<'SH'
 [[ "${TEST_FINDMNT_FAIL:-0}" == 1 ]] && exit 1
 [[ -n "${TEST_MOUNT:-}" ]] && echo "$TEST_MOUNT" || true
 SH
-for tool in pvs dmsetup mdadm; do
+for tool in pvs dmsetup; do
 cat > "$tmp/bin/$tool" <<'SH'
 #!/usr/bin/env bash
 [[ "${TEST_REJECT_TOOL:-}" == "${0##*/}" && "${*: -1}" == *2 ]] || exit 1
 [[ "${0##*/}" != pvs ]] || echo /dev/pv
 SH
 done
+# Like real mdadm: --examine succeeds on any partition table (protective MBR);
+# only an md member exports MD_UUID.
+cat > "$tmp/bin/mdadm" <<'SH'
+#!/usr/bin/env bash
+[[ "$*" == *--export* ]] || { echo 'MBR Magic : aa55'; exit 0; }
+[[ "${TEST_REJECT_TOOL:-}" == mdadm && "${*: -1}" == *2 ]] && echo 'MD_UUID=00000000:00000000:00000000:00000000'
+exit 0
+SH
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH" SYSFS_ROOT="$tmp/sys" DEV_ROOT="$tmp/dev" MARKER_TMP_ROOT="$tmp" SWAPS_FILE="$tmp/swaps" TEST_NAME="$name" TEST_MARKER="$tmp/mount-root/var/lib/ashipaos/install-complete" SELECTOR_PRODUCTION_PROBES=1
 run() { if [[ "${DEBUG:-}" == 1 ]]; then bash -x "$root/installer/select-target.sh" --fixture-root ashipaos.force=1 "ashipaos.install_target=/dev/$name"; else "$root/installer/select-target.sh" --fixture-root ashipaos.force=1 "ashipaos.install_target=/dev/$name"; fi; }
