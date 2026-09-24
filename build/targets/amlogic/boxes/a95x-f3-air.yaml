@@ -8,7 +8,7 @@ features:
 
 status:
   device_tree: CONFIRMED
-  wifi: UNKNOWN
+  wifi: PROVISIONAL
   bluetooth: UNKNOWN
   ir: UNKNOWN
   hardware_decode: UNKNOWN
@@ -111,9 +111,13 @@ ethernet:
       source: owner report; internal_phy = <1> in the CoreELEC dtb above
 
 wifi:
-  driver: null
-  status: UNKNOWN
-  evidence: []
+  driver: brcmfmac
+  chip: Broadcom SDIO module (exact ID pending; vendor DTB uses the DHD driver)
+  status: PROVISIONAL
+  evidence:
+    - class: HARDWARE
+      runner: human
+      source: evidence/amlogic/a95x-f3-air/boot-2026-09-24b/ (SDIO card on mmc2); vendor DTB wifi node
 
 bluetooth:
   supported: null

@@ -7,7 +7,7 @@ on hardware.
 
 ## Relationship to the current image build
 
-The `build-images` workflow currently ships a Debian bookworm arm64 image
+The `build-images` workflow currently ships a Debian trixie arm64 image
 booted by the box's vendor U-Boot (see `boot-bundle.md`) straight into
 Jellyfin MPV Shim via `ashipaos-jellyfin-mpv-shim.service`. CoreELEC is the
 evidence-backed baseline for this target: the `coreelec-ce2a` workflow builds

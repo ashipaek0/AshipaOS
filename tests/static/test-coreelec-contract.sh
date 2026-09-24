@@ -48,7 +48,7 @@ for field, value in (
     mutated["device_tree"][field] = value
     assert not device_tree_matches(mutated), f"device_tree {field} mutation was accepted"
 PYEOF
-grep -q '^  wifi: UNKNOWN$' "$TARGET" || fail "target preserves Wi-Fi unknown status"
+grep -Eq '^  wifi: (UNKNOWN|PROVISIONAL)$' "$TARGET" || fail "Wi-Fi must not be CONFIRMED without evidence"
 grep -q '^    final_bridge: UNKNOWN$' "$TARGET" || fail "target preserves final bridge unknown"
 grep -q 'fc61125e8900ab0c2593a29b615980ed0cd5b939' "$CONTRACT" || fail "contract records CoreELEC commit"
 grep -q 'c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a' "$CONTRACT" || fail "contract records CoreELEC archive hash"

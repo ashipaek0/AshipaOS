@@ -1,0 +1,716 @@
+== AshipaOS boot report (stage 3: Linux userspace) ==
+2026-04-27T19:52:01Z (may be wrong before NTP)
+uptime: 192.80 686.24
+report written by: /usr/libexec/ashipaos-boot-report (rewritten 1, 3 and 10 minutes after boot)
+kernel: Linux ashipaos 6.1.0-52-arm64 #1 SMP Debian 6.1.180-1 (2026-08-03) aarch64 GNU/Linux
+cmdline: root=LABEL=RootFS rootwait rw console=ttyAML0,115200 console=tty0
+model: Shenzhen CYX Industrial Co., Ltd A95XF3-AIR
+
+== failed units ==
+● ashipaos-jellyfin-mpv-shim.service loaded failed failed AshipaOS Jellyfin MPV Shim
+
+== jellyfin mpv shim ==
+× ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim
+     Loaded: loaded (/etc/systemd/system/ashipaos-jellyfin-mpv-shim.service; enabled; preset: enabled)
+     Active: failed (Result: exit-code) since Mon 2026-04-27 19:50:25 UTC; 1min 36s ago
+   Duration: 4.566s
+    Process: 768 ExecStart=/usr/libexec/ashipaos-jellyfin-mpv-shim (code=exited, status=1/FAILURE)
+   Main PID: 768 (code=exited, status=1/FAILURE)
+        CPU: 4.667s
+
+== jellyfin mpv shim log (this boot, all priorities) ==
+[   12.287143] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   16.133624] ashipaos ashipaos-jellyfin-mpv-shim[366]: 2026-04-27 19:49:04,537 [    INFO] root: text shaping: raqm=yes
+[   22.220249] ashipaos ashipaos-jellyfin-mpv-shim[366]: 2026-04-27 19:49:10,623 [    INFO] player: Using libmpv playback backend.
+[   22.225076] ashipaos ashipaos-jellyfin-mpv-shim[366]: 2026-04-27 19:49:10,628 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   22.770566] ashipaos ashipaos-jellyfin-mpv-shim[366]: Traceback (most recent call last):
+[   22.770566] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "<string>", line 1, in <module>
+[   22.770566] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   22.771805] ashipaos ashipaos-jellyfin-mpv-shim[366]:     from .player import playerManager as _pm
+[   22.772119] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   22.778894] ashipaos ashipaos-jellyfin-mpv-shim[366]:     playerManager = PlayerManager()
+[   22.779340] ashipaos ashipaos-jellyfin-mpv-shim[366]:                     ^^^^^^^^^^^^^^^
+[   22.779340] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   22.780939] ashipaos ashipaos-jellyfin-mpv-shim[366]:     self._init_mpv()
+[   22.781295] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   22.783237] ashipaos ashipaos-jellyfin-mpv-shim[366]:     self._player = self._construct_mpv(
+[   22.783561] ashipaos ashipaos-jellyfin-mpv-shim[366]:                    ^^^^^^^^^^^^^^^^^^^^
+[   22.783561] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   22.785254] ashipaos ashipaos-jellyfin-mpv-shim[366]:     player = mpv.MPV(**kwargs, **options)
+[   22.785619] ashipaos ashipaos-jellyfin-mpv-shim[366]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   22.785619] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   22.786940] ashipaos ashipaos-jellyfin-mpv-shim[366]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   22.787233] ashipaos ashipaos-jellyfin-mpv-shim[366]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   22.787892] ashipaos ashipaos-jellyfin-mpv-shim[366]:     raise ex
+[   22.788388] ashipaos ashipaos-jellyfin-mpv-shim[366]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffff825e72f0>, b'auto-window-resize', b'no'))
+[   23.558577] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   23.560273] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   23.560971] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 5.466s CPU time.
+[   26.813438] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 1.
+[   26.815700] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   26.816856] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 5.466s CPU time.
+[   26.858195] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   28.831344] ashipaos ashipaos-jellyfin-mpv-shim[419]: 2026-04-27 19:49:17,234 [    INFO] root: text shaping: raqm=yes
+[   30.917103] ashipaos ashipaos-jellyfin-mpv-shim[419]: 2026-04-27 19:49:19,320 [    INFO] player: Using libmpv playback backend.
+[   30.920479] ashipaos ashipaos-jellyfin-mpv-shim[419]: 2026-04-27 19:49:19,324 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   31.077093] ashipaos ashipaos-jellyfin-mpv-shim[419]: Traceback (most recent call last):
+[   31.077093] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "<string>", line 1, in <module>
+[   31.077093] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   31.078289] ashipaos ashipaos-jellyfin-mpv-shim[419]:     from .player import playerManager as _pm
+[   31.078519] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   31.084046] ashipaos ashipaos-jellyfin-mpv-shim[419]:     playerManager = PlayerManager()
+[   31.084379] ashipaos ashipaos-jellyfin-mpv-shim[419]:                     ^^^^^^^^^^^^^^^
+[   31.084379] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   31.085569] ashipaos ashipaos-jellyfin-mpv-shim[419]:     self._init_mpv()
+[   31.085815] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   31.087119] ashipaos ashipaos-jellyfin-mpv-shim[419]:     self._player = self._construct_mpv(
+[   31.087119] ashipaos ashipaos-jellyfin-mpv-shim[419]:                    ^^^^^^^^^^^^^^^^^^^^
+[   31.087424] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   31.088562] ashipaos ashipaos-jellyfin-mpv-shim[419]:     player = mpv.MPV(**kwargs, **options)
+[   31.088894] ashipaos ashipaos-jellyfin-mpv-shim[419]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   31.088894] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   31.089782] ashipaos ashipaos-jellyfin-mpv-shim[419]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   31.090003] ashipaos ashipaos-jellyfin-mpv-shim[419]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   31.090505] ashipaos ashipaos-jellyfin-mpv-shim[419]:     raise ex
+[   31.090690] ashipaos ashipaos-jellyfin-mpv-shim[419]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffffad5c70b0>, b'auto-window-resize', b'no'))
+[   31.399638] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   31.400790] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   31.401652] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.643s CPU time.
+[   34.654124] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 2.
+[   34.655549] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   34.656085] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.643s CPU time.
+[   34.686698] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   36.718892] ashipaos ashipaos-jellyfin-mpv-shim[464]: 2026-04-27 19:49:25,122 [    INFO] root: text shaping: raqm=yes
+[   38.870299] ashipaos ashipaos-jellyfin-mpv-shim[464]: 2026-04-27 19:49:27,274 [    INFO] player: Using libmpv playback backend.
+[   38.873916] ashipaos ashipaos-jellyfin-mpv-shim[464]: 2026-04-27 19:49:27,277 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   39.033920] ashipaos ashipaos-jellyfin-mpv-shim[464]: Traceback (most recent call last):
+[   39.033920] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "<string>", line 1, in <module>
+[   39.033920] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   39.035095] ashipaos ashipaos-jellyfin-mpv-shim[464]:     from .player import playerManager as _pm
+[   39.035311] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   39.040762] ashipaos ashipaos-jellyfin-mpv-shim[464]:     playerManager = PlayerManager()
+[   39.041063] ashipaos ashipaos-jellyfin-mpv-shim[464]:                     ^^^^^^^^^^^^^^^
+[   39.041063] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   39.042055] ashipaos ashipaos-jellyfin-mpv-shim[464]:     self._init_mpv()
+[   39.042243] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   39.043462] ashipaos ashipaos-jellyfin-mpv-shim[464]:     self._player = self._construct_mpv(
+[   39.043462] ashipaos ashipaos-jellyfin-mpv-shim[464]:                    ^^^^^^^^^^^^^^^^^^^^
+[   39.043755] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   39.044710] ashipaos ashipaos-jellyfin-mpv-shim[464]:     player = mpv.MPV(**kwargs, **options)
+[   39.044909] ashipaos ashipaos-jellyfin-mpv-shim[464]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   39.044909] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   39.045818] ashipaos ashipaos-jellyfin-mpv-shim[464]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   39.046000] ashipaos ashipaos-jellyfin-mpv-shim[464]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   39.046480] ashipaos ashipaos-jellyfin-mpv-shim[464]:     raise ex
+[   39.046660] ashipaos ashipaos-jellyfin-mpv-shim[464]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffffb41570b0>, b'auto-window-resize', b'no'))
+[   39.356330] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   39.357463] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   39.358230] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.766s CPU time.
+[   42.610645] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 3.
+[   42.612547] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   42.612987] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.766s CPU time.
+[   42.635370] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   44.611926] ashipaos ashipaos-jellyfin-mpv-shim[506]: 2026-04-27 19:49:33,015 [    INFO] root: text shaping: raqm=yes
+[   46.734800] ashipaos ashipaos-jellyfin-mpv-shim[506]: 2026-04-27 19:49:35,138 [    INFO] player: Using libmpv playback backend.
+[   46.738224] ashipaos ashipaos-jellyfin-mpv-shim[506]: 2026-04-27 19:49:35,141 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   46.894619] ashipaos ashipaos-jellyfin-mpv-shim[506]: Traceback (most recent call last):
+[   46.894619] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "<string>", line 1, in <module>
+[   46.894619] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   46.895794] ashipaos ashipaos-jellyfin-mpv-shim[506]:     from .player import playerManager as _pm
+[   46.896065] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   46.900806] ashipaos ashipaos-jellyfin-mpv-shim[506]:     playerManager = PlayerManager()
+[   46.901108] ashipaos ashipaos-jellyfin-mpv-shim[506]:                     ^^^^^^^^^^^^^^^
+[   46.901108] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   46.902143] ashipaos ashipaos-jellyfin-mpv-shim[506]:     self._init_mpv()
+[   46.902338] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   46.903606] ashipaos ashipaos-jellyfin-mpv-shim[506]:     self._player = self._construct_mpv(
+[   46.903606] ashipaos ashipaos-jellyfin-mpv-shim[506]:                    ^^^^^^^^^^^^^^^^^^^^
+[   46.903925] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   46.904924] ashipaos ashipaos-jellyfin-mpv-shim[506]:     player = mpv.MPV(**kwargs, **options)
+[   46.905141] ashipaos ashipaos-jellyfin-mpv-shim[506]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   46.905141] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   46.906086] ashipaos ashipaos-jellyfin-mpv-shim[506]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   46.906286] ashipaos ashipaos-jellyfin-mpv-shim[506]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   46.906774] ashipaos ashipaos-jellyfin-mpv-shim[506]:     raise ex
+[   46.906956] ashipaos ashipaos-jellyfin-mpv-shim[506]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffff869d70b0>, b'auto-window-resize', b'no'))
+[   47.218295] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   47.219365] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   47.220269] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.698s CPU time.
+[   50.472723] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 4.
+[   50.474175] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   50.474714] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.698s CPU time.
+[   50.503689] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   52.478559] ashipaos ashipaos-jellyfin-mpv-shim[547]: 2026-04-27 19:49:40,882 [    INFO] root: text shaping: raqm=yes
+[   54.591099] ashipaos ashipaos-jellyfin-mpv-shim[547]: 2026-04-27 19:49:42,994 [    INFO] player: Using libmpv playback backend.
+[   54.594525] ashipaos ashipaos-jellyfin-mpv-shim[547]: 2026-04-27 19:49:42,998 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   54.743470] ashipaos ashipaos-jellyfin-mpv-shim[547]: Traceback (most recent call last):
+[   54.743470] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "<string>", line 1, in <module>
+[   54.743470] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   54.744752] ashipaos ashipaos-jellyfin-mpv-shim[547]:     from .player import playerManager as _pm
+[   54.744986] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   54.750189] ashipaos ashipaos-jellyfin-mpv-shim[547]:     playerManager = PlayerManager()
+[   54.751313] ashipaos ashipaos-jellyfin-mpv-shim[547]:                     ^^^^^^^^^^^^^^^
+[   54.751313] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   54.752510] ashipaos ashipaos-jellyfin-mpv-shim[547]:     self._init_mpv()
+[   54.752756] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   54.753951] ashipaos ashipaos-jellyfin-mpv-shim[547]:     self._player = self._construct_mpv(
+[   54.754140] ashipaos ashipaos-jellyfin-mpv-shim[547]:                    ^^^^^^^^^^^^^^^^^^^^
+[   54.754140] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   54.755166] ashipaos ashipaos-jellyfin-mpv-shim[547]:     player = mpv.MPV(**kwargs, **options)
+[   54.755354] ashipaos ashipaos-jellyfin-mpv-shim[547]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   54.755354] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   54.756302] ashipaos ashipaos-jellyfin-mpv-shim[547]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   54.756527] ashipaos ashipaos-jellyfin-mpv-shim[547]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   54.757017] ashipaos ashipaos-jellyfin-mpv-shim[547]:     raise ex
+[   54.757192] ashipaos ashipaos-jellyfin-mpv-shim[547]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffff91d270b0>, b'auto-window-resize', b'no'))
+[   55.067246] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   55.068493] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   55.069224] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.688s CPU time.
+[   58.086813] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 5.
+[   58.088361] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   58.088779] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.688s CPU time.
+[   58.118693] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   60.145286] ashipaos ashipaos-jellyfin-mpv-shim[587]: 2026-04-27 19:49:48,548 [    INFO] root: text shaping: raqm=yes
+[   62.272493] ashipaos ashipaos-jellyfin-mpv-shim[587]: 2026-04-27 19:49:50,676 [    INFO] player: Using libmpv playback backend.
+[   62.275875] ashipaos ashipaos-jellyfin-mpv-shim[587]: 2026-04-27 19:49:50,679 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   62.432305] ashipaos ashipaos-jellyfin-mpv-shim[587]: Traceback (most recent call last):
+[   62.432305] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "<string>", line 1, in <module>
+[   62.432305] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   62.433599] ashipaos ashipaos-jellyfin-mpv-shim[587]:     from .player import playerManager as _pm
+[   62.433817] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   62.439383] ashipaos ashipaos-jellyfin-mpv-shim[587]:     playerManager = PlayerManager()
+[   62.439695] ashipaos ashipaos-jellyfin-mpv-shim[587]:                     ^^^^^^^^^^^^^^^
+[   62.439695] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   62.440968] ashipaos ashipaos-jellyfin-mpv-shim[587]:     self._init_mpv()
+[   62.441203] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   62.442680] ashipaos ashipaos-jellyfin-mpv-shim[587]:     self._player = self._construct_mpv(
+[   62.442882] ashipaos ashipaos-jellyfin-mpv-shim[587]:                    ^^^^^^^^^^^^^^^^^^^^
+[   62.442882] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   62.444212] ashipaos ashipaos-jellyfin-mpv-shim[587]:     player = mpv.MPV(**kwargs, **options)
+[   62.444444] ashipaos ashipaos-jellyfin-mpv-shim[587]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   62.444444] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   62.445511] ashipaos ashipaos-jellyfin-mpv-shim[587]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   62.445739] ashipaos ashipaos-jellyfin-mpv-shim[587]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   62.446256] ashipaos ashipaos-jellyfin-mpv-shim[587]:     raise ex
+[   62.446447] ashipaos ashipaos-jellyfin-mpv-shim[587]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffffb00670b0>, b'auto-window-resize', b'no'))
+[   62.756046] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   62.757439] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   62.758053] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.740s CPU time.
+[   65.837021] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 6.
+[   65.838814] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   65.839254] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.740s CPU time.
+[   65.869774] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   67.866593] ashipaos ashipaos-jellyfin-mpv-shim[627]: 2026-04-27 19:49:56,270 [    INFO] root: text shaping: raqm=yes
+[   69.988055] ashipaos ashipaos-jellyfin-mpv-shim[627]: 2026-04-27 19:49:58,391 [    INFO] player: Using libmpv playback backend.
+[   69.991435] ashipaos ashipaos-jellyfin-mpv-shim[627]: 2026-04-27 19:49:58,395 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   70.153539] ashipaos ashipaos-jellyfin-mpv-shim[627]: Traceback (most recent call last):
+[   70.153539] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "<string>", line 1, in <module>
+[   70.153539] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   70.154899] ashipaos ashipaos-jellyfin-mpv-shim[627]:     from .player import playerManager as _pm
+[   70.155123] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   70.161069] ashipaos ashipaos-jellyfin-mpv-shim[627]:     playerManager = PlayerManager()
+[   70.161361] ashipaos ashipaos-jellyfin-mpv-shim[627]:                     ^^^^^^^^^^^^^^^
+[   70.161361] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   70.162404] ashipaos ashipaos-jellyfin-mpv-shim[627]:     self._init_mpv()
+[   70.162591] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   70.163827] ashipaos ashipaos-jellyfin-mpv-shim[627]:     self._player = self._construct_mpv(
+[   70.164039] ashipaos ashipaos-jellyfin-mpv-shim[627]:                    ^^^^^^^^^^^^^^^^^^^^
+[   70.164039] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   70.165146] ashipaos ashipaos-jellyfin-mpv-shim[627]:     player = mpv.MPV(**kwargs, **options)
+[   70.165317] ashipaos ashipaos-jellyfin-mpv-shim[627]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   70.165435] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   70.166281] ashipaos ashipaos-jellyfin-mpv-shim[627]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   70.166491] ashipaos ashipaos-jellyfin-mpv-shim[627]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   70.166970] ashipaos ashipaos-jellyfin-mpv-shim[627]:     raise ex
+[   70.167128] ashipaos ashipaos-jellyfin-mpv-shim[627]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffff861470b0>, b'auto-window-resize', b'no'))
+[   70.475203] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   70.476359] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   70.477291] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.723s CPU time.
+[   73.586851] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 7.
+[   73.588832] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   73.589263] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.723s CPU time.
+[   73.618697] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   75.603792] ashipaos ashipaos-jellyfin-mpv-shim[688]: 2026-04-27 19:50:04,007 [    INFO] root: text shaping: raqm=yes
+[   77.685063] ashipaos ashipaos-jellyfin-mpv-shim[688]: 2026-04-27 19:50:06,088 [    INFO] player: Using libmpv playback backend.
+[   77.688491] ashipaos ashipaos-jellyfin-mpv-shim[688]: 2026-04-27 19:50:06,092 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   77.846184] ashipaos ashipaos-jellyfin-mpv-shim[688]: Traceback (most recent call last):
+[   77.846184] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "<string>", line 1, in <module>
+[   77.846184] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   77.847410] ashipaos ashipaos-jellyfin-mpv-shim[688]:     from .player import playerManager as _pm
+[   77.847635] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   77.852959] ashipaos ashipaos-jellyfin-mpv-shim[688]:     playerManager = PlayerManager()
+[   77.853279] ashipaos ashipaos-jellyfin-mpv-shim[688]:                     ^^^^^^^^^^^^^^^
+[   77.853279] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   77.854332] ashipaos ashipaos-jellyfin-mpv-shim[688]:     self._init_mpv()
+[   77.854528] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   77.855812] ashipaos ashipaos-jellyfin-mpv-shim[688]:     self._player = self._construct_mpv(
+[   77.856036] ashipaos ashipaos-jellyfin-mpv-shim[688]:                    ^^^^^^^^^^^^^^^^^^^^
+[   77.856036] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   77.857140] ashipaos ashipaos-jellyfin-mpv-shim[688]:     player = mpv.MPV(**kwargs, **options)
+[   77.857314] ashipaos ashipaos-jellyfin-mpv-shim[688]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   77.857444] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   77.858306] ashipaos ashipaos-jellyfin-mpv-shim[688]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   77.858521] ashipaos ashipaos-jellyfin-mpv-shim[688]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   77.858999] ashipaos ashipaos-jellyfin-mpv-shim[688]:     raise ex
+[   77.859160] ashipaos ashipaos-jellyfin-mpv-shim[688]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffffab6f70b0>, b'auto-window-resize', b'no'))
+[   78.171500] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   78.172720] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   78.173515] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.661s CPU time.
+[   81.337023] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 8.
+[   81.338563] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   81.338970] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.661s CPU time.
+[   81.370104] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   83.396865] ashipaos ashipaos-jellyfin-mpv-shim[728]: 2026-04-27 19:50:11,800 [    INFO] root: text shaping: raqm=yes
+[   85.576609] ashipaos ashipaos-jellyfin-mpv-shim[728]: 2026-04-27 19:50:13,980 [    INFO] player: Using libmpv playback backend.
+[   85.580310] ashipaos ashipaos-jellyfin-mpv-shim[728]: 2026-04-27 19:50:13,983 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   85.740588] ashipaos ashipaos-jellyfin-mpv-shim[728]: Traceback (most recent call last):
+[   85.740588] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "<string>", line 1, in <module>
+[   85.740588] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   85.741826] ashipaos ashipaos-jellyfin-mpv-shim[728]:     from .player import playerManager as _pm
+[   85.742024] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   85.746616] ashipaos ashipaos-jellyfin-mpv-shim[728]:     playerManager = PlayerManager()
+[   85.746911] ashipaos ashipaos-jellyfin-mpv-shim[728]:                     ^^^^^^^^^^^^^^^
+[   85.746911] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   85.748135] ashipaos ashipaos-jellyfin-mpv-shim[728]:     self._init_mpv()
+[   85.748364] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   85.749717] ashipaos ashipaos-jellyfin-mpv-shim[728]:     self._player = self._construct_mpv(
+[   85.750000] ashipaos ashipaos-jellyfin-mpv-shim[728]:                    ^^^^^^^^^^^^^^^^^^^^
+[   85.750000] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   85.751063] ashipaos ashipaos-jellyfin-mpv-shim[728]:     player = mpv.MPV(**kwargs, **options)
+[   85.751257] ashipaos ashipaos-jellyfin-mpv-shim[728]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   85.751257] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   85.752298] ashipaos ashipaos-jellyfin-mpv-shim[728]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   85.752536] ashipaos ashipaos-jellyfin-mpv-shim[728]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   85.753061] ashipaos ashipaos-jellyfin-mpv-shim[728]:     raise ex
+[   85.753239] ashipaos ashipaos-jellyfin-mpv-shim[728]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffffb92f70b0>, b'auto-window-resize', b'no'))
+[   86.067835] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   86.069038] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   86.069805] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.804s CPU time.
+[   89.086882] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 9.
+[   89.088444] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   89.088861] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.804s CPU time.
+[   89.118707] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   91.108543] ashipaos ashipaos-jellyfin-mpv-shim[768]: 2026-04-27 19:50:19,512 [    INFO] root: text shaping: raqm=yes
+[   93.200102] ashipaos ashipaos-jellyfin-mpv-shim[768]: 2026-04-27 19:50:21,603 [    INFO] player: Using libmpv playback backend.
+[   93.203493] ashipaos ashipaos-jellyfin-mpv-shim[768]: 2026-04-27 19:50:21,607 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   93.358172] ashipaos ashipaos-jellyfin-mpv-shim[768]: Traceback (most recent call last):
+[   93.358172] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "<string>", line 1, in <module>
+[   93.358172] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/mpv_shim.py", line 282, in main
+[   93.359337] ashipaos ashipaos-jellyfin-mpv-shim[768]:     from .player import playerManager as _pm
+[   93.359551] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 5065, in <module>
+[   93.364347] ashipaos ashipaos-jellyfin-mpv-shim[768]:     playerManager = PlayerManager()
+[   93.364702] ashipaos ashipaos-jellyfin-mpv-shim[768]:                     ^^^^^^^^^^^^^^^
+[   93.364702] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 844, in __init__
+[   93.365796] ashipaos ashipaos-jellyfin-mpv-shim[768]:     self._init_mpv()
+[   93.366014] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 1058, in _init_mpv
+[   93.367333] ashipaos ashipaos-jellyfin-mpv-shim[768]:     self._player = self._construct_mpv(
+[   93.367333] ashipaos ashipaos-jellyfin-mpv-shim[768]:                    ^^^^^^^^^^^^^^^^^^^^
+[   93.367776] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/player.py", line 945, in _construct_mpv
+[   93.368705] ashipaos ashipaos-jellyfin-mpv-shim[768]:     player = mpv.MPV(**kwargs, **options)
+[   93.368921] ashipaos ashipaos-jellyfin-mpv-shim[768]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   93.368921] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 881, in __init__
+[   93.369902] ashipaos ashipaos-jellyfin-mpv-shim[768]:     _mpv_set_option_string(self.handle, k.replace('_', '-').encode('utf-8'), istr(v).encode('utf-8'))
+[   93.370098] ashipaos ashipaos-jellyfin-mpv-shim[768]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/mpv.py", line 162, in raise_for_ec
+[   93.370609] ashipaos ashipaos-jellyfin-mpv-shim[768]:     raise ex
+[   93.370793] ashipaos ashipaos-jellyfin-mpv-shim[768]: AttributeError: ('mpv option does not exist', -5, (<MpvHandle object at 0xffff874870b0>, b'auto-window-resize', b'no'))
+[   93.678662] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Main process exited, code=exited, status=1/FAILURE
+[   93.679991] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   93.681057] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.667s CPU time.
+[   96.836894] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Scheduled restart job, restart counter is at 10.
+[   96.838395] ashipaos systemd[1]: Stopped ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   96.838861] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Consumed 4.667s CPU time.
+[   96.839216] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Start request repeated too quickly.
+[   96.839535] ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+[   96.839853] ashipaos systemd[1]: Failed to start ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+
+== jellyfin mpv shim config ==
+total 36
+drwx------ 5 ashipa ashipa 4096 Apr 27 19:49 .
+drwxr-xr-x 4 root   root   4096 Sep 24  2026 ..
+drwxr-xr-x 3 ashipa ashipa 4096 Apr 27 19:49 cache
+-rw-r--r-- 1 ashipa ashipa 5856 Apr 27 19:49 conf.json
+drwxr-xr-x 2 ashipa ashipa 4096 Apr 27 19:49 fonts
+-rw-r--r-- 1 ashipa ashipa    0 Apr 27 19:49 input.conf
+-rw------- 1 ashipa ashipa   39 Apr 27 19:50 instance.lock
+-rw------- 1 ashipa ashipa    0 Apr 27 19:49 instance.lock.guard
+-rw------- 1 ashipa ashipa  423 Apr 27 19:49 mpv.conf
+drwxr-xr-x 2 ashipa ashipa 4096 Apr 27 19:49 scripts
+
+== clock ==
+               Local time: Mon 2026-04-27 19:52:01 UTC
+           Universal time: Mon 2026-04-27 19:52:01 UTC
+                 RTC time: Mon 2026-04-27 19:52:01
+                Time zone: Etc/UTC (UTC, +0000)
+System clock synchronized: no
+              NTP service: active
+          RTC in local TZ: no
+
+== display/input/audio devices ==
+/dev/dri:
+total 0
+drwxr-xr-x 2 root root        100 Apr 27 19:48 by-path
+crw-rw---- 1 root video  226,   0 Apr 27 19:48 card0
+crw-rw---- 1 root video  226,   1 Apr 27 19:48 card1
+crw-rw---- 1 root render 226, 128 Apr 27 19:48 renderD128
+
+/dev/input:
+total 0
+drwxr-xr-x 2 root root     120 Apr 27 19:49 by-id
+drwxr-xr-x 2 root root     160 Apr 27 19:49 by-path
+crw-rw---- 1 root input 13, 64 Apr 27 19:48 event0
+crw-rw---- 1 root input 13, 65 Apr 27 19:48 event1
+crw-rw---- 1 root input 13, 66 Apr 27 19:49 event2
+crw-rw---- 1 root input 13, 67 Apr 27 19:49 event3
+crw-rw---- 1 root input 13, 68 Apr 27 19:49 event4
+crw-rw---- 1 root input 13, 69 Apr 27 19:49 event5
+crw-rw---- 1 root input 13, 70 Apr 27 19:49 event6
+crw-rw---- 1 root input 13, 63 Apr 27 19:48 mice
+crw-rw---- 1 root input 13, 32 Apr 27 19:49 mouse0
+
+/dev/snd:
+total 0
+drwxr-xr-x 2 root root       60 Apr 27 19:48 by-id
+drwxr-xr-x 2 root root       80 Apr 27 19:49 by-path
+crw-rw---- 1 root audio 116,  3 Apr 27 19:48 controlC0
+crw-rw---- 1 root audio 116,  7 Apr 27 19:49 controlC1
+crw-rw---- 1 root audio 116,  2 Apr 27 19:48 pcmC0D0c
+crw-rw---- 1 root audio 116,  4 Apr 27 19:49 pcmC1D0p
+crw-rw---- 1 root audio 116,  5 Apr 27 19:49 pcmC1D1p
+crw-rw---- 1 root audio 116,  6 Apr 27 19:49 pcmC1D2p
+crw-rw---- 1 root audio 116,  1 Apr 27 19:48 seq
+crw-rw---- 1 root audio 116, 33 Apr 27 19:48 timer
+
+== network ==
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+end0             DOWN           
+
+== journal warnings (this boot) ==
+Apr 27 19:48:56 ashipaos kernel: OF: fdt: Reserved memory: failed to reserve memory for node 'secmon@5000000': base 0x0000000005000000, size 3 MiB
+Apr 27 19:48:56 ashipaos kernel: Early cacheinfo failed, ret = -22
+Apr 27 19:48:56 ashipaos kernel: KASLR disabled due to lack of seed
+Apr 27 19:48:56 ashipaos kernel: dwc2 ff400000.usb: supply vusb_d not found, using dummy regulator
+Apr 27 19:48:56 ashipaos kernel: dwc2 ff400000.usb: supply vusb_a not found, using dummy regulator
+Apr 27 19:48:56 ashipaos kernel: device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+Apr 27 19:48:58 ashipaos kernel: meson-gx-mmc ffe03000.sd: card claims to support voltages below defined range
+Apr 27 19:48:58 ashipaos kernel: platform regulatory.0: firmware: failed to load regulatory.db (-2)
+Apr 27 19:48:58 ashipaos kernel: firmware_class: See https://wiki.debian.org/Firmware for information about missing firmware
+Apr 27 19:48:58 ashipaos kernel: platform regulatory.0: firmware: failed to load regulatory.db (-2)
+Apr 27 19:48:58 ashipaos kernel: platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+Apr 27 19:48:59 ashipaos kernel: debugfs: Directory 'ff800280.cec' with parent 'regmap' already present!
+Apr 27 19:49:00 ashipaos kernel: panfrost ffe40000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+Apr 27 19:49:00 ashipaos kernel: meson_vdec: module is from the staging directory, the quality is unknown, you have been warned.
+Apr 27 19:49:11 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:49:19 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:49:27 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:49:35 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:49:43 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:49:51 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:49:58 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:50:06 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:50:14 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:50:22 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:50:25 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Start request repeated too quickly.
+Apr 27 19:50:25 ashipaos systemd[1]: ashipaos-jellyfin-mpv-shim.service: Failed with result 'exit-code'.
+Apr 27 19:50:25 ashipaos systemd[1]: Failed to start ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+
+== kernel log (tail) ==
+[    0.126387] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.126398] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.126411] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.126420] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.129112] ACPI: Interpreter disabled.
+[    0.129879] iommu: Default domain type: Translated 
+[    0.129902] iommu: DMA domain TLB invalidation policy: strict mode 
+[    0.130163] pps_core: LinuxPPS API ver. 1 registered
+[    0.130182] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.130213] PTP clock support registered
+[    0.130253] EDAC MC: Ver: 3.0.0
+[    0.132720] NetLabel: Initializing
+[    0.132744] NetLabel:  domain hash size = 128
+[    0.132754] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.132823] NetLabel:  unlabeled traffic allowed by default
+[    0.133019] vgaarb: loaded
+[    0.133962] clocksource: Switched to clocksource arch_sys_counter
+[    0.134498] VFS: Disk quotas dquot_6.6.0
+[    0.134587] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.135549] AppArmor: AppArmor Filesystem Enabled
+[    0.135635] pnp: PnP ACPI: disabled
+[    0.144497] NET: Registered PF_INET protocol family
+[    0.144796] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.148202] tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.148316] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.148391] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.148802] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[    0.149553] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.149891] MPTCP token hash table entries: 4096 (order: 5, 98304 bytes, linear)
+[    0.150102] UDP hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.150188] UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.150469] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.150515] NET: Registered PF_XDP protocol family
+[    0.150534] PCI: CLS 0 bytes, default 64
+[    0.150978] Trying to unpack rootfs image as initramfs...
+[    0.151520] kvm [1]: IPA Size Limit: 40 bits
+[    0.151787] kvm [1]: vgic interrupt IRQ9
+[    0.151950] kvm [1]: VHE mode initialized successfully
+[    0.194144] Initialise system trusted keyrings
+[    0.194250] Key type blacklist registered
+[    0.194565] workingset: timestamp_bits=42 max_order=20 bucket_order=0
+[    0.200731] zbud: loaded
+[    0.201915] integrity: Platform Keyring initialized
+[    0.202001] integrity: Machine keyring initialized
+[    0.202018] Key type asymmetric registered
+[    0.202030] Asymmetric key parser 'x509' registered
+[    1.615330] Freeing initrd memory: 35088K
+[    1.644836] alg: self-tests for CTR-KDF (hmac(sha256)) passed
+[    1.645027] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 247)
+[    1.645221] io scheduler mq-deadline registered
+[    1.649914] irq_meson_gpio: 100 to 8 gpio interrupt mux initialized
+[    1.660492] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[    1.675804] soc soc0: Amlogic Meson SM1 (S905X3) Revision 2b:c (10:2) Detected
+[    1.679064] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    1.681668] Serial: AMBA driver
+[    1.681713] SuperH (H)SCI(F) driver initialized
+[    1.682539] ff803000.serial: ttyAML0 at MMIO 0xff803000 (irq = 14, base_baud = 1500000) is a meson_uart
+[    2.819158] printk: console [ttyAML0] enabled
+[    2.824250] msm_serial: driver initialized
+[    2.830913] mousedev: PS/2 mouse device common for all mice
+[    2.837330] ledtrig-cpu: registered to indicate activity on CPUs
+[    2.839709] meson-sm: secure-monitor enabled
+[    2.896017] NET: Registered PF_INET6 protocol family
+[    2.923871] Segment Routing with IPv6
+[    2.923991] In-situ OAM (IOAM) with IPv6
+[    2.925893] mip6: Mobile IPv6
+[    2.928783] NET: Registered PF_PACKET protocol family
+[    2.933903] mpls_gso: MPLS GSO support
+[    2.938367] registered taskstats version 1
+[    2.941556] Loading compiled-in X.509 certificates
+[    3.019873] Loaded X.509 cert 'Build time autogenerated kernel key: 833e2832225a7113aed9a0374865284c0405c0e0'
+[    3.025353] zswap: loaded using pool lzo/zbud
+[    3.029077] Key type .fscrypt registered
+[    3.032350] Key type fscrypt-provisioning registered
+[    3.063391] Key type encrypted registered
+[    3.063450] AppArmor: AppArmor sha1 policy hashing enabled
+[    3.067304] ima: No TPM chip found, activating TPM-bypass!
+[    3.072687] ima: Allocated hash algorithm: sha256
+[    3.077373] ima: No architecture policies found
+[    3.081862] evm: Initialising EVM extended attributes:
+[    3.086902] evm: security.selinux
+[    3.090178] evm: security.SMACK64 (disabled)
+[    3.094402] evm: security.SMACK64EXEC (disabled)
+[    3.098973] evm: security.SMACK64TRANSMUTE (disabled)
+[    3.103976] evm: security.SMACK64MMAP (disabled)
+[    3.108547] evm: security.apparmor
+[    3.111911] evm: security.ima
+[    3.114843] evm: security.capability
+[    3.118379] evm: HMAC attrs: 0x1
+[    3.544089] clk: Disabling unused clocks
+[    3.551001] Freeing unused kernel memory: 6464K
+[    3.606335] Checked W+X mappings: passed, no W+X pages found
+[    3.606407] Run /init as init process
+[    3.610015]   with arguments:
+[    3.610023]     /init
+[    3.610031]   with environment:
+[    3.610037]     HOME=/
+[    3.610045]     TERM=linux
+[    4.570284] meson-vrtc ff8000a8.rtc: registered as rtc0
+[    4.570356] meson-vrtc ff8000a8.rtc: setting system clock to 1970-01-01T00:00:04 UTC (4)
+[    4.647478] meson8b-dwmac ff3f0000.ethernet: IRQ eth_wake_irq not found
+[    4.648623] meson8b-dwmac ff3f0000.ethernet: PTP uses main clock
+[    4.658349] meson-gx-mmc ffe05000.sd: Got CD GPIO
+[    4.665287] meson8b-dwmac ff3f0000.ethernet: User ID: 0x11, Synopsys ID: 0x37
+[    4.667996] meson8b-dwmac ff3f0000.ethernet: 	DWMAC1000
+[    4.672048] meson8b-dwmac ff3f0000.ethernet: DMA HW capability register supported
+[    4.679426] meson8b-dwmac ff3f0000.ethernet: RX Checksum Offload Engine supported
+[    4.686836] meson8b-dwmac ff3f0000.ethernet: COE Type 2
+[    4.692012] meson8b-dwmac ff3f0000.ethernet: TX Checksum insertion supported
+[    4.698993] meson8b-dwmac ff3f0000.ethernet: Wake-Up On Lan supported
+[    4.706270] meson-gx-mmc ffe07000.mmc: allocated mmc-pwrseq
+[    4.715385] meson8b-dwmac ff3f0000.ethernet: Normal descriptors
+[    4.716746] meson8b-dwmac ff3f0000.ethernet: Ring mode enabled
+[    4.722615] meson8b-dwmac ff3f0000.ethernet: Enable RX Mitigation via HW Watchdog Timer
+[    4.765561] dwc3-meson-g12a ffe09000.usb: USB2 ports: 2
+[    4.765620] dwc3-meson-g12a ffe09000.usb: USB3 ports: 1
+[    4.792713] mmc0: new high speed SDHC card at address 0001
+[    4.794130] mmcblk0: mmc0:0001 SD16G 29.1 GiB 
+[    4.800993]  mmcblk0: p1 p2
+[    4.850228] mmc1: new HS200 MMC card at address 0001
+[    4.852282] mmcblk1: mmc1:0001 SGY3XD 57.9 GiB 
+[    4.857592] mmcblk1boot0: mmc1:0001 SGY3XD 4.00 MiB 
+[    4.862386] mmcblk1boot1: mmc1:0001 SGY3XD 4.00 MiB 
+[    4.866090] mmcblk1rpmb: mmc1:0001 SGY3XD 4.00 MiB, chardev (239:0)
+[    4.894190] meson8b-dwmac ff3f0000.ethernet end0: renamed from eth0
+[    4.909180] usbcore: registered new interface driver usbfs
+[    4.909337] usbcore: registered new interface driver hub
+[    4.914635] usbcore: registered new device driver usb
+[    4.956716] dwc2 ff400000.usb: supply vusb_d not found, using dummy regulator
+[    4.958435] dwc2 ff400000.usb: supply vusb_a not found, using dummy regulator
+[    4.965695] dwc2 ff400000.usb: EPs: 7, dedicated fifos, 712 entries in SPRAM
+[    5.013947] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    5.014043] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 1
+[    5.021781] xhci-hcd xhci-hcd.1.auto: hcc params 0x0228fe6c hci version 0x110 quirks 0x0000008000010010
+[    5.030921] xhci-hcd xhci-hcd.1.auto: irq 20, io mem 0xff500000
+[    5.036896] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    5.042138] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 2
+[    5.049781] xhci-hcd xhci-hcd.1.auto: Host supports USB 3.0 SuperSpeed
+[    5.056394] usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 6.01
+[    5.064321] usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    5.071465] usb usb1: Product: xHCI Host Controller
+[    5.076294] usb usb1: Manufacturer: Linux 6.1.0-52-arm64 xhci-hcd
+[    5.082330] usb usb1: SerialNumber: xhci-hcd.1.auto
+[    5.087923] hub 1-0:1.0: USB hub found
+[    5.090927] hub 1-0:1.0: 2 ports detected
+[    5.095549] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    5.103044] usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 6.01
+[    5.111076] usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    5.118232] usb usb2: Product: xHCI Host Controller
+[    5.123051] usb usb2: Manufacturer: Linux 6.1.0-52-arm64 xhci-hcd
+[    5.129083] usb usb2: SerialNumber: xhci-hcd.1.auto
+[    5.134685] hub 2-0:1.0: USB hub found
+[    5.137696] hub 2-0:1.0: 1 port detected
+[    5.370007] usb 1-2: new full-speed USB device number 2 using xhci-hcd
+[    5.490627] EXT4-fs (mmcblk0p2): mounted filesystem with ordered data mode. Quota mode: none.
+[    5.532834] usb 1-2: New USB device found, idVendor=1915, idProduct=1025, bcdDevice= 1.00
+[    5.535442] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=0
+[    5.542483] usb 1-2: Product: USB Composite Device
+[    5.547224] usb 1-2: Manufacturer: XING WEI 2.4G USB
+[    5.793637] Not activating Mandatory Access Control as /sbin/tomoyo-init does not exist.
+[    6.601608] systemd[1]: System time before build time, advancing clock.
+[    6.703140] systemd[1]: Inserted module 'autofs4'
+[    6.832564] systemd[1]: systemd 252.39-1~deb12u2 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    6.859534] systemd[1]: Detected architecture arm64.
+[    6.873794] systemd[1]: Hostname set to <ashipaos>.
+[    6.895589] systemd[1]: Initializing machine ID from random generator.
+[    7.808947] systemd[1]: Queued start job for default target graphical.target.
+[    7.844511] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+[    7.850251] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+[    7.857784] systemd[1]: Created slice user.slice - User and Session Slice.
+[    7.863194] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+[    7.874080] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+[    7.885183] systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+[    7.896456] systemd[1]: Expecting device dev-disk-by\x2dlabel-A95XBOOT.device - /dev/disk/by-label/A95XBOOT...
+[    7.906267] systemd[1]: Expecting device dev-ttyAML0.device - /dev/ttyAML0...
+[    7.913307] systemd[1]: Reached target cryptsetup.target - Local Encrypted Volumes.
+[    7.920991] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+[    7.929853] systemd[1]: Reached target paths.target - Path Units.
+[    7.935827] systemd[1]: Reached target remote-fs.target - Remote File Systems.
+[    7.942914] systemd[1]: Reached target slices.target - Slice Units.
+[    7.949141] systemd[1]: Reached target swap.target - Swaps.
+[    7.954683] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+[    7.963942] systemd[1]: Listening on systemd-fsckd.socket - fsck to fsckd communication Socket.
+[    7.972058] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[    7.982003] systemd[1]: Listening on systemd-journald-audit.socket - Journal Audit Socket.
+[    7.989697] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[    7.998480] systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+[    8.005793] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[    8.014554] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[    8.021998] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[    8.050411] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+[    8.058308] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+[    8.067265] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+[    8.075792] systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+[    8.085518] systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+[    8.096021] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+[    8.105852] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+[    8.115594] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+[    8.124682] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    8.134864] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+[    8.144009] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+[    8.146987] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+[    8.170577] systemd[1]: Starting systemd-journald.service - Journal Service...
+[    8.209055] loop: module loaded
+[    8.226990] fuse: init (API version 7.38)
+[    8.258857] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    8.267439] systemd[1]: Starting systemd-network-generator.service - Generate network units from Kernel command line...
+[    8.279118] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    8.289340] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[    8.305074] systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
+[    8.308255] systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+[    8.315815] systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+[    8.316445] device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+[    8.335266] systemd[1]: Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+[    8.342236] device-mapper: uevent: version 1.0.3
+[    8.346748] device-mapper: ioctl: 4.47.0-ioctl (2022-07-28) initialised: dm-devel@redhat.com
+[    8.348588] systemd[1]: Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+[    8.367694] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    8.371752] systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+[    8.381527] systemd[1]: modprobe@dm_mod.service: Deactivated successfully.
+[    8.387431] systemd[1]: Finished modprobe@dm_mod.service - Load Kernel Module dm_mod.
+[    8.396251] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[    8.400601] systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
+[    8.409333] EXT4-fs (mmcblk0p2): re-mounted. Quota mode: none.
+[    8.409342] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+[    8.410471] systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+[    8.435553] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    8.437704] systemd[1]: Finished modprobe@fuse.service - Load Kernel Module fuse.
+[    8.447026] systemd[1]: modprobe@loop.service: Deactivated successfully.
+[    8.452290] systemd[1]: Finished modprobe@loop.service - Load Kernel Module loop.
+[    8.460599] systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+[    8.468333] systemd[1]: Finished systemd-network-generator.service - Generate network units from Kernel command line.
+[    8.478848] systemd[1]: Finished systemd-remount-fs.service - Remount Root and Kernel File Systems.
+[    8.488491] systemd[1]: Reached target network-pre.target - Preparation for Network.
+[    8.558417] systemd[1]: Mounting sys-fs-fuse-connections.mount - FUSE Control File System...
+[    8.567775] systemd[1]: Mounting sys-kernel-config.mount - Kernel Configuration File System...
+[    8.571469] systemd[1]: systemd-firstboot.service - First Boot Wizard was skipped because of an unmet condition check (ConditionFirstBoot=yes).
+[    8.583969] systemd[1]: systemd-pstore.service - Platform Persistent Storage Archival was skipped because of an unmet condition check (ConditionDirectoryNotEmpty=/sys/fs/pstore).
+[    8.605204] systemd[1]: Starting systemd-random-seed.service - Load/Save Random Seed...
+[    8.608535] systemd[1]: systemd-repart.service - Repartition Root Disk was skipped because no trigger condition checks were met.
+[    8.625197] systemd[1]: Starting systemd-sysctl.service - Apply Kernel Variables...
+[    8.634716] systemd[1]: Starting systemd-sysusers.service - Create System Users...
+[    8.647833] systemd[1]: Started systemd-journald.service - Journal Service.
+[    8.784001] systemd-journald[230]: Received client request to flush runtime journal.
+[   10.311745] meson-gx-mmc ffe03000.sd: allocated mmc-pwrseq
+[   10.354202] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[   10.357186] cfg80211: Loaded X.509 cert 'benh@debian.org: 577e021cb980e0e820821ba7b54b4961b8b4fadf'
+[   10.367359] cfg80211: Loaded X.509 cert 'romain.perier@gmail.com: 3abbc6ec146e09d1b6016ab9d6cf71dd233f0328'
+[   10.367595] meson-gx-mmc ffe03000.sd: card claims to support voltages below defined range
+[   10.375889] cfg80211: Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[   10.390735] cfg80211: Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[   10.397885] platform regulatory.0: firmware: failed to load regulatory.db (-2)
+[   10.404763] firmware_class: See https://wiki.debian.org/Firmware for information about missing firmware
+[   10.415498] platform regulatory.0: firmware: failed to load regulatory.db (-2)
+[   10.421262] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[   10.430218] cfg80211: failed to load regulatory.db
+[   10.452858] mmc2: new ultra high speed SDR104 SDIO card at address 0001
+[   10.463524] mc: Linux media interface: v0.10
+[   10.545178] Registered IR keymap rc-empty
+[   10.545307] rc rc0: meson-ir as /devices/platform/soc/ff800000.bus/ff808000.ir/rc/rc0
+[   10.553533] rc rc0: lirc_dev: driver meson-ir registered at minor = 0, raw IR receiver, no transmitter
+[   10.571322] input: meson-ir as /devices/platform/soc/ff800000.bus/ff808000.ir/rc/rc0/input0
+[   10.580374] meson-ir ff808000.ir: receiver initialized
+[   10.665184] videodev: Linux video capture interface: v2.00
+[   10.782053] meson-drm ff900000.vpu: Queued 2 outputs on vpu
+[   10.849985] random: crng init done
+[   10.935071] debugfs: Directory 'ff800280.cec' with parent 'regmap' already present!
+[   10.938878] Registered IR keymap rc-cec
+[   10.941059] rc rc1: meson_g12a_ao_cec as /devices/platform/soc/ff800000.bus/ff800280.cec/rc/rc1
+[   10.954416] input: meson_g12a_ao_cec as /devices/platform/soc/ff800000.bus/ff800280.cec/rc/rc1/input1
+[   11.062046] meson-dw-hdmi ff600000.hdmi-tx: Detected HDMI TX controller v2.01a with HDCP (meson_dw_hdmi_phy)
+[   11.066691] meson-dw-hdmi ff600000.hdmi-tx: registered DesignWare HDMI I2C bus driver
+[   11.074948] meson-drm ff900000.vpu: bound ff600000.hdmi-tx (ops meson_dw_hdmi_ops [meson_dw_hdmi])
+[   11.084891] [drm] Initialized meson 1.0.0 20161109 for ff900000.vpu on minor 0
+[   11.144621] panfrost ffe40000.gpu: clock rate = 24000000
+[   11.144765] panfrost ffe40000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+[   11.155149] panfrost ffe40000.gpu: mali-g31 id 0x7093 major 0x0 minor 0x0 status 0x0
+[   11.160745] panfrost ffe40000.gpu: features: 00000000,000027f7, issues: 00000000,00000400
+[   11.168844] panfrost ffe40000.gpu: Features: L2:0x07100206 Shader:0x00000000 Tiler:0x00000209 Mem:0x1 MMU:0x00002821 AS:0xff JS:0x7
+[   11.180576] panfrost ffe40000.gpu: shader_present=0x1 l2_present=0x1
+[   11.186771] [drm] Initialized panfrost 1.2.0 20180908 for ffe40000.gpu on minor 1
+[   11.325605] hid: raw HID events driver (C) Jiri Kosina
+[   11.407562] meson8b-dwmac ff3f0000.ethernet end0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[   11.437315] usbcore: registered new interface driver usbhid
+[   11.437369] usbhid: USB HID core driver
+[   11.459581] input: XING WEI 2.4G USB USB Composite Device as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.2/0003:1915:1025.0001/input/input2
+[   11.470410] meson8b-dwmac ff3f0000.ethernet end0: PHY [mdio_mux-0.1:08] driver [Meson G12A Internal PHY] (irq=18)
+[   11.480436] meson8b-dwmac ff3f0000.ethernet end0: No Safety Features support found
+[   11.487211] meson8b-dwmac ff3f0000.ethernet end0: PTP not supported by HW
+[   11.494382] meson8b-dwmac ff3f0000.ethernet end0: configuring for phy/rmii link mode
+[   11.504317] meson_vdec: module is from the staging directory, the quality is unknown, you have been warned.
+[   11.564881] usbcore: registered new interface driver snd-usb-audio
+[   11.618515] hid-generic 0003:1915:1025.0001: input,hidraw0: USB HID v2.01 Keyboard [XING WEI 2.4G USB USB Composite Device] on usb-xhci-hcd.1.auto-2/input2
+[   11.619343] input: XING WEI 2.4G USB USB Composite Device Mouse as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input3
+[   11.619929] input: XING WEI 2.4G USB USB Composite Device Consumer Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input4
+[   11.678396] input: XING WEI 2.4G USB USB Composite Device System Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input5
+[   11.678607] input: XING WEI 2.4G USB USB Composite Device as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input6
+[   11.678813] hid-generic 0003:1915:1025.0002: input,hidraw1: USB HID v2.01 Mouse [XING WEI 2.4G USB USB Composite Device] on usb-xhci-hcd.1.auto-2/input3
+[   11.782847] Console: switching to colour frame buffer device 200x56
+[   11.903911] meson-drm ff900000.vpu: [drm] fb0: mesondrmfb frame buffer device

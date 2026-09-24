@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Jellyfin MPV Shim bundle tooling for the A95X F3 Air (Debian arm64, CPython 3.11).
+"""Jellyfin MPV Shim bundle tooling for the A95X F3 Air (Debian arm64, CPython 3.13).
 
 Subcommands:
   update-lock  Re-resolve the dependency closure from PyPI and rewrite the lock.
@@ -48,9 +48,9 @@ REQUIRED = ["python-mpv>=1.0.8", "jellyfin-apiclient-python>=1.18.0",
 BUILD = ["setuptools>=77", "wheel"]
 FORBIDDEN = ("python3-mpv",)
 
-PYTHON_VERSION = "3.11"
-PYTHON_TAG = "cp311"
-ABI_TAG = "cp311"
+PYTHON_VERSION = "3.13"
+PYTHON_TAG = "cp313"
+ABI_TAG = "cp313"
 PLATFORM_TAG = "manylinux_2_27_aarch64"
 QEMU = "qemu-aarch64-static"
 PROBE_MODULES = ("jellyfin_mpv_shim", "mpv", "jellyfin_apiclient_python",
@@ -138,11 +138,12 @@ def source_metadata(archive: pathlib.Path) -> dict[str, Any]:
 
 
 def target_tags() -> set[Tag]:
-    """Tags the target accepts: CPython 3.11, aarch64, glibc manylinux <= 2.27."""
+    """Tags the target accepts: CPython 3.13, aarch64, glibc manylinux <= 2.27."""
     platforms = [f"manylinux_2_{minor}_aarch64" for minor in range(27, 16, -1)]
     platforms.append("manylinux2014_aarch64")
-    tags = set(cpython_tags(python_version=(3, 11), abis=[ABI_TAG], platforms=platforms))
-    tags.update(compatible_tags(python_version=(3, 11), interpreter=PYTHON_TAG, platforms=platforms))
+    version = tuple(int(part) for part in PYTHON_VERSION.split("."))
+    tags = set(cpython_tags(python_version=version, abis=[ABI_TAG], platforms=platforms))
+    tags.update(compatible_tags(python_version=version, interpreter=PYTHON_TAG, platforms=platforms))
     return tags
 
 

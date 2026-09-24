@@ -1,0 +1,8 @@
+# AshipaOS Wi-Fi setup
+#
+# Fill in SSID and PASSWORD on a PC, save, put the card back and power on.
+# On boot the password is converted to the WPA key (a hash), stored only on the
+# box, and removed from this file. Leave PASSWORD empty for an open network.
+#
+SSID=
+PASSWORD=

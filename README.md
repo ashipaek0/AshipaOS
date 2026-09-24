@@ -13,7 +13,7 @@ UART only: never connect UART VCC/5 V, never use RS-232 levels.
 | Step | Script | Output |
 |---|---|---|
 | Static gates | `tests/static/run-static.sh` | pass/fail for every contract test |
-| Layer 1 rootfs | `layers/layer1-rootfs/scripts/build-rootfs.sh` | Debian bookworm arm64 rootfs (pinned snapshot) with kernel, initramfs, mainline DTB, Python 3.11, libmpv, Mesa |
+| Layer 1 rootfs | `layers/layer1-rootfs/scripts/build-rootfs.sh` | Debian trixie arm64 rootfs (pinned snapshot) with kernel, initramfs, mainline DTB, Python 3.13, libmpv 0.40, Mesa, Wi-Fi |
 | Layer 5 resolve | `layers/layer5-application/scripts/jellyfin-bundle.py resolve` | hash-verified wheels from the committed lock, import-probed on the target under qemu |
 | Layer 5 install | `layers/layer5-application/scripts/build-application.sh` | Jellyfin MPV Shim bundle, launcher, and the boot service in the rootfs |
 | U-Boot | `layers/layer2-image/scripts/build-u-boot.sh` | pinned mainline U-Boot (`u-boot.ext`), chain-loaded by the vendor U-Boot |
@@ -28,6 +28,20 @@ demand; `allow_unsigned` permits placeholder signatures for development runs.
 (manual) builds and inspects the pinned stock CoreELEC image as evidence.
 
 See `ashipaos-build-guide.md` and `contracts/`.
+
+## Wi-Fi
+
+Before the first boot (or any time later), open the SD card's `A95XBOOT`
+partition on a PC and fill in `wifi.txt`:
+
+```
+SSID=MyNetwork
+PASSWORD=my-wifi-password
+```
+
+On boot the password is converted to the WPA key hash, stored only on the box
+(`/var/lib/iwd`, root-only), and removed from `wifi.txt`. The box also boots
+and starts the app without any network.
 
 ## Diagnosing a boot without a UART
 

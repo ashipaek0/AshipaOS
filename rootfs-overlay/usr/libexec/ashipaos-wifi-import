@@ -1,0 +1,81 @@
+#!/usr/bin/python3
+"""Import Wi-Fi credentials from wifi.txt on the SD boot partition into iwd.
+
+The passphrase is converted to the WPA2 pre-shared key (PBKDF2-SHA1, as
+wpa_passphrase does); only that hash is stored, root-only, in /var/lib/iwd.
+The passphrase is then overwritten in place and removed from wifi.txt.
+"""
+import hashlib
+import os
+import re
+import sys
+
+SOURCE = "/boot/firmware/wifi.txt"
+IWD_DIR = "/var/lib/iwd"
+
+
+def parse(text):
+    values = {}
+    for line in text.splitlines():
+        if line.lstrip().startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip().upper()] = value.rstrip("\r")
+    return values
+
+
+def iwd_name(ssid):
+    # iwd's file naming: plain names for simple SSIDs, "=<hex>" otherwise.
+    if re.fullmatch(r"[A-Za-z0-9_ -]+", ssid):
+        return ssid
+    return "=" + ssid.encode("utf-8").hex()
+
+
+def main():
+    try:
+        with open(SOURCE, "r+b") as stream:
+            raw = stream.read()
+            values = parse(raw.decode("utf-8", errors="replace"))
+            ssid = values.get("SSID", "")
+            password = values.get("PASSWORD", "")
+            if not ssid:
+                return 0
+            if not 1 <= len(ssid.encode("utf-8")) <= 32:
+                print(f"wifi.txt: SSID must be 1-32 bytes", file=sys.stderr)
+                return 1
+            if password and not 8 <= len(password) <= 63:
+                print("wifi.txt: WPA passwords are 8-63 characters", file=sys.stderr)
+                return 1
+            os.makedirs(IWD_DIR, mode=0o700, exist_ok=True)
+            name = iwd_name(ssid)
+            if password:
+                psk = hashlib.pbkdf2_hmac("sha1", password.encode("utf-8"), ssid.encode("utf-8"), 4096, 32).hex()
+                path, body = os.path.join(IWD_DIR, name + ".psk"), f"[Security]\nPreSharedKey={psk}\n"
+            else:
+                path, body = os.path.join(IWD_DIR, name + ".open"), "[Settings]\nAutoConnect=true\n"
+            fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as out:
+                out.write(body)
+                out.flush()
+                os.fsync(out.fileno())
+            os.replace(path + ".tmp", path)
+            # Overwrite the old contents in place before writing the new file.
+            stream.seek(0)
+            stream.write(b"\0" * len(raw))
+            stream.flush()
+            os.fsync(stream.fileno())
+            stream.seek(0)
+            stream.truncate()
+            stream.write((f"# Imported Wi-Fi network {ssid!r}; the password was removed from this card.\n"
+                          "# To change networks, fill in both lines again.\n"
+                          "SSID=\nPASSWORD=\n").encode("utf-8"))
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileNotFoundError:
+        return 0
+    print(f"wifi.txt: imported network {ssid!r}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

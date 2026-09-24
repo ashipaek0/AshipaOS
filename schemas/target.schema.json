@@ -8,7 +8,7 @@
     "architecture": {"const": "arm64"},
     "media": {"const": "removable-sd"},
     "release_channel": {"enum": ["dev", "beta", "stable"]},
-    "base": {"const": "debian-bookworm"},
+    "base": {"const": "debian-trixie"},
     "boot": {"const": "vendor-u-boot-sd-autoscript"},
     "image_format": {"const": "raw-gz"},
     "full_build": {"const": "github-actions-only"}

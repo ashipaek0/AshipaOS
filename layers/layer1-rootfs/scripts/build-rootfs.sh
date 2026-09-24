@@ -206,6 +206,16 @@ configure_system() {
 
     install -D -m 0644 "$OVERLAY_DIR/etc/systemd/network/20-wired.network" \
         "$ROOTFS/etc/systemd/network/20-wired.network"
+    # Wi-Fi: iwd joins, networkd runs DHCP; credentials come from wifi.txt on
+    # the boot partition (imported as a hashed PSK, then wiped from the card).
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/network/25-wireless.network" \
+        "$ROOTFS/etc/systemd/network/25-wireless.network"
+    install -D -m 0644 "$OVERLAY_DIR/etc/iwd/main.conf" "$ROOTFS/etc/iwd/main.conf"
+    install -D -m 0755 "$OVERLAY_DIR/usr/libexec/ashipaos-wifi-import" "$ROOTFS/usr/libexec/ashipaos-wifi-import"
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-wifi-import.service" \
+        "$ROOTFS/etc/systemd/system/ashipaos-wifi-import.service"
+    install -D -m 0644 "$OVERLAY_DIR/usr/share/ashipaos/wifi.txt" "$ROOTFS/usr/share/ashipaos/wifi.txt"
+    in_rootfs systemctl enable iwd.service ashipaos-wifi-import.service
     in_rootfs systemctl enable systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
     # The appliance must boot with or without a network: nothing may wait for
     # one, so network-online.target is reached at once.

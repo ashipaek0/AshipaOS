@@ -22,7 +22,15 @@ tmp="$report.partial"
     echo; echo "== jellyfin mpv shim config =="; ls -la /storage/jellyfin-mpv-shim 2>&1
     echo; echo "== clock =="; timedatectl 2>&1
     echo; echo "== display/input/audio devices =="; ls -l /dev/dri /dev/input /dev/snd 2>&1
-    echo; echo "== network =="; ip -brief address 2>&1
+    echo; echo "== network =="; ip -brief address 2>&1; networkctl --no-pager 2>&1
+    echo; echo "== wi-fi =="
+    for dev in /sys/bus/sdio/devices/*; do
+        [ -e "$dev/vendor" ] && echo "sdio $(basename "$dev"): vendor=$(cat "$dev/vendor") device=$(cat "$dev/device") class=$(cat "$dev/class" 2>/dev/null)"
+    done
+    dmesg | grep -iE 'brcm|wlan|firmware' | tail -n 40
+    echo "iwd networks configured: $(ls /var/lib/iwd 2>/dev/null | wc -l)"
+    iwctl station list 2>&1 | head -n 20
+    journalctl -b -u iwd.service -u ashipaos-wifi-import.service --no-pager -n 60
     echo; echo "== journal warnings (this boot) =="; journalctl -b -p warning --no-pager -n 300
     echo; echo "== kernel log (tail) =="; dmesg | tail -n 300
 } >"$tmp" 2>&1

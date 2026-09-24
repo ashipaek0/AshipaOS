@@ -1,0 +1,13 @@
+# Imports wifi.txt from the SD boot partition into iwd before iwd starts.
+[Unit]
+Description=AshipaOS Wi-Fi setup from wifi.txt on the SD boot partition
+RequiresMountsFor=/boot/firmware
+ConditionPathExists=/boot/firmware/wifi.txt
+Before=iwd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/ashipaos-wifi-import
+
+[Install]
+WantedBy=multi-user.target

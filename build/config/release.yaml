@@ -3,7 +3,7 @@ target: a95x-f3-air
 architecture: arm64
 media: removable-sd
 release_channel: dev
-base: debian-bookworm
+base: debian-trixie
 boot: vendor-u-boot-sd-autoscript
 image_format: raw-gz
 full_build: github-actions-only

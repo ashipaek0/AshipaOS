@@ -6,7 +6,7 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
 - Target: `a95x-f3-air` (S905X3), arm64, removable SD media only.
 - Unit: 4 GB RAM, 100 Mbit internal-PHY Ethernet, slimBOXtv ATV 9.20
   (Android 9) on eMMC, no UART; see `evidence/amlogic/a95x-f3-air/`.
-- Image: Debian bookworm arm64 pinned to a snapshot.debian.org timestamp
+- Image: Debian trixie (13) arm64 pinned to a snapshot.debian.org timestamp
   (`layers/layer1-rootfs/config/rootfs-config.yaml`), with Debian's mainline
   kernel, its initramfs, and the mainline `meson-sm1-a95xf3-air.dtb` (internal
   PHY) from the same kernel package.

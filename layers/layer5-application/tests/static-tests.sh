@@ -21,7 +21,7 @@ tool = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tool)
 lock = tool.load_lock(pathlib.Path(sys.argv[2]))
 for item in lock["artifacts"]:
-    bad = dict(item, filename=item["filename"].replace("aarch64", "x86_64").replace("py3-none-any", "cp311-cp311-win_amd64"))
+    bad = dict(item, filename=item["filename"].replace("aarch64", "x86_64").replace("py3-none-any", "cp313-cp313-win_amd64"))
     bad["url"] = item["url"].rsplit("/", 1)[0] + "/" + bad["filename"]
     try:
         tool.check_artifact(bad)

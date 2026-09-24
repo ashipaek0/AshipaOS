@@ -1,0 +1,7 @@
+# DHCP on any Wi-Fi interface once iwd has joined a network.
+[Match]
+Type=wlan
+
+[Network]
+DHCP=yes
+IgnoreCarrierLoss=3s

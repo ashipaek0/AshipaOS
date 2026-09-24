@@ -47,7 +47,7 @@ PY
 fat="$IMAGE@@$((8192 * 512))"
 DTB_NAME=meson-sm1-a95xf3-air.dtb
 listing="$(mdir -b -i "$fat" ::)"
-for f in aml_autoscript cfgload s905_autoscript u-boot.ext boot.scr ashipaos.id Image initrd.img "$DTB_NAME" manifest.json; do
+for f in aml_autoscript cfgload s905_autoscript u-boot.ext boot.scr ashipaos.id Image initrd.img "$DTB_NAME" manifest.json wifi.txt; do
     grep -Fxq "::/$f" <<<"$listing" || fail "boot partition is missing $f (lower-case name required)"
     mcopy -n -i "$fat" "::$f" "$TMP/$f"
 done
@@ -100,7 +100,10 @@ for f in /usr/libexec/ashipaos-jellyfin-mpv-shim \
          /usr/libexec/ashipaos-boot-status-handler \
          /etc/systemd/system/ashipaos-boot-status.service \
          /usr/libexec/ashipaos-boot-report \
-         /etc/systemd/system/ashipaos-boot-report.service; do
+         /etc/systemd/system/ashipaos-boot-report.service \
+         /usr/libexec/ashipaos-wifi-import \
+         /etc/systemd/system/ashipaos-wifi-import.service \
+         /etc/iwd/main.conf; do
     debugfs -R "stat $f" "$root_fs" 2>/dev/null | grep -q 'Type: regular' || fail "root filesystem is missing $f"
 done
 [[ -z "$(debugfs -R 'cat /etc/machine-id' "$root_fs" 2>/dev/null)" ]] || fail "image carries a fixed machine-id"

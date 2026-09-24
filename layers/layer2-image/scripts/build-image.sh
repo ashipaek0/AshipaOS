@@ -331,6 +331,8 @@ build_image() {
 
     stage_kernel "$rootfs" "$bootdir"
     install -m 0644 "$uboot" "$bootdir/u-boot.ext"
+    # User-editable Wi-Fi template; imported and wiped on first boot.
+    install -m 0644 "$rootfs/usr/share/ashipaos/wifi.txt" "$bootdir/wifi.txt"
     make_boot_scripts "$bootdir"
     write_boot_manifest "$bootdir" "$rootfs_tar"
 

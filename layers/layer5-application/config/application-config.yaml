@@ -4,7 +4,7 @@ architecture: arm64
 application: jellyfin-mpv-shim
 version: 3.0.0
 # Debian's target interpreter and libmpv (Layer 1); never Debian python3-mpv.
-runtime: {python: /usr/bin/python3, python_tag: cp311, libmpv: libmpv2}
+runtime: {python: /usr/bin/python3, python_tag: cp313, libmpv: libmpv2}
 dependency_lock: dependencies.lock.json
 bundle_path: /usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0
 launcher: /usr/libexec/ashipaos-jellyfin-mpv-shim

@@ -31,10 +31,14 @@ for key in ("mirror", "security_mirror"):
     assert debian[key].startswith("http://snapshot.debian.org/archive/") and debian[key].endswith("/{snapshot}")
 assert debian["keyring"] == "/usr/share/keyrings/debian-archive-keyring.gpg"
 assert "python3-mpv" not in packages
+assert config["debian"]["suite"] == "trixie", "libmpv must be >= 0.38 (Jellyfin MPV Shim 3.0)"
+assert {"firmware-brcm80211", "wireless-regdb", "iwd"} <= set(packages)
 assert len(packages) == len(set(packages))
 PY
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/network/20-wired.network" ]] || fail "network overlay is missing"
 grep -q '^    install_boot_report$' "$SCRIPT" || fail "the no-UART boot report must always be installed"
+grep -q 'systemctl enable iwd.service ashipaos-wifi-import.service' "$SCRIPT" || fail "Wi-Fi (iwd + wifi.txt import) must be enabled"
+! grep -q 'Passphrase=' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-wifi-import" || fail "Wi-Fi import must store only the hashed PSK"
 [[ -x "$ROOT/rootfs-overlay/usr/libexec/ashipaos-boot-report" ]] || fail "boot report script is missing"
 ! grep -Eq 'mmcblk|/dev/mmc|dd ' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-boot-report" || fail "boot report must not touch block devices directly"
 grep -q ': >"$ROOTFS/etc/machine-id"' "$SCRIPT" || fail "rootfs must not ship a fixed machine-id"

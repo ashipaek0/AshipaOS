@@ -2,7 +2,7 @@
 
 ## Scope
 
-This branch builds only the Amlogic A95X F3 Air appliance: a Debian bookworm
+This branch builds only the Amlogic A95X F3 Air appliance: a Debian trixie
 arm64 root filesystem that boots straight into Jellyfin MPV Shim, started from
 removable SD by the box's stock vendor U-Boot, which chain-loads a pinned mainline U-Boot from the
 SD card. CoreELEC provenance under `build/coreelec/` is the

@@ -1,7 +1,9 @@
 # Layer 1: A95X F3 Air arm64 Debian root filesystem.
 # build-rootfs.sh reads this file; it is the single source of the package set.
 debian:
-  suite: bookworm
+  # trixie (Debian 13): Jellyfin MPV Shim 3.0 needs libmpv >= 0.38; bookworm's
+  # 0.35 rejects its options (evidence/amlogic/a95x-f3-air/boot-2026-09-24b/).
+  suite: trixie
   # Every package comes from this fixed snapshot.debian.org point in time, so
   # the same commit always resolves the same package versions. Bump it
   # deliberately (e.g. for security fixes) and review the package diff in
@@ -20,6 +22,9 @@ packages:
   # battery-backed clock, so systemd-timesyncd sets the time over the network
   # (TLS to a Jellyfin server fails with a wrong clock).
   system: [busybox, ca-certificates, dbus, systemd-resolved, systemd-timesyncd]
+  # Wi-Fi: the unit's module is a Broadcom SDIO part (brcmfmac); iwd joins the
+  # network imported from wifi.txt on the boot partition; networkd runs DHCP.
+  wifi: [firmware-brcm80211, wireless-regdb, iwd]
   # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv,
   # rendering through DRM/GBM/EGL (Mesa panfrost + meson display driver).
   application_runtime: [python3, libmpv2, libgl1-mesa-dri, libegl-mesa0, libgbm1, fonts-dejavu-core]

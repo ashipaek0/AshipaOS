@@ -40,7 +40,7 @@ components = []
 for pkg in sorted(packages(dpkg_status(rootfs)), key=lambda p: p["Package"]):
     arch = pkg.get("Architecture", "all")
     component = {"type": "library", "name": pkg["Package"], "version": pkg["Version"],
-                 "purl": f"pkg:deb/debian/{pkg['Package']}@{pkg['Version']}?arch={arch}&distro=debian-12",
+                 "purl": f"pkg:deb/debian/{pkg['Package']}@{pkg['Version']}?arch={arch}&distro=debian-13",
                  "supplier": {"name": pkg.get("Maintainer", "Debian")}}
     if pkg.get("Source"):
         component["properties"] = [{"name": "debian:source", "value": pkg["Source"]}]

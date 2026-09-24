@@ -5,7 +5,18 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 fail=0
-mapfile -t scripts < <(git ls-files -- '*.sh' 'rootfs-overlay/usr/libexec/*' 'layers/*/files/usr/libexec/*')
+mapfile -t candidates < <(git ls-files -- '*.sh' 'rootfs-overlay/usr/libexec/*' 'layers/*/files/usr/libexec/*')
+scripts=()
+for f in "${candidates[@]}"; do
+  [[ -f "$f" ]] || continue
+  if head -1 "$f" | grep -q python; then
+    # Python helpers: executable and syntactically valid.
+    [[ -x "$f" ]] || { echo "NOT-EXECUTABLE: $f"; fail=1; }
+    python3 -B -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$f" || { echo "SYNTAX-FAIL: $f"; fail=1; }
+    continue
+  fi
+  scripts+=("$f")
+done
 for f in "${scripts[@]}"; do
   [[ -f "$f" ]] || continue
   if ! bash -n "$f"; then echo "SYNTAX-FAIL: $f"; fail=1; fi
