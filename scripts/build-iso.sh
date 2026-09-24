@@ -10,8 +10,8 @@ cat > "$tmp/boot/grub/grub.cfg" <<'GRUB'
 set timeout=3
 set default=0
 serial --unit=0 --speed=115200
-terminal_input serial
-terminal_output serial
+terminal_input console serial
+terminal_output console serial
 menuentry 'Install AshipaOS offline' {
  linux /boot/vmlinuz console=ttyS0,115200 console=tty0 quiet
  initrd /boot/initramfs.gz
