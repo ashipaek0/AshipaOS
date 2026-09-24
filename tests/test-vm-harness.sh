@@ -20,6 +20,8 @@ import os,socket,sys,time
 args=sys.argv[1:]
 if '--version' in args:
     print('QEMU emulator version mock'); sys.exit()
+# A real guest tty emits CRLF on the serial line.
+sys.stdout.reconfigure(newline='\r\n')
 record=os.environ['VM_MOCK_RECORD']
 with open(record,'a') as out: out.write(' '.join(args)+'\n')
 index=len(open(record).readlines())

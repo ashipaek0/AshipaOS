@@ -45,7 +45,7 @@ esac
 SH
 cat > "$tmp/bin/mount" <<'SH'
 #!/usr/bin/env bash
-[[ "$1" == -o && "$2" == ro,nosuid,nodev,noexec ]] || exit 1
+[[ "$1" == -o && "$2" == ro,noload,nosuid,nodev,noexec ]] || exit 1
 mkdir -p "$4/var/lib/ashipaos"; cp "$TEST_MARKER" "$4/var/lib/ashipaos/install-complete"
 SH
 cat > "$tmp/bin/umount" <<'SH'

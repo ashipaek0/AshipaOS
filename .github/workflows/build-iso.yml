@@ -116,8 +116,8 @@ jobs:
       - run: sha256sum --check out/ashipaos-installer.iso.sha256
       - run: sudo --preserve-env=GITHUB_SHA,GITHUB_RUN_ID,GITHUB_JOB,GITHUB_ACTIONS,CI,OVMF_CODE,OVMF_VARS VM_TIMEOUT_SECONDS=420 scripts/vm-test.sh uefi out/ashipaos-installer.iso
         env:
-          OVMF_CODE: /usr/share/OVMF/OVMF_CODE.fd
-          OVMF_VARS: /usr/share/OVMF/OVMF_VARS.fd
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
       - uses: actions/upload-artifact@v4
         if: success()
         with:

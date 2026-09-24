@@ -74,7 +74,7 @@ marker_valid() {
   command -v mount >/dev/null || return 1
   part=$(partition_path "$disk" 3)
   mnt=$(mktemp -d "${MARKER_TMP_ROOT:-/run}/ashipaos-marker.XXXXXX" 2>/dev/null || return 1)
-  if { [[ -b "$part" ]] || (( fixture )) && [[ -e "$part" ]]; } && mount -o ro,nosuid,nodev,noexec "$part" "$mnt" 2>/dev/null; then
+  if { [[ -b "$part" ]] || (( fixture )) && [[ -e "$part" ]]; } && mount -o ro,noload,nosuid,nodev,noexec "$part" "$mnt" 2>/dev/null; then
     marker_checked=1
     marker="$mnt/var/lib/ashipaos/install-complete"
     if [[ -f "$marker" ]] && grep -qx 'installed' "$marker" && completed_layout_valid "$disk"; then result=0; else marker_invalid=1; fi

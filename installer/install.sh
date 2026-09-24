@@ -39,7 +39,7 @@ DEV_ROOT=/dev
 root_partition=$(partition_path "$TARGET_DEVICE" 3)
 if (( force == 1 )); then
   marker_probe=$(mktemp -d "${MARKER_TMP_ROOT:-/run}/ashipaos-marker.XXXXXX")
-  mount -o ro,nosuid,nodev,noexec "$root_partition" "$marker_probe" 2>/dev/null || { rm -rf "$marker_probe"; printf 'force requires a readable target partition\n' >&2; exit 1; }
+  mount -o ro,noload,nosuid,nodev,noexec "$root_partition" "$marker_probe" 2>/dev/null || { rm -rf "$marker_probe"; printf 'force requires a readable target partition\n' >&2; exit 1; }
   marker="$marker_probe/var/lib/ashipaos/install-complete"
   grep -qx 'installed' "$marker" || { umount "$marker_probe" 2>/dev/null || true; rm -rf "$marker_probe"; printf 'force requires a valid AshipaOS completion marker\n' >&2; exit 1; }
   umount "$marker_probe"; rm -rf "$marker_probe"
@@ -88,6 +88,13 @@ fi
 marker="$mount_root/var/lib/ashipaos/install-complete"
 install -d -m 0755 "$(dirname "$marker")"
 printf 'installed\n' > "$marker"
+sync
+# Unmount before rebooting: a dirty ext4 journal would be replayed (written)
+# by the next boot's read-only probes, altering a disk they must not touch.
+if (( mounted == 1 )); then
+  umount "$mount_root" || { printf 'failed to unmount installed root\n' >&2; exit 1; }
+  mounted=0
+fi
 sync
 printf 'ASHIPAOS_INSTALL_OK\n' > /dev/ttyS0
 if command -v poweroff >/dev/null && [[ "${VM_TEST:-0}" == 1 ]]; then poweroff -f; elif command -v reboot >/dev/null; then reboot -f; fi

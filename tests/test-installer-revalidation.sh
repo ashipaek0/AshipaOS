@@ -9,7 +9,7 @@ hash=$(sha256sum "$tmp/payload/appliance.img.zst" | awk '{print $1}')
 printf 'payload_sha256=%s\npayload_size=10\nimage_sha256=%064d\nimage_size=1\n' "$hash" 1 > "$tmp/payload/appliance.img.manifest"
 cat > "$tmp/bin/mount" <<'SH'
 #!/bin/bash
-[[ "$1" == -o && "$2" == ro,nosuid,nodev,noexec ]] || exit 1
+[[ "$1" == -o && "$2" == ro,noload,nosuid,nodev,noexec ]] || exit 1
 printf 'mount\n' >> "$EVENTS"; touch "$MOUNTED"
 mkdir -p "$4/var/lib/ashipaos"; printf 'installed\n' > "$4/var/lib/ashipaos/install-complete"
 SH
