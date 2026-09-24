@@ -58,7 +58,7 @@ done
 run flatpak_payload_build_runtime_commit bash "$ROOT/tests/test-flatpak-payload-build.sh"
 run flatpak_export_real_collection_refs bash "$ROOT/tests/test-flatpak-export-refs.sh"
 run flatpak_keyring_rejects_extra_real_primary bash "$ROOT/tests/test-flatpak-key-validation.sh"
-run flatpak_offline_sudo_fallback bash "$ROOT/tests/test-flatpak-offline.sh"
+run flatpak_offline_unprivileged_sideload bash "$ROOT/tests/test-flatpak-offline.sh"
 run iso_relational_fixtures python3 -B "$ROOT/tests/test-iso-relations.py"
 run vm_bios_force_mock bash "$ROOT/tests/test-vm-harness.sh" bios
 run vm_uefi_force_mock bash "$ROOT/tests/test-vm-harness.sh" uefi

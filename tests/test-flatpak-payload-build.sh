@@ -16,8 +16,13 @@ for arg in "$@"; do
   fi
 done
 case " $* " in
-  *' remote-add '*) exit 0 ;;
-  *' remote-modify '*) exit 0 ;;
+  *' remotes '*) exit 0 ;;
+  *' remote-add '*)
+    for arg in "$@"; do
+      if [[ "$arg" == --gpg-import=* ]]; then
+        install -D "${arg#--gpg-import=}" "$XDG_DATA_HOME/flatpak/repo/flathub.trustedkeys.gpg"
+      fi
+    done ;;
   *' install '*) exit 0 ;;
   *' info '*--show-ref*) printf '%s\n' 'app/com.github.iwalton3.jellyfin-mpv-shim/x86_64/stable' ;;
   *' info '*--show-runtime*) printf '%s\n' 'org.freedesktop.Platform/x86_64/25.08' ;;
@@ -44,8 +49,27 @@ case "$1" in
       printf '(org.flathub.Stable, %s)\t%064d\n' "${refs[$n]}" "$((n+1))"
     done
     ;;
+  config)
+    case "${*: -1}" in
+      url) echo https://dl.flathub.org/repo/ ;;
+      collection-id) echo org.flathub.Stable ;;
+      gpg-verify|gpg-verify-summary) echo true ;;
+      *) exit 1 ;;
+    esac ;;
   *) exit 1;;
 esac
+SH
+# Serve a fixture Flathub repofile and key so the test never touches the network.
+cat > "$tmp/bin/curl" <<'SH'
+#!/usr/bin/env bash
+[[ "$*" == *https://flathub.org/repo/flathub.flatpakrepo* ]] || exit 22
+out=$(sed -n 's/.*-o \([^ ]*\).*/\1/p' <<<"$*")
+printf '[Flatpak Repo]\nUrl=https://dl.flathub.org/repo/\nGPGKey=%s\n' "$(printf 'fixture key\n' | base64 -w0)" > "$out"
+SH
+cat > "$tmp/bin/gpg" <<'SH'
+#!/usr/bin/env bash
+file=${*: -1}; [[ -s "$file" && "$(<"$file")" == 'fixture key' ]] || exit 1
+printf '%s\n' 'pub:::::::::' 'fpr:::::::::6E5C05D979C76DAF93C081354184DD4D907A7CAE:' 'uid:::::::::Flathub Repo Signing Key <flathub@flathub.org>:'
 SH
 chmod +x "$tmp/bin/"*
 # Mutation check: the unsupported option must fail on the mock itself.
@@ -68,3 +92,4 @@ assert [r['commit'] for r in x['refs']] == [f'{n:064d}' for n in range(1,4)]
 calls=open(sys.argv[2]).read().splitlines()
 assert any('--show-commit org.freedesktop.Platform/x86_64/25.08' in call for call in calls), calls
 PY
+printf '%s\n' 'Flatpak payload build mock: PASS'

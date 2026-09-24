@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-APP=com.github.iwalton3.jellyfin-mpv-shim
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/flathub.env"
 REPO_DIR=out/flatpak-repo; EVIDENCE_DIR=out/evidence; FLATPAK_HOME=$(mktemp -d)
 trap 'rm -rf "$FLATPAK_HOME"' EXIT
 mkdir -p "$REPO_DIR" "$EVIDENCE_DIR" "$FLATPAK_HOME"/{home,data,config,cache}
 export HOME="$FLATPAK_HOME/home" XDG_DATA_HOME="$FLATPAK_HOME/data" XDG_CONFIG_HOME="$FLATPAK_HOME/config" XDG_CACHE_HOME="$FLATPAK_HOME/cache"
 "$SCRIPT_DIR/capture-flathub-trust.sh" out
-flatpak remote-add --user --if-not-exists --gpg-import=out/flathub.gpg --collection-id=org.flathub.Stable flathub https://dl.flathub.org/repo/
-flatpak remote-modify --user --gpg-verify --collection-id=org.flathub.Stable flathub
-flatpak install --user --noninteractive --or-update flathub "$APP"
-REF=$(flatpak info --user --show-ref "$APP"); RUNTIME=$(flatpak info --user --show-runtime "$APP"); COMMIT=$(flatpak info --user --show-commit "$APP"); RUNTIME_COMMIT=$(flatpak info --user --show-commit "$RUNTIME")
+"$SCRIPT_DIR/configure-flathub-remote.sh" --user out/flathub.gpg
+flatpak install --user --noninteractive --or-update "$FLATHUB_REMOTE" "$APP_ID"
+REF=$(flatpak info --user --show-ref "$APP_ID"); RUNTIME=$(flatpak info --user --show-runtime "$APP_ID"); COMMIT=$(flatpak info --user --show-commit "$APP_ID"); RUNTIME_COMMIT=$(flatpak info --user --show-commit "$RUNTIME")
 [[ -n "$REF" && -n "$COMMIT" && -n "$RUNTIME" && -n "$RUNTIME_COMMIT" ]]
 flatpak create-usb --help >/dev/null 2>&1 || { echo 'flatpak create-usb not available' >&2; exit 1; }
 flatpak create-usb --user "$REPO_DIR" "$REF"

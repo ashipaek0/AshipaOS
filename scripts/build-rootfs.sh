@@ -7,16 +7,16 @@ key=${ADMIN_SSH_PUBKEY:?ADMIN_SSH_PUBKEY secret is required}
 mirror=${DEBIAN_MIRROR:-http://snapshot.debian.org/archive/debian/20250901T000000Z/}
 mkdir -p out
 printf '%s\n' "debian_release=trixie" "debian_mirror=$mirror" > out/rootfs-build.lock
+. scripts/flathub.env
 [[ -s out/flathub.flatpakrepo && -s out/flathub.gpg && -s out/flathub-key-fingerprint.txt ]] || { echo 'captured Flathub trust material is required' >&2; exit 1; }
-fingerprint=$(<out/flathub-key-fingerprint.txt)
-[[ "$fingerprint" == 6E5C05D979C76DAF93C081354184DD4D907A7CAE ]] || { echo 'Flathub signing key pin mismatch' >&2; exit 1; }
-scripts/validate-flatpak-key.sh out/flathub.gpg "$fingerprint" 'Flathub Repo Signing Key <flathub@flathub.org>'
-python3 - out/flathub.flatpakrepo <<'PY'
+[[ "$(<out/flathub-key-fingerprint.txt)" == "$FLATHUB_KEY_FINGERPRINT" ]] || { echo 'Flathub signing key pin mismatch' >&2; exit 1; }
+scripts/validate-flatpak-key.sh out/flathub.gpg "$FLATHUB_KEY_FINGERPRINT" "$FLATHUB_KEY_IDENTITY"
+python3 - out/flathub.flatpakrepo "$FLATHUB_URL" <<'PY'
 import configparser,sys
 p=configparser.ConfigParser(interpolation=None); p.read(sys.argv[1]); s=p['Flatpak Repo']
-if s.get('Url','').rstrip('/')+'/' != 'https://dl.flathub.org/repo/': raise SystemExit('captured Flathub URL mismatch')
+if s.get('Url','').rstrip('/')+'/' != sys.argv[2]: raise SystemExit('captured Flathub URL mismatch')
 PY
-printf '%s\n' 'flathub_url=https://dl.flathub.org/repo/' 'flathub_collection_id=org.flathub.Stable' "flathub_key_fingerprint=$fingerprint" "flathub_key_sha256=$(sha256sum out/flathub.gpg | cut -d' ' -f1)" >> out/rootfs-build.lock
+printf '%s\n' "flathub_url=$FLATHUB_URL" "flathub_collection_id=$FLATHUB_COLLECTION_ID" "flathub_key_fingerprint=$FLATHUB_KEY_FINGERPRINT" "flathub_key_sha256=$(sha256sum out/flathub.gpg | cut -d' ' -f1)" >> out/rootfs-build.lock
 packages=systemd-sysv,systemd-resolved,linux-image-amd64,grub-pc,grub-efi-amd64,shim-signed,openssh-server,network-manager,greetd,labwc,flatpak,gnupg,pipewire,wireplumber,parted,e2fsprogs,cloud-init,ca-certificates,dbus-user-session,policykit-1,libgtk-3-0,libgtk-4-1,libadwaita-1-0,fonts-dejavu,seatd,util-linux,sudo,jq,python3-gi,gir1.2-gtk-4.0,lvm2,mdadm
 mmdebstrap --variant=apt --architectures=amd64 --components=main --aptopt='Acquire::Check-Valid-Until "false"' --include="$packages" trixie "$tmp/rootfs" "$mirror"
 root="$tmp/rootfs"
@@ -76,37 +76,28 @@ WantedBy=multi-user.target
 UNIT
 touch "$root/var/lib/ashipaos/first-boot"
 # Install the locked offline Flatpak graph into the system installation.
-if [[ -d out/flatpak-repo/.ostree/repo && -f out/flatpak-lock.json ]]; then
-  mapfile -t lock_rows < <(python3 - <<'PY'
-import json
-x=json.load(open('out/flatpak-lock.json'))
-assert x.get('collection_id') == 'org.flathub.Stable' and x.get('refs')
-for r in x['refs']: print(r['ref']+'\t'+r['commit'])
-PY
-)
-  ((${#lock_rows[@]} > 0)) || { echo 'flatpak lock graph is incomplete' >&2; exit 1; }
-  app_ref=$(python3 -c 'import json; print(json.load(open("out/flatpak-lock.json"))["app"])')
-  cp -a out/flatpak-repo "$root/var/lib/ashipaos/flatpak-repo"
-  install -D -m 0755 scripts/configure-flatpak-offline-remote.sh "$root/usr/local/lib/ashipaos/configure-flatpak-offline-remote.sh"
-  install -m 0755 scripts/validate-flatpak-key.sh "$root/usr/local/lib/ashipaos/validate-flatpak-key.sh"
-  install -m 0644 out/flathub.gpg "$root/tmp/ashipaos-flathub.gpg"
-
-  chroot "$root" flatpak --system remote-add --if-not-exists --gpg-import=/tmp/ashipaos-flathub.gpg --collection-id=org.flathub.Stable flathub https://dl.flathub.org/repo/
-  chroot "$root" flatpak --system remote-modify --gpg-verify --collection-id=org.flathub.Stable flathub
-  refs=(); for row in "${lock_rows[@]}"; do refs+=("${row%%$'\t'*}"); done
-  unshare -n chroot "$root" flatpak --system install --noninteractive --sideload-repo=/var/lib/ashipaos/flatpak-repo/.ostree/repo flathub "${refs[@]}"
-  for row in "${lock_rows[@]}"; do ref=${row%%$'\t'*}; expected=${row#*$'\t'}; actual=$(chroot "$root" flatpak --system info --show-commit "$ref"); [[ "$actual" == "$expected" ]] || { echo "Flatpak commit mismatch for $ref" >&2; exit 1; }; done
-  chroot "$root" flatpak --system list --columns=ref,commit > "$tmp/installed-flatpak.tsv"
-  python3 scripts/verify-flatpak-lock.py out/flatpak-lock.json "$tmp/installed-flatpak.tsv"
-  chroot "$root" /usr/local/lib/ashipaos/configure-flatpak-offline-remote.sh --system restore /var/lib/flatpak/repo /tmp/ashipaos-flathub.gpg "$fingerprint"
-  rm -f "$root/tmp/ashipaos-flathub.gpg"
-  chroot "$root" usermod -aG video,render,audio kiosk
-  chroot "$root" flatpak --system override --socket=wayland --socket=x11 --device=dri --share=ipc "$app_ref"
-  cp provision/flatpak-permissions "$root/etc/flatpak-permissions"
-  cp out/flatpak-lock.json "$root/var/lib/ashipaos/flatpak-lock.json"
-else
-  echo 'offline Flatpak repo and lock are required' >&2; exit 1
-fi
+[[ -d out/flatpak-repo/.ostree/repo && -f out/flatpak-lock.json ]] || { echo 'offline Flatpak repo and lock are required' >&2; exit 1; }
+refs_text=$(python3 scripts/flatpak-lock-refs.py out/flatpak-lock.json)
+mapfile -t refs <<<"$refs_text"
+cp -a out/flatpak-repo "$root/var/lib/ashipaos/flatpak-repo"
+# Remote configuration and listing run on the host against the rootfs Flatpak
+# directory (the rootfs has no ostree CLI); only the install runs in the chroot.
+host_flatpak() { FLATPAK_SYSTEM_DIR="$root/var/lib/flatpak" "$@"; }
+host_flatpak scripts/configure-flathub-remote.sh --system out/flathub.gpg
+stage=/tmp/ashipaos-flatpak
+install -d -m 0755 "$root$stage"
+install -m 0755 scripts/install-flatpak-graph-offline.sh "$root$stage/"
+install -m 0644 scripts/flathub.env "$root$stage/"
+unshare -n chroot "$root" "$stage/install-flatpak-graph-offline.sh" --system /var/lib/ashipaos/flatpak-repo/.ostree/repo "${refs[@]}"
+rm -rf "$root$stage"
+host_flatpak scripts/list-installed-flatpaks.sh --system > "$tmp/installed-flatpak.tsv"
+python3 scripts/verify-flatpak-lock.py out/flatpak-lock.json "$tmp/installed-flatpak.tsv"
+# Re-check the remote after the install so the image ships the pinned configuration.
+host_flatpak scripts/configure-flathub-remote.sh --system out/flathub.gpg
+chroot "$root" usermod -aG video,render,audio kiosk
+chroot "$root" flatpak --system override --socket=wayland --socket=x11 --device=dri --share=ipc "$APP_ID"
+cp provision/flatpak-permissions "$root/etc/flatpak-permissions"
+cp out/flatpak-lock.json "$root/var/lib/ashipaos/flatpak-lock.json"
 # Seal only after identity material and all operational configuration are ready.
 rm -f "$root/etc/machine-id" "$root/etc/ssh/ssh_host_"*
 rm -f "$root/etc/resolv.conf"; ln -s /run/systemd/resolve/stub-resolv.conf "$root/etc/resolv.conf"
