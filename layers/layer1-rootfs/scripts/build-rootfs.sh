@@ -182,8 +182,9 @@ install_packages() {
     in_rootfs apt-get update
     in_rootfs apt-get -y --no-install-recommends -o DPkg::Options::=--force-confold \
         install "${PACKAGES[@]}"
-    # Kernel postinst normally generates this; make the result explicit.
-    in_rootfs update-initramfs -u -k all
+    # The kernel postinst and the initramfs-tools trigger generate the
+    # initramfs (each run takes minutes under emulation); validate_rootfs
+    # checks the result instead of regenerating it a third time.
 }
 
 configure_system() {

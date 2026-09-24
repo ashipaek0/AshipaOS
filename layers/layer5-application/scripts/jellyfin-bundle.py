@@ -6,8 +6,9 @@ Subcommands:
                Maintenance only; review the diff before committing it.
   resolve      CI: verify the committed lock (source pin, wheel tags, closure
                completeness under --require-hashes), download every artifact
-               by hash, and import-probe the closure on the target rootfs
-               under qemu-user. Writes the resolution evidence JSON.
+               by hash, and import-probe the closure in a chroot of the
+               target rootfs (qemu-user via binfmt; uses sudo when not root).
+               Writes the resolution evidence JSON.
   install      Install the verified closure plus the pinned application source
                into a self-contained bundle directory (no network access).
 """
@@ -17,6 +18,7 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -281,19 +283,33 @@ print(json.dumps(result))
 
 
 def probe(rootfs: pathlib.Path, site: pathlib.Path) -> dict[str, Any]:
-    python = rootfs / "usr/bin/python3"
-    if not python.exists():
+    """Import the closure on the target interpreter inside a chroot of the rootfs.
+
+    A chroot (not ``qemu -L``) is required: Debian's update-alternatives links
+    (e.g. libblas.so.3 -> /etc/alternatives/...) are absolute, and qemu's -L
+    prefix does not apply to symlink targets, so they would resolve against
+    the build host instead of the target.
+    """
+    if not (rootfs / "usr/bin/python3").exists():
         raise ValueError("target rootfs lacks /usr/bin/python3")
-    python = python.resolve()
-    if not python.is_relative_to(rootfs.resolve()):
-        raise ValueError("target python resolves outside the rootfs")
     libmpv = next(iter(sorted((rootfs / "usr/lib/aarch64-linux-gnu").glob("libmpv.so.*"))), None)
     if libmpv is None:
         raise ValueError("target rootfs lacks libmpv.so.*")
-    command = [QEMU, "-L", str(rootfs), str(python), "-I", "-S", "-c", PROBE,
-               str(site), str(libmpv.resolve()), *PROBE_MODULES]
-    completed = subprocess.run(command, check=False, capture_output=True, text=True,
-                               env={"PATH": "/usr/bin:/bin", "HOME": "/tmp", "LC_ALL": "C.UTF-8"})
+    qemu = shutil.which(QEMU)
+    if qemu is None:
+        raise ValueError(f"{QEMU} is required to run the arm64 probe")
+    # Stage the closure and the emulator inside the rootfs (a scratch copy).
+    staged_site = rootfs / "tmp/ashipaos-probe/site-packages"
+    shutil.copytree(site, staged_site)
+    staged_qemu = rootfs / "usr/bin" / QEMU
+    if not staged_qemu.exists():
+        shutil.copy2(qemu, staged_qemu)
+    sudo = [] if os.geteuid() == 0 else ["sudo", "-n"]
+    command = [*sudo, "chroot", str(rootfs), "/usr/bin/env", "-i", "PATH=/usr/bin:/bin",
+               "HOME=/tmp", "LC_ALL=C.UTF-8", "/usr/bin/python3", "-I", "-S", "-B", "-c", PROBE,
+               "/tmp/ashipaos-probe/site-packages",
+               "/" + str(libmpv.relative_to(rootfs)), *PROBE_MODULES]
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise RuntimeError(f"target probe failed: {completed.stderr[-12000:]}")
     result = json.loads(completed.stdout)
@@ -331,7 +347,8 @@ def cmd_resolve(args: argparse.Namespace) -> int:
         source = args.artifacts_dir / "source.tar.gz"
         download(SOURCE_URL, source, SOURCE_SHA256)
         evidence["source"] = source_metadata(source)
-        with tempfile.TemporaryDirectory(prefix="ashipaos-resolve-") as tmp:
+        # The probe runs as root in a chroot; never fail the step on cleanup.
+        with tempfile.TemporaryDirectory(prefix="ashipaos-resolve-", ignore_cleanup_errors=True) as tmp:
             work = pathlib.Path(tmp)
             verify_closure(lock, work)
             for item in lock["artifacts"]:
