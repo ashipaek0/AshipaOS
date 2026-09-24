@@ -22,10 +22,19 @@ config, target = (yaml.safe_load(open(p, encoding="utf-8")) for p in sys.argv[1:
 packages = [p for group in config["packages"].values() for p in group]
 assert config["architecture"] == "arm64"
 assert target["mainline_boot"]["kernel_package"] in packages
-assert {"initramfs-tools", "python3", "libmpv2", "busybox", "systemd-resolved"} <= set(packages)
+assert {"initramfs-tools", "python3", "libmpv2", "libgl1-mesa-dri", "libegl-mesa0", "libgbm1",
+        "fonts-dejavu-core", "busybox", "systemd-resolved"} <= set(packages)
+import re
+debian = config["debian"]
+assert re.fullmatch(r"\d{8}T\d{6}Z", debian["snapshot"]), "Debian must be pinned to a snapshot timestamp"
+for key in ("mirror", "security_mirror"):
+    assert debian[key].startswith("http://snapshot.debian.org/archive/") and debian[key].endswith("/{snapshot}")
+assert debian["keyring"] == "/usr/share/keyrings/debian-archive-keyring.gpg"
 assert "python3-mpv" not in packages
 assert len(packages) == len(set(packages))
 PY
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/network/20-wired.network" ]] || fail "network overlay is missing"
 grep -q ': >"$ROOTFS/etc/machine-id"' "$SCRIPT" || fail "rootfs must not ship a fixed machine-id"
+grep -q -- '--keyring="$DEBIAN_KEYRING" --force-check-gpg' "$SCRIPT" || fail "debootstrap must verify Release signatures"
+! grep -Eq 'DEBIAN_(MIRROR|SUITE)=.*\$\{DEBIAN_' "$SCRIPT" || fail "Debian sources must not be overridable from the environment"
 printf '%s\n' 'A95X Layer 1 contract: PASS'

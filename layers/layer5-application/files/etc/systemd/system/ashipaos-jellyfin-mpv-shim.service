@@ -1,0 +1,45 @@
+# The appliance UI: Jellyfin MPV Shim's library browser and player, fullscreen
+# on the HDMI output via DRM/KMS, started at boot on tty1.
+[Unit]
+Description=AshipaOS Jellyfin MPV Shim
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service
+# The shim owns tty1 and the display; no login prompt is drawn over it.
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+# Bounded restarts: 10 failures in 5 minutes leaves the unit failed (diagnosable
+# on the UART console and in the journal) instead of looping forever.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=ashipa
+Group=ashipa
+SupplementaryGroups=video render audio input
+# conffile.py resolves the config dir as $XDG_CONFIG_HOME/jellyfin-mpv-shim.
+Environment=HOME=/storage/jellyfin-mpv-shim
+Environment=XDG_CONFIG_HOME=/storage
+Environment=XDG_CACHE_HOME=/storage/jellyfin-mpv-shim/cache
+Environment=XDG_RUNTIME_DIR=/run/ashipaos-jellyfin-mpv-shim
+RuntimeDirectory=ashipaos-jellyfin-mpv-shim
+RuntimeDirectoryMode=0700
+ExecStart=/usr/libexec/ashipaos-jellyfin-mpv-shim
+# mpv's DRM backend takes keyboard/remote input from its controlling VT.
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/storage/jellyfin-mpv-shim /storage/apps/jellyfin-mpv-shim
+
+[Install]
+WantedBy=multi-user.target

@@ -8,7 +8,8 @@ on hardware.
 ## Relationship to the current image build
 
 The `build-images` workflow currently ships a Debian bookworm arm64 image
-booted by the box's vendor U-Boot (see `boot-bundle.md`). CoreELEC is the
+booted by the box's vendor U-Boot (see `boot-bundle.md`) straight into
+Jellyfin MPV Shim via `ashipaos-jellyfin-mpv-shim.service`. CoreELEC is the
 evidence-backed baseline for this target: the `coreelec-ce2a` workflow builds
 and inspects the pinned stock image as prerequisite evidence only. Nothing
 from the CoreELEC image is copied into the AshipaOS image, and the rules below

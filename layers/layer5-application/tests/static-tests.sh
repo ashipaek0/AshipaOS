@@ -43,4 +43,32 @@ done
 grep -q 'dependency_status.*RESOLVED' "$LAUNCHER" || fail "launcher requires a RESOLVED bundle"
 ! grep -q 'python3-mpv' "$SCRIPT" "$LAUNCHER" || fail "Debian python3-mpv must not be used"
 ! grep -Eq 'pip install|urllib|curl|wget' "$SCRIPT" || fail "bundle installation must not access the network"
+# Boot-to-app contract: the image boots straight into the shim.
+UNIT="$LAYER/files/etc/systemd/system/ashipaos-jellyfin-mpv-shim.service"
+DEFAULTS="$LAYER/files/usr/share/ashipaos/jellyfin-mpv-shim"
+python3 -B - "$UNIT" "$DEFAULTS" "$LAUNCHER" <<'PY' || fail "Jellyfin MPV Shim boot service contract"
+import configparser, json, pathlib, re, sys
+unit_path, defaults, launcher = sys.argv[1], pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]).read_text()
+unit = configparser.ConfigParser(strict=False, interpolation=None)
+unit.optionxform = str
+unit.read(unit_path)
+svc = unit["Service"]
+assert svc["User"] == "ashipa" and svc["ExecStart"] == "/usr/libexec/ashipaos-jellyfin-mpv-shim"
+assert unit["Install"]["WantedBy"] == "multi-user.target"
+assert svc["TTYPath"] == "/dev/tty1" and svc["StandardInput"] == "tty"
+assert "getty@tty1.service" in unit["Unit"]["Conflicts"]
+assert int(unit["Unit"]["StartLimitBurst"]) > 0 and svc["Restart"] == "always"
+assert {"video", "render", "audio", "input"} <= set(svc["SupplementaryGroups"].split())
+env = dict(l.strip().split("=", 2)[1:] for l in open(unit_path) if l.startswith("Environment="))
+config_dir = env["XDG_CONFIG_HOME"] + "/jellyfin-mpv-shim"
+assert f'CONFIG="${{ASHIPAOS_CONFIG:-{config_dir}}}"' in launcher, "unit and launcher disagree on the config dir"
+assert config_dir in svc["ReadWritePaths"].split() and "/storage/apps/jellyfin-mpv-shim" in svc["ReadWritePaths"].split()
+conf = json.loads((defaults / "conf.json").read_text())
+assert conf["enable_gui"] and conf["browser_fullscreen"] and conf["fullscreen"] and not conf["mpv_idle_quit"]
+mpv = dict(l.split("=", 1) for l in (defaults / "mpv.conf").read_text().split("\n") if l and not l.startswith("#"))
+assert mpv["vo"] == "gpu" and mpv["gpu-context"] == "drm"
+assert not {"idle", "force-window", "fullscreen"} & set(mpv), "mpv.conf must not override shim-managed options"
+PY
+grep -q 'multi-user.target.wants/$SERVICE' "$SCRIPT" || fail "build-application.sh must enable the shim service"
+grep -q 'ln -sfn /dev/null "$ROOTFS/etc/systemd/system/getty@tty1.service"' "$SCRIPT" || fail "tty1 getty must be masked"
 printf 'layer5-application-static: PASS\n'

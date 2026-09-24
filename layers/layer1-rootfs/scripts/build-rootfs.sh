@@ -29,8 +29,8 @@ Arguments:
   output_file   Output path for the rootfs tarball (.tar.gz)
   target        Product target (default and only value: $SUPPORTED_TARGET)
 
-Environment (override $CONFIG_FILE):
-  DEBIAN_SUITE, DEBIAN_MIRROR, DEBIAN_SECURITY_MIRROR (empty disables security)
+Debian packages come from the snapshot.debian.org timestamp pinned in
+$CONFIG_FILE; there are no mirror overrides.
 EOF
 }
 
@@ -47,7 +47,7 @@ fi
 [[ "${3:-$SUPPORTED_TARGET}" == "$SUPPORTED_TARGET" ]] || error "Unsupported target: $3"
 
 if [[ $EUID -ne 0 ]]; then
-    exec sudo --preserve-env=DEBIAN_SUITE,DEBIAN_MIRROR,DEBIAN_SECURITY_MIRROR,ASHIPAOS_EVIDENCE_DIR,GITHUB_WORKSPACE \
+    exec sudo --preserve-env=ASHIPAOS_EVIDENCE_DIR,GITHUB_WORKSPACE \
         bash "${BASH_SOURCE[0]}" "$@"
 fi
 
@@ -60,9 +60,10 @@ OUTPUT_FILE="$2"
 ROOTFS=""
 TEMP_DIR=""
 
-# Config values: environment overrides first, then rootfs-config.yaml.
+# Config values, all from rootfs-config.yaml and the target file.
 read_config() {
     python3 - "$CONFIG_FILE" "$TARGET_FILE" <<'PY'
+import re
 import sys
 import yaml
 
@@ -73,9 +74,14 @@ packages = [p for group in config["packages"].values() for p in group]
 boot = target["mainline_boot"]
 if boot["kernel_package"] not in packages:
     raise SystemExit("target kernel package is not in the rootfs package set")
+snapshot = debian["snapshot"]
+if not re.fullmatch(r"\d{8}T\d{6}Z", snapshot):
+    raise SystemExit(f"invalid snapshot timestamp: {snapshot}")
 print(debian["suite"])
-print(debian["mirror"])
-print(debian.get("security_mirror") or "")
+print(snapshot)
+print(debian["mirror"].format(snapshot=snapshot))
+print(debian["security_mirror"].format(snapshot=snapshot))
+print(debian["keyring"])
 print(",".join(debian["components"]))
 print(" ".join(packages))
 print(config["hostname"])
@@ -86,16 +92,18 @@ PY
 }
 
 mapfile -t CONFIG_VALUES < <(read_config)
-((${#CONFIG_VALUES[@]} == 9)) || error "Could not read $CONFIG_FILE / $TARGET_FILE"
-DEBIAN_SUITE="${DEBIAN_SUITE:-${CONFIG_VALUES[0]}}"
-DEBIAN_MIRROR="${DEBIAN_MIRROR:-${CONFIG_VALUES[1]}}"
-DEBIAN_SECURITY_MIRROR="${DEBIAN_SECURITY_MIRROR-${CONFIG_VALUES[2]}}"
-COMPONENTS="${CONFIG_VALUES[3]}"
-read -r -a PACKAGES <<<"${CONFIG_VALUES[4]}"
-HOSTNAME_VALUE="${CONFIG_VALUES[5]}"
-SERVICE_USER="${CONFIG_VALUES[6]}"
-KERNEL_PACKAGE="${CONFIG_VALUES[7]}"
-DEVICE_TREE="${CONFIG_VALUES[8]}"
+((${#CONFIG_VALUES[@]} == 11)) || error "Could not read $CONFIG_FILE / $TARGET_FILE"
+DEBIAN_SUITE="${CONFIG_VALUES[0]}"
+DEBIAN_SNAPSHOT="${CONFIG_VALUES[1]}"
+DEBIAN_MIRROR="${CONFIG_VALUES[2]}"
+DEBIAN_SECURITY_MIRROR="${CONFIG_VALUES[3]}"
+DEBIAN_KEYRING="${CONFIG_VALUES[4]}"
+COMPONENTS="${CONFIG_VALUES[5]}"
+read -r -a PACKAGES <<<"${CONFIG_VALUES[6]}"
+HOSTNAME_VALUE="${CONFIG_VALUES[7]}"
+SERVICE_USER="${CONFIG_VALUES[8]}"
+KERNEL_PACKAGE="${CONFIG_VALUES[9]}"
+DEVICE_TREE="${CONFIG_VALUES[10]}"
 
 cleanup_mounts() {
     [[ -n "$ROOTFS" && -d "$ROOTFS" ]] || return 0
@@ -120,6 +128,8 @@ check_dependencies() {
         command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
     done
     [[ -x "$QEMU_STATIC" ]] || missing+=(qemu-user-static)
+    # Without the keyring debootstrap would skip Release signature checks.
+    [[ -s "$DEBIAN_KEYRING" ]] || missing+=(debian-archive-keyring)
     python3 -c 'import yaml' 2>/dev/null || missing+=(python3-yaml)
     ((${#missing[@]} == 0)) || error "Missing dependencies: ${missing[*]}"
 }
@@ -138,8 +148,9 @@ mount_rootfs_api() {
 }
 
 bootstrap() {
-    log "debootstrap $DEBIAN_SUITE arm64 from $DEBIAN_MIRROR"
+    log "debootstrap $DEBIAN_SUITE arm64 from snapshot $DEBIAN_SNAPSHOT"
     debootstrap --arch=arm64 --components="$COMPONENTS" --foreign \
+        --keyring="$DEBIAN_KEYRING" --force-check-gpg \
         "$DEBIAN_SUITE" "$ROOTFS" "$DEBIAN_MIRROR"
     # Kept for every chroot step and removed before packaging.
     install -m 0755 "$QEMU_STATIC" "$ROOTFS$QEMU_STATIC"
@@ -149,10 +160,14 @@ bootstrap() {
     {
         printf 'deb %s %s %s\n' "$DEBIAN_MIRROR" "$DEBIAN_SUITE" "$components"
         printf 'deb %s %s-updates %s\n' "$DEBIAN_MIRROR" "$DEBIAN_SUITE" "$components"
-        if [[ -n "$DEBIAN_SECURITY_MIRROR" ]]; then
-            printf 'deb %s %s-security %s\n' "$DEBIAN_SECURITY_MIRROR" "$DEBIAN_SUITE" "$components"
-        fi
+        printf 'deb %s %s-security %s\n' "$DEBIAN_SECURITY_MIRROR" "$DEBIAN_SUITE" "$components"
     } >"$ROOTFS/etc/apt/sources.list"
+    # A snapshot's -security Release is past its Valid-Until by design; the
+    # signature is still verified. snapshot.debian.org also throttles, so retry.
+    cat >"$ROOTFS/etc/apt/apt.conf.d/80ashipaos-snapshot" <<'EOF'
+Acquire::Check-Valid-Until "false";
+Acquire::Retries "5";
+EOF
 }
 
 # Leaves the chroot API filesystems mounted; main unmounts them once every
@@ -279,9 +294,9 @@ record_packages() {
 generate_evidence() {
     local kver="$1" kernel="$2" initrd="$3" dtb="$4"
     python3 - "$EVIDENCE_DIR/layer1-rootfs.json" "$ROOTFS" "$OUTPUT_FILE" "$kver" "$kernel" "$initrd" "$dtb" \
-        "$DEBIAN_SUITE" "$DEBIAN_MIRROR" "$DEBIAN_SECURITY_MIRROR" "$KERNEL_PACKAGE" <<'PY'
+        "$DEBIAN_SUITE" "$DEBIAN_SNAPSHOT" "$DEBIAN_MIRROR" "$DEBIAN_SECURITY_MIRROR" "$KERNEL_PACKAGE" <<'PY'
 import hashlib, json, os, sys, time
-out, rootfs, archive, kver, kernel, initrd, dtb, suite, mirror, security, kernel_package = sys.argv[1:]
+out, rootfs, archive, kver, kernel, initrd, dtb, suite, snapshot, mirror, security, kernel_package = sys.argv[1:]
 
 def digest(path):
     h = hashlib.sha256()
@@ -299,7 +314,7 @@ evidence = {
     "task": "a95x-debian-rootfs",
     "verification_class": "BUILD",
     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "debian": {"suite": suite, "mirror": mirror, "security_mirror": security or None},
+    "debian": {"suite": suite, "snapshot": snapshot, "mirror": mirror, "security_mirror": security},
     "kernel": {"package": kernel_package, "version": kver,
                "vmlinuz": entry(kernel), "initrd": entry(initrd), "dtb": entry(dtb)},
     "package_manifest": "layer1-packages.tsv",

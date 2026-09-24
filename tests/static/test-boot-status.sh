@@ -32,11 +32,13 @@ grep -qx 'DynamicUser=yes' "$SERVICE" || fail "service is non-root"
 grep -qx 'ExecStart=/bin/busybox nc -ll -p 8080 -e /usr/libexec/ashipaos-boot-status-handler' "$SERVICE" || fail "service uses the validated busybox nc command"
 ! grep -qEi 'ssh|password|credential' "$SERVICE" "$SUCCESS" "$HANDLER" || fail "boot-status assets contain no SSH or credentials"
 
-# Every ashipaos-* unit a boot-status unit depends on must ship in the overlay.
+# Every ashipaos-* unit a boot-status unit depends on must ship in the image
+# (Layer 1 overlay or the Layer 5 application files).
+APP_UNITS="$ROOT/layers/layer5-application/files/etc/systemd/system"
 for unit in "$SERVICE" "$SUCCESS"; do
   grep -Eqx 'WantedBy=multi-user.target' "$unit" || fail "$(basename "$unit") is enabled for multi-user.target"
   while read -r dep; do
-    [[ -f "$OVERLAY/etc/systemd/system/$dep" ]] || fail "$(basename "$unit") depends on missing unit $dep"
+    [[ -f "$OVERLAY/etc/systemd/system/$dep" || -f "$APP_UNITS/$dep" ]] || fail "$(basename "$unit") depends on missing unit $dep"
   done < <(grep -E '^(Requires|Wants|After|BindsTo)=' "$unit" | cut -d= -f2 | tr ' ' '\n' | grep '^ashipaos-' || true)
 done
 printf '%s\n' 'PASS: boot-status static contract'

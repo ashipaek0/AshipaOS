@@ -5,6 +5,7 @@ IMMUTABLE="${ASHIPAOS_IMMUTABLE:-/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0}
 ACTIVE="${ASHIPAOS_ACTIVE:-/storage/apps/jellyfin-mpv-shim/active.json}"
 SLOTS="${ASHIPAOS_SLOTS:-/storage/apps/jellyfin-mpv-shim/slots}"
 CONFIG="${ASHIPAOS_CONFIG:-/storage/jellyfin-mpv-shim}"
+DEFAULTS="${ASHIPAOS_DEFAULTS:-/usr/share/ashipaos/jellyfin-mpv-shim}"
 EXPECTED_VERSION="3.0.0"
 EXPECTED_NAME="jellyfin-mpv-shim"
 error() { printf 'jellyfin-mpv-shim: %s\n' "$*" >&2; exit 1; }
@@ -19,6 +20,13 @@ owned_mode() {
 }
 [[ -d "$CONFIG" ]] || install -d -m 0700 "$CONFIG" || error "cannot create configuration directory"
 owned_mode "$CONFIG" "$ashipa_uid" "$ashipa_gid" 700 "configuration ownership" || error "configuration ownership or mode is invalid"
+# First boot: seed the appliance defaults (fullscreen browser, DRM output).
+# Existing files are never overwritten, so settings changed in the UI persist.
+for default in conf.json mpv.conf; do
+    if [[ -f "$DEFAULTS/$default" && ! -e "$CONFIG/$default" ]]; then
+        install -m 0600 "$DEFAULTS/$default" "$CONFIG/$default" || error "cannot seed $default"
+    fi
+done
 [[ -d "$SLOTS" ]] || error "slot directory is missing"
 owned_mode "$SLOTS" "$ashipa_uid" "$ashipa_gid" 700 "slot directory ownership" || error "slot directory ownership or mode is invalid"
 if [[ -e "$ACTIVE" ]]; then

@@ -59,7 +59,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            debootstrap qemu-user-static binfmt-support \
+            debootstrap debian-archive-keyring qemu-user-static binfmt-support \
             python3-yaml python3-packaging gpg \
             fdisk dosfstools mtools e2fsprogs u-boot-tools
           sudo update-binfmts --enable qemu-aarch64

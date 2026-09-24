@@ -1,0 +1,9 @@
+{
+  "enable_gui": true,
+  "start_minimized": false,
+  "browser_fullscreen": true,
+  "fullscreen": true,
+  "window_controls_fullscreen": false,
+  "mpv_idle_quit": false,
+  "headless": false
+}

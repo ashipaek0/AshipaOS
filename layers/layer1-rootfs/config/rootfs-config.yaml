@@ -1,11 +1,15 @@
 # Layer 1: A95X F3 Air arm64 Debian root filesystem.
 # build-rootfs.sh reads this file; it is the single source of the package set.
-# DEBIAN_SUITE / DEBIAN_MIRROR / DEBIAN_SECURITY_MIRROR override the values
-# below (for example to point at a snapshot.debian.org mirror).
 debian:
   suite: bookworm
-  mirror: http://deb.debian.org/debian
-  security_mirror: http://security.debian.org/debian-security
+  # Every package comes from this fixed snapshot.debian.org point in time, so
+  # the same commit always resolves the same package versions. Bump it
+  # deliberately (e.g. for security fixes) and review the package diff in
+  # output/evidence/layer1-packages.tsv.
+  snapshot: 20260901T000000Z
+  mirror: http://snapshot.debian.org/archive/debian/{snapshot}
+  security_mirror: http://snapshot.debian.org/archive/debian-security/{snapshot}
+  keyring: /usr/share/keyrings/debian-archive-keyring.gpg
   components: [main, contrib, non-free-firmware]
 architecture: arm64
 packages:
@@ -14,7 +18,8 @@ packages:
   # busybox serves the boot-status endpoint; systemd-resolved pairs with the
   # systemd-networkd DHCP configuration in rootfs-overlay.
   system: [busybox, ca-certificates, dbus, systemd-resolved]
-  # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv.
-  application_runtime: [python3, libmpv2]
+  # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv,
+  # rendering through DRM/GBM/EGL (Mesa panfrost + meson display driver).
+  application_runtime: [python3, libmpv2, libgl1-mesa-dri, libegl-mesa0, libgbm1, fonts-dejavu-core]
 hostname: ashipaos
 service_user: ashipa

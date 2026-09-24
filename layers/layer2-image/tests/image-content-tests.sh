@@ -94,5 +94,16 @@ for f in /usr/libexec/ashipaos-jellyfin-mpv-shim \
     debugfs -R "stat $f" "$root_fs" 2>/dev/null | grep -q 'Type: regular' || fail "root filesystem is missing $f"
 done
 [[ -z "$(debugfs -R 'cat /etc/machine-id' "$root_fs" 2>/dev/null)" ]] || fail "image carries a fixed machine-id"
+# The image boots into Jellyfin MPV Shim: unit present and enabled, tty1 getty masked.
+for f in /etc/systemd/system/ashipaos-jellyfin-mpv-shim.service \
+         /usr/share/ashipaos/jellyfin-mpv-shim/conf.json \
+         /usr/share/ashipaos/jellyfin-mpv-shim/mpv.conf; do
+    debugfs -R "stat $f" "$root_fs" 2>/dev/null | grep -q 'Type: regular' || fail "root filesystem is missing $f"
+done
+[[ "$(debugfs -R 'stat /etc/systemd/system/multi-user.target.wants/ashipaos-jellyfin-mpv-shim.service' "$root_fs" 2>/dev/null \
+    | awk -F'"' '/Fast link dest/ {print $2}')" == ../ashipaos-jellyfin-mpv-shim.service ]] ||
+    fail "ashipaos-jellyfin-mpv-shim.service is not enabled at boot"
+[[ "$(debugfs -R 'stat /etc/systemd/system/getty@tty1.service' "$root_fs" 2>/dev/null \
+    | awk -F'"' '/Fast link dest/ {print $2}')" == /dev/null ]] || fail "getty@tty1.service is not masked"
 
 printf '%s\n' 'A95X Layer 2 image-content contract: PASS'

@@ -14,6 +14,7 @@ APP_NAME="jellyfin-mpv-shim"
 APP_VERSION="3.0.0"
 BUNDLE_REL="usr/lib/ashipaos/apps/$APP_NAME/$APP_VERSION"
 SERVICE_USER="ashipa"
+SERVICE="ashipaos-jellyfin-mpv-shim.service"
 
 usage() { printf 'Usage: %s <rootfs.tar.gz> a95x-f3-air <resolution.json> <artifacts-dir>\n' "$(basename "$0")"; }
 error() { printf '[L5-APPLICATION ERROR] %s\n' "$*" >&2; exit 1; }
@@ -87,6 +88,22 @@ find "$BUNDLE" -type d -exec chmod 0755 {} +
 find "$BUNDLE" -type f -exec chmod 0644 {} +
 chmod 0755 "$BUNDLE/bin/$APP_NAME"
 install -D -m 0755 -o 0 -g 0 "$LAUNCHER" "$ROOTFS/usr/libexec/ashipaos-jellyfin-mpv-shim"
+
+# Boot straight into the shim: the unit is enabled for multi-user.target and
+# owns tty1, so the login prompt there is masked. First-boot defaults are
+# seeded into /storage by the launcher.
+FILES="$LAYER_DIR/files"
+install -D -m 0644 -o 0 -g 0 "$FILES/etc/systemd/system/$SERVICE" "$ROOTFS/etc/systemd/system/$SERVICE"
+for default in conf.json mpv.conf; do
+    install -D -m 0644 -o 0 -g 0 "$FILES/usr/share/ashipaos/$APP_NAME/$default" \
+        "$ROOTFS/usr/share/ashipaos/$APP_NAME/$default"
+done
+mkdir -p "$ROOTFS/etc/systemd/system/multi-user.target.wants"
+ln -sfn "../$SERVICE" "$ROOTFS/etc/systemd/system/multi-user.target.wants/$SERVICE"
+ln -sfn /dev/null "$ROOTFS/etc/systemd/system/getty@tty1.service"
+for group in video render audio input; do
+    grep -q "^$group:" "$ROOTFS/etc/group" || error "target rootfs lacks the $group group required by $SERVICE"
+done
 
 # Writable state lives under /storage and belongs to the service user.
 uid="$(awk -F: -v u="$SERVICE_USER" '$1 == u {print $3; exit}' "$ROOTFS/etc/passwd")"
