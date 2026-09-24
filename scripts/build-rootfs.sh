@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-out=${ROOTFS_OUT:-out/appliance-rootfs}; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+out=${ROOTFS_OUT:-out/appliance-rootfs}; tmp=$(mktemp -d)
+# A failed mmdebstrap (root mode) can leave /dev, /proc and /sys mounted in
+# the rootfs. Unmount them before deleting, and never delete across a mount.
+cleanup() {
+  set +e
+  findmnt -rn -o TARGET | awk -v p="$tmp/" 'index($0, p) == 1' | sort -r | while read -r m; do umount -l "$m"; done
+  rm -rf --one-file-system "$tmp"
+}
+trap cleanup EXIT
 command -v mmdebstrap >/dev/null || { echo 'mmdebstrap is required in CI' >&2; exit 1; }
 key=${ADMIN_SSH_PUBKEY:?ADMIN_SSH_PUBKEY secret is required}
 "$(dirname "$0")/../provision/validate-admin-key.sh" "$key" || { echo 'invalid ADMIN_SSH_PUBKEY' >&2; exit 1; }
