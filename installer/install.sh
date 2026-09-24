@@ -34,7 +34,7 @@ fi
 (( check_only == 1 )) && exit 0
 : "${TARGET_DEVICE:?TARGET_DEVICE is required for destructive install}"
 [[ -b "$TARGET_DEVICE" ]] || { [[ "${TEST_MODE:-0}" == 1 && -n "${TARGET_ROOT:-}" && -f "$TARGET_DEVICE" ]] || { printf 'production target must be a block device\n' >&2; exit 1; }; }
-[[ "$TARGET_DEVICE" == /dev/* && "$TARGET_DEVICE" != */*/* ]] || { [[ "${TEST_MODE:-0}" == 1 && -n "${TARGET_ROOT:-}" && -f "$TARGET_DEVICE" ]] || { printf 'invalid target device\n' >&2; exit 1; }; }
+[[ "$TARGET_DEVICE" == /dev/* && "$TARGET_DEVICE" != /dev/*/* ]] || { [[ "${TEST_MODE:-0}" == 1 && -n "${TARGET_ROOT:-}" && -f "$TARGET_DEVICE" ]] || { printf 'invalid target device\n' >&2; exit 1; }; }
 DEV_ROOT=/dev
 root_partition=$(partition_path "$TARGET_DEVICE" 3)
 if (( force == 1 )); then
