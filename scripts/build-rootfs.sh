@@ -66,6 +66,7 @@ After=graphical.target greetd.service
 Wants=graphical.target
 [Service]
 Type=oneshot
+TimeoutStartSec=300
 ExecStart=/usr/local/bin/ashipaos-readiness
 RemainAfterExit=yes
 [Install]
@@ -77,15 +78,30 @@ FSTAB
 install -d -m 0755 "$root/usr/local/bin"
 cat > "$root/usr/local/bin/ashipaos-readiness" <<'READY'
 #!/bin/sh
-set -eu
-ok=0
-for i in $(seq 1 30); do
+# Report ASHIPAOS_BOOT_OK on the serial console once the kiosk is up, or say
+# which part is missing so headless test runs are diagnosable.
+set -u
+app=com.github.iwalton3.jellyfin-mpv-shim
+greetd=no labwc=no client=no
+i=0
+while [ "$i" -lt 180 ]; do
+  i=$((i + 1))
+  if systemctl is-active --quiet greetd; then greetd=yes; else greetd=no; fi
+  if pgrep -x labwc >/dev/null 2>&1; then labwc=yes; else labwc=no; fi
   # flatpak ps only lists the caller's instances, so ask as the kiosk user.
-  systemctl is-active --quiet greetd && labwc_check=$(systemctl is-active --quiet labwc 2>/dev/null || pgrep -x labwc 2>/dev/null) && runuser -u kiosk -- env XDG_RUNTIME_DIR="/run/user/$(id -u kiosk)" flatpak ps 2>/dev/null | grep -F 'com.github.iwalton3.jellyfin-mpv-shim' >/dev/null && ok=1 && break
+  if runuser -u kiosk -- env XDG_RUNTIME_DIR="/run/user/$(id -u kiosk)" flatpak ps 2>/dev/null | grep -F "$app" >/dev/null; then client=yes; else client=no; fi
+  if [ "$greetd$labwc$client" = yesyesyes ]; then
+    printf 'ASHIPAOS_BOOT_OK\n' > /dev/ttyS0
+    exit 0
+  fi
   sleep 1
 done
-[ "$ok" = 1 ] || exit 1
-printf 'ASHIPAOS_BOOT_OK\n' > /dev/ttyS0
+{
+  printf 'ASHIPAOS_BOOT_FAILED greetd=%s labwc=%s client=%s\n' "$greetd" "$labwc" "$client"
+  systemctl --no-pager --failed
+  journalctl -b -p warning --no-pager -n 60
+} > /dev/ttyS0 2>&1
+exit 1
 READY
 chmod 0755 "$root/usr/local/bin/ashipaos-readiness"
 cat > "$root/etc/systemd/system/ashipaos-first-boot.service" <<'UNIT'

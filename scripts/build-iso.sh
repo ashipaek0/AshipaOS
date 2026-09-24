@@ -21,8 +21,17 @@ menuentry 'Force reinstall AshipaOS offline' {
  initrd /boot/initramfs.gz
 }
 GRUB
+# The standalone image's root is its own memdisk, so its embedded config must
+# find the installer medium first; otherwise /boot/vmlinuz is "not found".
+embed=$(mktemp); trap 'rm -rf "$tmp" "$embed"' EXIT
+cat > "$embed" <<'GRUB'
+search --no-floppy --set=root --file /install/appliance.img.manifest
+set prefix=($root)/boot/grub
+configfile ($root)/boot/grub/grub.cfg
+GRUB
 grub-mkstandalone -O x86_64-efi -o "$tmp/EFI/BOOT/BOOTX64.EFI" \
-  --modules='part_gpt fat iso9660 normal efi_gop' "boot/grub/grub.cfg=$tmp/boot/grub/grub.cfg"
+  --modules='part_gpt part_msdos fat iso9660 search search_fs_file configfile normal linux efi_gop efi_uga' \
+  "boot/grub/grub.cfg=$embed"
 test -s "$tmp/EFI/BOOT/BOOTX64.EFI"
 command -v mkfs.vfat >/dev/null || { echo 'mkfs.vfat is required' >&2; exit 1; }
 esp="$tmp/efi.img"; truncate -s 16M "$esp"; mkfs.vfat "$esp" >/dev/null

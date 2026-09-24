@@ -19,7 +19,12 @@ root_uuid=$(blkid -s PARTUUID -o value "$rootpart"); [[ "$root_uuid" =~ ^[0-9a-f
 printf 'PARTUUID=%s / ext4 defaults 0 1\n' "$root_uuid" > "$tmp/mnt/etc/fstab"
 mkdir -p "$tmp/mnt/boot/efi"; mount "$esp" "$tmp/mnt/boot/efi"
 cat > "$tmp/mnt/etc/default/grub" <<GRUB
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash root=PARTUUID=$root_uuid"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet root=PARTUUID=$root_uuid"
+# Serial as well as screen, so headless boots (CI VMs) show GRUB, kernel and
+# systemd errors; tty0 stays /dev/console.
+GRUB_CMDLINE_LINUX="console=ttyS0,115200 console=tty0"
+GRUB_TERMINAL="console serial"
+GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200"
 GRUB
 # GRUB needs /dev, /proc and /sys in the chroot. Mount them in a private mount
 # namespace: on the runner's shared propagation, host bind mounts duplicate and
