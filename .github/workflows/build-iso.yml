@@ -24,7 +24,7 @@ jobs:
       - name: Install appliance build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y mmdebstrap debootstrap parted gdisk dosfstools e2fsprogs \
+          sudo apt-get install -y mmdebstrap debootstrap debian-archive-keyring parted gdisk dosfstools e2fsprogs \
             grub-pc-bin grub-efi-amd64-bin grub-common xorriso zstd qemu-system-x86 \
             qemu-utils ovmf flatpak ostree gnupg cpio gzip file binutils util-linux cloud-image-utils syslinux mtools lvm2 mdadm kmod
       - name: Build locked Flatpak payload

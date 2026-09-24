@@ -2,7 +2,8 @@
 set -eu
 for i in 1 2 3 4 5 6; do
   sleep 5
-  flatpak ps | grep -q com.github.iwalton3.jellyfin-mpv-shim && exit 0
+  # flatpak ps only lists the caller's instances, so ask as the kiosk user.
+  runuser -u kiosk -- env XDG_RUNTIME_DIR="/run/user/$(id -u kiosk)" flatpak ps | grep -q com.github.iwalton3.jellyfin-mpv-shim && exit 0
   logger -t appliance-health-check "client not ready attempt $i"
 done
 exit 1

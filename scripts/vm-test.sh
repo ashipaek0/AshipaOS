@@ -17,6 +17,9 @@ declare -a vars_files=()
 stage_args() {
   local stage=$1 mode=$2
   args=(-nographic -serial stdio -m 2048 -nic none -no-reboot)
+  # Stages write and hash a 20 GiB image; software emulation cannot do that
+  # inside the stage timeout, so use KVM whenever the runner exposes it.
+  if [[ -r /dev/kvm && -w /dev/kvm ]]; then args+=(-accel kvm -cpu host); fi
   if [[ "$firmware" == uefi ]]; then
     local vars="out/OVMF_VARS-${firmware}-${stage}.fd"
     cp "$OVMF_VARS" "$vars"
@@ -24,7 +27,8 @@ stage_args() {
     args+=(-drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$vars")
   fi
   if [[ "$mode" == iso ]]; then args+=(-drive "file=$iso,media=cdrom,readonly=on" -boot d); fi
-  args+=(-drive "file=$disk,format=raw,if=virtio")
+  # Keep the zero-filled image sparse on the runner as the installer streams it.
+  args+=(-drive "file=$disk,format=raw,if=virtio,discard=unmap,detect-zeroes=unmap")
 }
 run_stage() {
   local stage=$1 mode=$2 token=$3 log="out/evidence/vm-${firmware}-${1}.log" status=0

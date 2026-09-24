@@ -17,8 +17,14 @@ p=configparser.ConfigParser(interpolation=None); p.read(sys.argv[1]); s=p['Flatp
 if s.get('Url','').rstrip('/')+'/' != sys.argv[2]: raise SystemExit('captured Flathub URL mismatch')
 PY
 printf '%s\n' "flathub_url=$FLATHUB_URL" "flathub_collection_id=$FLATHUB_COLLECTION_ID" "flathub_key_fingerprint=$FLATHUB_KEY_FINGERPRINT" "flathub_key_sha256=$(sha256sum out/flathub.gpg | cut -d' ' -f1)" >> out/rootfs-build.lock
-packages=systemd-sysv,systemd-resolved,linux-image-amd64,grub-pc,grub-efi-amd64,shim-signed,openssh-server,network-manager,greetd,labwc,flatpak,gnupg,pipewire,wireplumber,parted,e2fsprogs,cloud-init,ca-certificates,dbus-user-session,policykit-1,libgtk-3-0,libgtk-4-1,libadwaita-1-0,fonts-dejavu,seatd,util-linux,sudo,jq,python3-gi,gir1.2-gtk-4.0,lvm2,mdadm
-mmdebstrap --variant=apt --architectures=amd64 --components=main --aptopt='Acquire::Check-Valid-Until "false"' --include="$packages" trixie "$tmp/rootfs" "$mirror"
+# grub-pc and grub-efi-amd64 conflict; the -bin packages carry both targets
+# modules and grub2-common carries grub-install/grub-mkconfig for the image.
+packages=systemd-sysv,systemd-resolved,linux-image-amd64,grub-pc-bin,grub-efi-amd64-bin,grub2-common,shim-signed,openssh-server,network-manager,greetd,labwc,flatpak,gnupg,pipewire,wireplumber,parted,e2fsprogs,cloud-init,ca-certificates,dbus-user-session,polkitd,libgtk-4-1,libadwaita-1-0,fonts-dejavu,seatd,util-linux,sudo,jq,python3-gi,gir1.2-gtk-4.0,lvm2,mdadm
+# Ubuntu runners lack Debian archive keys. The pinned snapshot's InRelease is
+# also signed by the bookworm archive key that Ubuntu's keyring package ships.
+keyring=/usr/share/keyrings/debian-archive-keyring.gpg
+[[ -s "$keyring" ]] || { echo 'debian-archive-keyring is required to verify the Debian snapshot' >&2; exit 1; }
+mmdebstrap --variant=apt --keyring="$keyring" --architectures=amd64 --components=main --aptopt='Acquire::Check-Valid-Until "false"' --include="$packages" trixie "$tmp/rootfs" "$mirror"
 root="$tmp/rootfs"
 install -d -m 0755 "$root/etc/ssh/sshd_config.d" "$root/etc/greetd" "$root/etc/labwc" "$root/etc/systemd/system" "$root/usr/local/bin" "$root/var/lib/ashipaos" "$root/home/admin/.ssh"
 # Locked appliance accounts; admin access is exclusively through the supplied key.
@@ -56,7 +62,8 @@ cat > "$root/usr/local/bin/ashipaos-readiness" <<'READY'
 set -eu
 ok=0
 for i in $(seq 1 30); do
-  systemctl is-active --quiet greetd && labwc_check=$(systemctl is-active --quiet labwc 2>/dev/null || pgrep -x labwc 2>/dev/null) && flatpak ps 2>/dev/null | grep -F 'com.github.iwalton3.jellyfin-mpv-shim' >/dev/null && ok=1 && break
+  # flatpak ps only lists the caller's instances, so ask as the kiosk user.
+  systemctl is-active --quiet greetd && labwc_check=$(systemctl is-active --quiet labwc 2>/dev/null || pgrep -x labwc 2>/dev/null) && runuser -u kiosk -- env XDG_RUNTIME_DIR="/run/user/$(id -u kiosk)" flatpak ps 2>/dev/null | grep -F 'com.github.iwalton3.jellyfin-mpv-shim' >/dev/null && ok=1 && break
   sleep 1
 done
 [ "$ok" = 1 ] || exit 1

@@ -34,7 +34,7 @@ cp -a "$rootfs/lib/modules" "$tmp/lib/"
 kernel_versions=("$rootfs"/lib/modules/*)
 (( ${#kernel_versions[@]} == 1 )) || { echo 'expected one target kernel module tree' >&2; exit 1; }
 kernel=${kernel_versions[0]##*/}
-for module in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci sd_mod usb_storage uas xhci_pci; do
+for module in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci ata_piix sd_mod usb_storage uas xhci_pci; do
   module_file=$(modinfo -b "$rootfs" -k "$kernel" -n "$module" 2>/dev/null || true)
   if [[ "$module_file" == '(builtin)' ]]; then
     grep -Eq "/(${module//_/-}|${module})\.ko$" "$tmp/lib/modules/$kernel/modules.builtin" || { echo "builtin module missing from target metadata: $module" >&2; exit 1; }
@@ -59,7 +59,9 @@ mount -t devtmpfs devtmpfs /dev
 udevadm trigger --action=add || true
 udevadm settle --timeout=20 || { echo "udev did not settle" >&2; exit 1; }
 essential_modules=(virtio_pci virtio_blk sr_mod isofs ext4)
-optional_modules=(nvme ahci libahci sd_mod usb-storage uas xhci-pci)
+# No udevd runs here, so nothing autoloads drivers: load every storage
+# controller the medium may sit behind (ata_piix: QEMU pc/PIIX IDE CD-ROM).
+optional_modules=(nvme ahci libahci ata_piix sd_mod usb-storage uas xhci-pci)
 for module in "${essential_modules[@]}"; do modprobe "$module" || { echo "essential module failed: $module" >&2; exit 1; }; done
 for module in "${optional_modules[@]}"; do modprobe "$module" 2>/dev/null || echo "optional module unavailable: $module" >&2; done
 udevadm trigger --action=add || { echo 'post-module device trigger failed' >&2; exit 1; }

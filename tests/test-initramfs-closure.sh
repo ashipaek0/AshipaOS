@@ -21,7 +21,7 @@ printf '#!/bin/bash\n' > "$tmp/tree/usr/bin/blkid"
 printf '#!/bin/bash\n' > "$tmp/tree/usr/bin/rmdir"
 chmod +x "$tmp/tree/init" "$tmp/tree/bin/bash" "$tmp/tree/usr/bin/"* "$tmp/tree/installer/"*.sh
 printf 'rmdir\n' > "$tmp/tree/etc/ashipaos-runtime.commands"
-for mod in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci sd_mod usb_storage uas xhci_pci; do
+for mod in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci ata_piix sd_mod usb_storage uas xhci_pci; do
   case "$mod" in usb_storage) file=usb-storage;; xhci_pci) file=xhci-pci;; *) file=$mod;; esac
   printf 'module\n' > "$tmp/tree/lib/modules/test/kernel/$file.ko.zst"
 done

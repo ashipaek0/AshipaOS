@@ -31,7 +31,7 @@ done < <(find "$root" -type f -print0 | xargs -0 file 2>/dev/null | awk -F: '/EL
 kernel_versions=("$root"/lib/modules/*)
 (( ${#kernel_versions[@]} == 1 )) || { echo 'expected one initramfs kernel tree' >&2; exit 1; }
 kernel=${kernel_versions[0]##*/}
-for module in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci sd_mod usb_storage uas xhci_pci; do
+for module in virtio_pci virtio_blk sr_mod isofs ext4 nvme ahci libahci ata_piix sd_mod usb_storage uas xhci_pci; do
   module_file=$(modinfo -b "$root" -k "$kernel" -n "$module" 2>/dev/null || true)
   if [[ "$module_file" == '(builtin)' ]]; then
     grep -Eq "/(${module//_/-}|${module})\.ko$" "$root/lib/modules/$kernel/modules.builtin" || { echo "missing builtin kernel module $module" >&2; exit 1; }

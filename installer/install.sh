@@ -69,7 +69,7 @@ revalidated=$(
 canonical_target=$(readlink -f -- "$TARGET_DEVICE")
 canonical_revalidated=$(readlink -f -- "$revalidated")
 [[ "$canonical_target" == "$canonical_revalidated" ]] || { printf 'target changed during safety recheck\n' >&2; exit 1; }
-zstd -dc "$payload" | dd of="$TARGET_DEVICE" bs=4M conv=fsync,status=progress
+zstd -dc "$payload" | dd of="$TARGET_DEVICE" bs=4M conv=fsync status=progress
 partprobe "$TARGET_DEVICE"
 udevadm settle
 readback=$(dd if="$TARGET_DEVICE" bs=4M count=$(( (image_size + 4194303) / 4194304 )) 2>/dev/null | head -c "$image_size" | sha256sum | awk '{print $1}')
