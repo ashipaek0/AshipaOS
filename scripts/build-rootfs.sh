@@ -34,7 +34,7 @@ PY
 printf '%s\n' "flathub_url=$FLATHUB_URL" "flathub_collection_id=$FLATHUB_COLLECTION_ID" "flathub_key_fingerprint=$FLATHUB_KEY_FINGERPRINT" "flathub_key_sha256=$(sha256sum out/flathub.gpg | cut -d' ' -f1)" >> out/rootfs-build.lock
 # grub-pc and grub-efi-amd64 conflict; the -bin packages carry both targets
 # modules and grub2-common carries grub-install/grub-mkconfig for the image.
-packages=systemd-sysv,systemd-resolved,linux-image-amd64,grub-pc-bin,grub-efi-amd64-bin,grub2-common,shim-signed,openssh-server,network-manager,greetd,labwc,flatpak,gnupg,pipewire,wireplumber,parted,e2fsprogs,cloud-init,ca-certificates,dbus-user-session,polkitd,libgtk-4-1,libadwaita-1-0,fonts-dejavu,seatd,util-linux,sudo,jq,python3-gi,gir1.2-gtk-4.0,lvm2,mdadm
+packages=systemd-sysv,systemd-resolved,linux-image-amd64,grub-pc-bin,grub-efi-amd64-bin,grub2-common,shim-signed,openssh-server,network-manager,greetd,labwc,flatpak,gnupg,pipewire,wireplumber,parted,e2fsprogs,cloud-init,ca-certificates,dbus-user-session,login,polkitd,libgtk-4-1,libadwaita-1-0,fonts-dejavu,seatd,util-linux,sudo,jq,python3-gi,gir1.2-gtk-4.0,lvm2,mdadm
 # Ubuntu runners lack Debian archive keys. The pinned snapshot's InRelease is
 # also signed by the bookworm archive key that Ubuntu's keyring package ships.
 keyring=/usr/share/keyrings/debian-archive-keyring.gpg
@@ -111,7 +111,7 @@ Before=sshd.service
 ConditionPathExists=/var/lib/ashipaos/first-boot
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'rm -f /etc/machine-id; systemd-machine-id-setup; ssh-keygen -A; rm -f /var/lib/ashipaos/first-boot'
+ExecStart=/bin/sh -c 'systemd-machine-id-setup --commit; ssh-keygen -A; rm -f /var/lib/ashipaos/first-boot'
 [Install]
 WantedBy=multi-user.target
 UNIT
@@ -151,7 +151,10 @@ host_flatpak flatpak --system override --socket=wayland --socket=x11 --device=dr
 cp provision/flatpak-permissions "$root/etc/flatpak-permissions"
 cp out/flatpak-lock.json "$root/var/lib/ashipaos/flatpak-lock.json"
 # Seal only after identity material and all operational configuration are ready.
-rm -f "$root/etc/machine-id" "$root/etc/ssh/ssh_host_"*
+# An empty machine-id (not a missing one) lets systemd boot with a read-only
+# root and generate a unique ID on first boot.
+rm -f "$root/etc/ssh/ssh_host_"*
+: > "$root/etc/machine-id"
 rm -f "$root/etc/resolv.conf"; ln -s /run/systemd/resolve/stub-resolv.conf "$root/etc/resolv.conf"
 chroot "$root" systemctl enable ssh.service greetd NetworkManager appliance-update.timer ashipaos-first-boot.service ashipaos-boot-ok.service
 chroot "$root" systemctl enable systemd-resolved

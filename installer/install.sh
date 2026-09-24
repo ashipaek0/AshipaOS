@@ -50,7 +50,7 @@ mount_root=${TARGET_ROOT:-}
 mounted=0
 cleanup() { (( mounted == 1 )) && umount "$mount_root" 2>/dev/null || true; }
 trap cleanup EXIT
-for tool in zstd dd stat sha256sum awk head install mount partprobe udevadm sfdisk parted e2fsck resize2fs sync mktemp rm dirname; do command -v "$tool" >/dev/null || { printf 'required runtime command missing: %s\n' "$tool" >&2; exit 1; }; done
+for tool in zstd dd stat sha256sum awk head install mount partprobe udevadm sfdisk sgdisk parted e2fsck resize2fs sync mktemp rm dirname; do command -v "$tool" >/dev/null || { printf 'required runtime command missing: %s\n' "$tool" >&2; exit 1; }; done
 # Re-run the complete selector policy immediately before the destructive stream.
 selector_args=("ashipaos.install_target=$TARGET_DEVICE")
 [[ -n "${INSTALL_SOURCE:-}" ]] && selector_args+=("ashipaos.install_source=$INSTALL_SOURCE")
@@ -75,6 +75,8 @@ udevadm settle
 readback=$(dd if="$TARGET_DEVICE" bs=4M count=$(( (image_size + 4194303) / 4194304 )) 2>/dev/null | head -c "$image_size" | sha256sum | awk '{print $1}')
 [[ "$readback" == "$image_hash" ]] || { printf 'target verification failed\n' >&2; exit 1; }
 sfdisk --dump "$TARGET_DEVICE" >/dev/null
+# The image's backup GPT sits at the image's end; move it to the disk's end.
+sgdisk -e "$TARGET_DEVICE" >/dev/null || { printf 'failed to relocate backup GPT\n' >&2; exit 1; }
 parted -s "$TARGET_DEVICE" resizepart 3 100% || { printf 'failed to grow root partition\n' >&2; exit 1; }
 partprobe "$TARGET_DEVICE" || { printf 'failed to reread partition table\n' >&2; exit 1; }
 udevadm settle || { printf 'failed waiting for partition devices\n' >&2; exit 1; }
