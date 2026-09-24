@@ -1,0 +1,25 @@
+#!/bin/sh
+# Writes a boot report to the SD card's FAT boot partition so a unit without a
+# UART can be diagnosed from a PC: put the card in a PC and read
+# ashipaos-stage3-linux.txt. Read-only diagnostics; writes nothing else.
+set -u
+out_dir=/boot/firmware
+report="$out_dir/ashipaos-stage3-linux.txt"
+mountpoint -q "$out_dir" || mount "$out_dir" || exit 0
+tmp="$report.partial"
+{
+    echo "== AshipaOS boot report (stage 3: Linux userspace) =="
+    date -u '+%Y-%m-%dT%H:%M:%SZ (may be wrong before NTP)'
+    echo "uptime: $(cat /proc/uptime)"
+    echo "kernel: $(uname -a)"
+    echo "cmdline: $(cat /proc/cmdline)"
+    echo "model: $(tr -d '\0' </proc/device-tree/model 2>/dev/null)"
+    echo; echo "== failed units =="; systemctl --failed --no-pager --no-legend
+    echo; echo "== jellyfin mpv shim =="; systemctl status ashipaos-jellyfin-mpv-shim.service --no-pager -l -n 60
+    echo; echo "== display/input/audio devices =="; ls -l /dev/dri /dev/input /dev/snd 2>&1
+    echo; echo "== network =="; ip -brief address 2>&1
+    echo; echo "== journal warnings (this boot) =="; journalctl -b -p warning --no-pager -n 300
+    echo; echo "== kernel log (tail) =="; dmesg | tail -n 300
+} >"$tmp" 2>&1
+mv -f "$tmp" "$report"
+sync

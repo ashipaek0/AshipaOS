@@ -28,7 +28,7 @@ for text in (open(sys.argv[2]).read(),):
 PY
 for needle in '108362d29668d25cf7b0cadc63b15a4c1cfc0dbc71adc151b33c5fe7dece939' 'd49fa503588cb9a89eda7eb7141b65507fa126ce' 'Common files: `58`' 'Differing common files: `0`' '02c1539f4b22ac01f5718f838433b6c920fd4932a7bacf4478279b4c7cf8dca7'; do grep -Fq "$needle" "$EQUIV" || fail "equivalence evidence missing $needle"; done
 for needle in 'CI=true' 'docker build --pull=false' 'archive_sha' 'base_digest' 'artifact_count' 'Amlogic-ce' 'Amlogic-ng' 'ARCH=arm' 'OFFICIAL=yes'; do grep -q "$needle" "$BUILD" || fail "build missing $needle"; done
-for needle in 'gzip -t' 'dtc -I dtb -O dts' '/dts-v1/' 'root node' 'CE2A_DTB_SHA256' 'read-only' 'sm1_s905x3_4g_1gbit.dtb' 'inspection-tree.txt' 'stock-kodi-containing/rejected_for_ashipaos' 'runtime_status'; do grep -q "$needle" "$INSPECT" || fail "inspection missing $needle"; done
+for needle in 'gzip -t' 'dtc -I dtb -O dts' '/dts-v1/' 'root node' 'CE2A_DTB_SHA256' 'read-only' 'sm1_s905x3_4g.dtb' 'inspection-tree.txt' 'stock-kodi-containing/rejected_for_ashipaos' 'runtime_status'; do grep -q "$needle" "$INSPECT" || fail "inspection missing $needle"; done
 for needle in 'workflow_dispatch' 'timeout-minutes: 360' 'Static and negative gates (before build)' 'Validate generated CE-2A manifest' 'validate-ce2a-manifest.py' 'coreelec-ce2a-manifest.schema.json' 'if: always()' 'actions/checkout@' 'actions/upload-artifact@'; do grep -q "$needle" "$WF" || fail "workflow missing $needle"; done
 if grep -E '^\s*uses: actions/[^@]+@(main|master|v[0-9])' "$WF" >/dev/null; then fail 'workflow uses mutable action ref'; fi
 if grep -q 'build-images.yml\|build-x86\|build-pi\|layers/layer' "$WF"; then fail 'workflow is not isolated'; fi

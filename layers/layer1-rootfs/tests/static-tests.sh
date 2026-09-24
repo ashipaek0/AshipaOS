@@ -34,6 +34,9 @@ assert "python3-mpv" not in packages
 assert len(packages) == len(set(packages))
 PY
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/network/20-wired.network" ]] || fail "network overlay is missing"
+grep -q '^    install_boot_report$' "$SCRIPT" || fail "the no-UART boot report must always be installed"
+[[ -x "$ROOT/rootfs-overlay/usr/libexec/ashipaos-boot-report" ]] || fail "boot report script is missing"
+! grep -Eq 'mmcblk|/dev/mmc|dd ' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-boot-report" || fail "boot report must not touch block devices directly"
 grep -q ': >"$ROOTFS/etc/machine-id"' "$SCRIPT" || fail "rootfs must not ship a fixed machine-id"
 grep -q -- '--keyring="$DEBIAN_KEYRING" --force-check-gpg' "$SCRIPT" || fail "debootstrap must verify Release signatures"
 ! grep -Eq 'DEBIAN_(MIRROR|SUITE)=.*\$\{DEBIAN_' "$SCRIPT" || fail "Debian sources must not be overridable from the environment"

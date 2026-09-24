@@ -63,7 +63,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             debootstrap debian-archive-keyring qemu-user-static binfmt-support \
             python3-yaml python3-packaging gpg \
-            fdisk dosfstools mtools e2fsprogs u-boot-tools
+            fdisk dosfstools mtools e2fsprogs u-boot-tools \
+            gcc-aarch64-linux-gnu make bc bison flex libssl-dev libgnutls28-dev uuid-dev \
+            python3-setuptools python3-pyelftools
           sudo update-binfmts --enable qemu-aarch64
           test -e /proc/sys/fs/binfmt_misc/qemu-aarch64
 
@@ -101,10 +103,14 @@ jobs:
           bash layers/layer5-application/scripts/build-application.sh \
             "$ROOTFS" a95x-f3-air output/evidence/layer5-resolution.json output/layer5-artifacts
 
+      # Pinned mainline U-Boot, chain-loaded from SD by the box's vendor U-Boot.
+      - name: Build chain-loaded U-Boot (u-boot.ext)
+        run: bash layers/layer2-image/scripts/build-u-boot.sh output/u-boot/u-boot.bin
+
       - name: Build Layer 2 (disk image)
         run: |
           bash layers/layer2-image/tests/layout-tests.sh
-          bash layers/layer2-image/scripts/build-image.sh "$ROOTFS" a95x-f3-air
+          bash layers/layer2-image/scripts/build-image.sh "$ROOTFS" output/u-boot/u-boot.bin a95x-f3-air
 
       - name: Gate A95X image contents
         run: |

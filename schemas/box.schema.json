@@ -167,7 +167,8 @@
         "device_tree",
         "console",
         "status",
-        "evidence"
+        "evidence",
+        "bootloader"
       ],
       "properties": {
         "kernel_package": {
@@ -189,12 +190,46 @@
         },
         "evidence": {
           "type": "array"
+        },
+        "bootloader": {
+          "const": "mainline-u-boot-chainload"
         }
       },
       "additionalProperties": false
     },
     "coreelec_baseline": {
       "type": "object"
+    },
+    "stock_firmware": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "evidence"
+      ]
+    },
+    "ethernet": {
+      "type": "object",
+      "required": [
+        "speed",
+        "phy",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "speed": {
+          "enum": [
+            "100M",
+            "1G"
+          ]
+        },
+        "phy": {
+          "enum": [
+            "internal",
+            "external"
+          ]
+        }
+      }
     }
   },
   "additionalProperties": true

@@ -18,22 +18,19 @@ partitions:
     mbr_type: "0x83"
     filesystem: ext4
     label: RootFS
-# Boot chain: stock vendor U-Boot (2015.01, on eMMC, untouched) runs
-# aml_autoscript from SD, which runs cfgload, which bootm's kernel.img
-# (Android legacy v0: Debian kernel + initramfs) with dtb.img at dtb_addr.
-# FAT names are lowercase: vendor U-Boot lower-cases lookups, so an upper-case
-# long file name would never match.
+# Boot chain (no eMMC writes anywhere):
+#   vendor U-Boot 2015.01 on eMMC (untouched) finds one of the SD entry scripts
+#   -> it loads the pinned mainline U-Boot (u-boot.ext) and jumps to it
+#   -> mainline U-Boot finds this card by ashipaos.id and runs boot.scr
+#   -> boot.scr booti's the Debian kernel with its initramfs and mainline DTB.
+# Three entry scripts cover the ways vendor U-Boot looks at the SD card: its
+# own recovery path (aml_autoscript), a CoreELEC-installed environment
+# (cfgload) and an Armbian-style environment (s905_autoscript).
+# FAT names are lower case: vendor U-Boot lower-cases lookups before
+# comparing them with long file names.
 boot:
-  files: [aml_autoscript, cfgload, kernel.img, dtb.img, manifest.json]
-  android_header:
-    page_size: 2048
-    # Kernel base; the kernel is placed at base + its Image text_offset
-    # (0x01080000 for CoreELEC's 4.9 kernel, 0x01000000 for text_offset 0).
-    kernel_base: "0x01000000"
-    # The kernel image (incl. BSS) must end below the secure-monitor carve-out.
-    kernel_limit: "0x05000000"
-    ramdisk_addr: "0x0a000000"
-    tags_addr: "0x00000100"
-  image_load_addr: "0x20000000"  # scratch address kernel.img is fatload'ed to
-  dtb_addr: "0x10000000"         # Amlogic U-Boot reads the FDT from dtb_mem_addr
-  bootargs: "root=LABEL=RootFS rootwait rw console=tty0 console=ttyAML0,115200"
+  entry_scripts: [aml_autoscript, cfgload, s905_autoscript]
+  files: [ashipaos.id, u-boot.ext, boot.scr, Image, initrd.img, manifest.json]
+  u_boot_ext_addr: "0x01000000"  # mainline U-Boot's TEXT_BASE
+  log_addr: "0x03000000"         # scratch buffer for the SD boot-stage logs
+  bootargs: "root=LABEL=RootFS rootwait rw console=ttyAML0,115200 console=tty0"

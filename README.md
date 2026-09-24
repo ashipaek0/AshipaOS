@@ -16,6 +16,7 @@ UART only: never connect UART VCC/5 V, never use RS-232 levels.
 | Layer 1 rootfs | `layers/layer1-rootfs/scripts/build-rootfs.sh` | Debian bookworm arm64 rootfs (pinned snapshot) with kernel, initramfs, mainline DTB, Python 3.11, libmpv, Mesa |
 | Layer 5 resolve | `layers/layer5-application/scripts/jellyfin-bundle.py resolve` | hash-verified wheels from the committed lock, import-probed on the target under qemu |
 | Layer 5 install | `layers/layer5-application/scripts/build-application.sh` | Jellyfin MPV Shim bundle, launcher, and the boot service in the rootfs |
+| U-Boot | `layers/layer2-image/scripts/build-u-boot.sh` | pinned mainline U-Boot (`u-boot.ext`), chain-loaded by the vendor U-Boot |
 | Layer 2 image | `layers/layer2-image/scripts/build-image.sh` | 4 GiB DOS/MBR image: FAT16 boot + ext4 root |
 | Image gate | `layers/layer2-image/tests/image-content-tests.sh` | read-only inspection of the built image |
 | Layer 10 release | `layers/layer10-release/scripts/build-10-release.sh` | `.img.gz` and `SHA256SUMS-a95x-f3-air` |
@@ -27,3 +28,17 @@ demand; `allow_unsigned` permits placeholder signatures for development runs.
 (manual) builds and inspects the pinned stock CoreELEC image as evidence.
 
 See `ashipaos-build-guide.md` and `contracts/`.
+
+## Diagnosing a boot without a UART
+
+After a boot attempt, put the SD card in a PC and open its `A95XBOOT` partition:
+
+| File | Written by | Means |
+|---|---|---|
+| `ashipaos-stage1-vendor.txt` | box's vendor U-Boot | the SD entry script ran (which one, and the saved boot command) |
+| `ashipaos-stage2-u-boot.txt` | AshipaOS mainline U-Boot | the chain-load worked; kernel arguments and load addresses |
+| `ashipaos-stage2-u-boot-failed.txt` | AshipaOS mainline U-Boot | `booti` refused the kernel |
+| `ashipaos-stage3-linux.txt` | Linux, 60 s after boot | failed units, Jellyfin MPV Shim status, kernel log |
+
+Delete them before the next attempt so stale logs are not mistaken for new
+ones. Mainline U-Boot also prints its console on HDMI.

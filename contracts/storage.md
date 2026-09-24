@@ -6,9 +6,10 @@ The image is for removable SD media only. eMMC must never be written.
 |---|---|---|
 | MBR | 0 | DOS partition table |
 | Gap | 1..8191 | zero; no raw SD payload is written |
-| Partition 1 | 8192, 256 MiB | type `0x0e`, bootable, FAT16 labelled `A95XBOOT`: `aml_autoscript`, `cfgload`, `kernel.img`, `dtb.img`, `manifest.json` |
+| Partition 1 | 8192, 256 MiB | type `0x0e`, bootable, FAT16 labelled `A95XBOOT`: `aml_autoscript`, `cfgload`, `s905_autoscript`, `u-boot.ext`, `boot.scr`, `ashipaos.id`, `Image`, `initrd.img`, `meson-sm1-a95xf3-air.dtb`, `manifest.json`; the boot-stage logs are written here at boot |
 | Partition 2 | 532480, 3584 MiB | type `0x83`, ext4 labelled `RootFS`, mounted at `/` |
 
+Partition 1 is mounted at `/boot/firmware` (vfat, `nofail`) for the boot report.
 Application state lives under `/storage` on the root filesystem
 (`/storage/jellyfin-mpv-shim`, `/storage/apps/jellyfin-mpv-shim/slots`), owned
 by the `ashipa` service user with mode `0700`.

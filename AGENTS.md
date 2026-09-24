@@ -4,14 +4,18 @@ This branch is the Amlogic A95X F3 Air appliance track: an SD-card image that
 boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
 
 - Target: `a95x-f3-air` (S905X3), arm64, removable SD media only.
+- Unit: 4 GB RAM, 100 Mbit internal-PHY Ethernet, slimBOXtv ATV 9.20
+  (Android 9) on eMMC, no UART; see `evidence/amlogic/a95x-f3-air/`.
 - Image: Debian bookworm arm64 pinned to a snapshot.debian.org timestamp
   (`layers/layer1-rootfs/config/rootfs-config.yaml`), with Debian's mainline
-  kernel, its initramfs, and the mainline `meson-sm1-a95xf3-air-gbit.dtb` from
-  the same kernel package.
-- Boot: the box's stock vendor U-Boot runs `aml_autoscript` → `cfgload` →
-  `bootm kernel.img` from the SD card. The image contract is the DOS/MBR
-  layout with a FAT16 boot partition at sector 8192 (Android legacy
-  `kernel.img`, `dtb.img`) and an ext4 root partition at sector 532480; see
+  kernel, its initramfs, and the mainline `meson-sm1-a95xf3-air.dtb` (internal
+  PHY) from the same kernel package.
+- Boot: the box's vendor U-Boot runs an SD entry script (`aml_autoscript`,
+  `cfgload` or `s905_autoscript`), which chain-loads a pinned mainline U-Boot
+  (`u-boot.ext`, RAM-only environment), which runs `boot.scr` → `booti`. Each
+  stage writes a log to the SD card's FAT partition (no-UART diagnostics). The
+  image contract is the DOS/MBR layout with a FAT16 boot partition at sector
+  8192 and an ext4 root partition at sector 532480; see
   `contracts/boot-bundle.md` and `contracts/storage.md`.
 - Application: Jellyfin MPV Shim is installed from a hash-pinned lock
   (`layers/layer5-application/config/dependencies.lock.json`) and started at

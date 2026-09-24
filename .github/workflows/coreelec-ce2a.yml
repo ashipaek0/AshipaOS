@@ -56,17 +56,17 @@ jobs:
           gzip -dc -- "$image" > "$raw"
           start=$(sfdisk -J "$raw" | jq -er '.partitiontable.partitions[0].start')
           MTOOLS_SKIP_CHECK=1 mcopy -n -i "$raw@@$((start * 512))" \
-            ::device_trees/sm1_s905x3_4g_1gbit.dtb output/ce2a/sm1_s905x3_4g_1gbit.dtb
+            ::device_trees/sm1_s905x3_4g.dtb output/ce2a/sm1_s905x3_4g.dtb
           rm -f -- "$raw"
 
       - name: Inspect Generic image (read-only)
         run: |
-          CE2A_DTB_SHA256="$(sha256sum output/ce2a/sm1_s905x3_4g_1gbit.dtb | cut -d' ' -f1)"
+          CE2A_DTB_SHA256="$(sha256sum output/ce2a/sm1_s905x3_4g.dtb | cut -d' ' -f1)"
           export CE2A_DTB_SHA256
           bash build/coreelec/ce2a-inspect-image.sh \
             output/ce2a/evidence/CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz \
             build/coreelec/pin.json \
-            output/ce2a/sm1_s905x3_4g_1gbit.dtb \
+            output/ce2a/sm1_s905x3_4g.dtb \
             output/ce2a/inspection
 
       - name: Validate generated CE-2A manifest
@@ -85,6 +85,6 @@ jobs:
           path: |
             output/ce2a/evidence/
             output/ce2a/inspection/
-            output/ce2a/sm1_s905x3_4g_1gbit.dtb
+            output/ce2a/sm1_s905x3_4g.dtb
           if-no-files-found: warn
           retention-days: 30

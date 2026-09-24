@@ -17,7 +17,8 @@
       "Android legacy boot header",
       "page size 2048",
       "no embedded DTB"
-    ]
+    ],
+    "note": "CoreELEC's SD layout (DOS/MBR, FAT16 at sector 8192, vendor U-Boot script entry) is reused; its Android kernel.img boot is not"
   },
   "extraction_evidence": {
     "archive_sha256": "9edf06e752ed285e11a565584a2369a39b734df56bd0852ce37eee3d9ea9d16b",
@@ -55,11 +56,11 @@
     "sd_image_action": "aml_sdc_burn.UBOOT, ddr-usb.bin and meson1.dtb are not written to the SD image; they are retained for provenance/recovery only"
   },
   "generated_inputs": {
+    "u-boot.ext": "mainline U-Boot built in CI from layers/layer2-image/config/u-boot/pin.json (commit + tree) and a95x-f3-air.config",
     "kernel": "target rootfs /vmlinuz (Debian linux-image-arm64), resolved inside the rootfs to /boot; gzip payloads are decompressed to a raw arm64 Image",
     "ramdisk": "target rootfs /initrd.img (initramfs-tools), resolved inside the rootfs to /boot",
     "dtb": "mainline DTB from the same kernel package: /usr/lib/linux-image-<kver>/<build/targets mainline_boot.device_tree>",
-    "android_legacy_header": "AshipaOS self-contained legacy v0 writer; page size 2048; kernel at 0x01000000 + Image text_offset",
-    "mkimage": "u-boot-tools (script images aml_autoscript and cfgload)"
+    "scripts": "u-boot-tools mkimage script images: aml_autoscript, cfgload, s905_autoscript, boot.scr"
   },
   "hardware_claim": "none; physical boot remains unverified"
 }

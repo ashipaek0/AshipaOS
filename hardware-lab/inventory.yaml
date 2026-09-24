@@ -5,6 +5,7 @@ targets:
     type: amlogic-a95x-f3-air
     architecture: arm64
     media: removable-sd
-    uart: ttl-3v3
+    uart: ttl-3v3  # safety rule if a UART is ever attached
+    uart_access: none  # reference unit: diagnose via the SD boot-stage logs
     uart_vcc: never-connect
     emmc_write: prohibited

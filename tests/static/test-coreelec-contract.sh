@@ -22,7 +22,7 @@ with path.open(encoding="utf-8") as stream:
     target = yaml.safe_load(stream)
 
 expected = {
-    "value": "sm1_s905x3_4g_1gbit.dtb",
+    "value": "sm1_s905x3_4g.dtb",
     "install_as": "dtb.img",
     "status": "CONFIRMED",
 }
@@ -52,7 +52,7 @@ grep -q '^  wifi: UNKNOWN$' "$TARGET" || fail "target preserves Wi-Fi unknown st
 grep -q '^    final_bridge: UNKNOWN$' "$TARGET" || fail "target preserves final bridge unknown"
 grep -q 'fc61125e8900ab0c2593a29b615980ed0cd5b939' "$CONTRACT" || fail "contract records CoreELEC commit"
 grep -q 'c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a' "$CONTRACT" || fail "contract records CoreELEC archive hash"
-grep -q 'sm1_s905x3_4g_1gbit.dtb' "$CONTRACT" || fail "contract records exact DTB"
+grep -q 'sm1_s905x3_4g.dtb' "$CONTRACT" || fail "contract records exact DTB"
 grep -q 'No final bridge, compositor, launcher, `hwdec` value' "$CONTRACT" || fail "contract preserves runtime unknowns"
 grep -q 'Kodi must be excluded before image construction' "$CONTRACT" || fail "contract defines no-Kodi boundary"
 grep -q 'Package graph closure' "$CONTRACT" || fail "contract defines package closure"

@@ -2,10 +2,10 @@
 # Layer 2: A95X F3 Air removable-SD disk image.
 # Verification Class: BUILD (CI only; VM and HARDWARE gates remain open)
 #
-# Builds a DOS/MBR image with a FAT16 boot partition (aml_autoscript, cfgload,
-# Android legacy kernel.img, dtb.img) and an ext4 root partition, entirely from
-# the Layer 1/5 rootfs tarball. Nothing is written before sector 8192, and no
-# bootloader or eMMC payload is ever written.
+# Builds a DOS/MBR image with a FAT16 boot partition (vendor-U-Boot entry
+# scripts, the chain-loaded mainline U-Boot, boot.scr, kernel, initramfs, DTB)
+# and an ext4 root partition from the Layer 1/5 rootfs tarball. Nothing is
+# written before sector 8192, and nothing ever writes the box's eMMC.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,9 +21,10 @@ PARTIAL_IMAGE=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <rootfs.tar.gz> [$TARGET]
+Usage: $(basename "$0") [OPTIONS] <rootfs.tar.gz> <u-boot.bin> [$TARGET]
 
-Build the $TARGET SD image from the Layer 1/5 rootfs tarball (runs as root).
+Build the $TARGET SD image from the Layer 1/5 rootfs tarball and the
+chain-loaded mainline U-Boot from build-u-boot.sh (runs as root).
 
 Options:
   -h, --help                 Show this help
@@ -81,19 +82,18 @@ if root["start_sector"] + root["size_mb"] * 2048 > size_mb * 2048:
 if not re.fullmatch(r"[A-Z0-9_]{1,11}", boot["label"]) or not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", root["label"]):
     fail("invalid filesystem label")
 b = config["boot"]
-if b["files"] != ["aml_autoscript", "cfgload", "kernel.img", "dtb.img", "manifest.json"]:
+if b["entry_scripts"] != ["aml_autoscript", "cfgload", "s905_autoscript"]:
+    fail("vendor U-Boot entry scripts changed")
+if b["files"] != ["ashipaos.id", "u-boot.ext", "boot.scr", "Image", "initrd.img", "manifest.json"]:
     fail("boot file set changed")
-header = b["android_header"]
-addresses = {k: int(header[k], 16) for k in ("kernel_base", "kernel_limit", "ramdisk_addr", "tags_addr")}
-load_addr, dtb_addr = int(b["image_load_addr"], 16), int(b["dtb_addr"], 16)
-if header["page_size"] != 2048 or addresses["kernel_base"] % 0x200000:
-    fail("page size must be 2048 and the kernel base 2 MiB aligned")
-if not addresses["kernel_limit"] <= addresses["ramdisk_addr"] < dtb_addr < load_addr:
-    fail("kernel < ramdisk < dtb < kernel.img load address ordering is violated")
+if int(b["u_boot_ext_addr"], 16) != 0x01000000:
+    fail("u-boot.ext must load at mainline U-Boot's TEXT_BASE 0x01000000")
+if not 0x02000000 <= int(b["log_addr"], 16) < 0x05000000:
+    fail("log_addr must stay clear of u-boot.ext and the secure-monitor carve-out")
 if f"root=LABEL={root['label']}" not in b["bootargs"] or "console=ttyAML0" not in b["bootargs"]:
     fail("bootargs must select the root label and the mainline ttyAML0 console")
 dtb = target["mainline_boot"]["device_tree"]
-if not re.fullmatch(r"amlogic/meson-[a-z0-9-]+\.dtb", dtb):
+if not re.fullmatch(r"amlogic/meson-[a-z0-9-]+[.]dtb", dtb):
     fail(f"unexpected mainline DTB path: {dtb}")
 values = {
     "IMAGE_SIZE_MB": size_mb,
@@ -101,10 +101,8 @@ values = {
     "BOOT_TYPE": boot["mbr_type"][2:],
     "ROOT_START": root["start_sector"], "ROOT_SIZE_MB": root["size_mb"], "ROOT_LABEL": root["label"],
     "ROOT_TYPE": root["mbr_type"][2:],
-    "PAGE_SIZE": header["page_size"], "KERNEL_BASE": header["kernel_base"],
-    "KERNEL_LIMIT": header["kernel_limit"], "RAMDISK_ADDR": header["ramdisk_addr"],
-    "TAGS_ADDR": header["tags_addr"], "IMAGE_LOAD_ADDR": b["image_load_addr"],
-    "DTB_ADDR": b["dtb_addr"], "BOOTARGS": b["bootargs"], "MAINLINE_DTB": dtb,
+    "UBOOT_EXT_ADDR": b["u_boot_ext_addr"], "LOG_ADDR": b["log_addr"],
+    "BOOTARGS": b["bootargs"], "MAINLINE_DTB": dtb,
 }
 for key, value in values.items():
     print(f"{key}={shlex.quote(str(value))}")
@@ -147,7 +145,9 @@ rootfs_boot_file() {
     printf '%s\n' "$target"
 }
 
-make_kernel_img() {
+# Stage the kernel (as a raw arm64 Image), initramfs and mainline DTB from one
+# rootfs; nothing is taken from the build host.
+stage_kernel() {
     local rootfs="$1" bootdir="$2" kernel initrd kver dtb
     kernel="$(rootfs_boot_file "$rootfs" vmlinuz vmlinuz)"
     initrd="$(rootfs_boot_file "$rootfs" initrd.img initrd.img)"
@@ -155,114 +155,93 @@ make_kernel_img() {
     [[ "$initrd" == "/boot/initrd.img-$kver" ]] || error "kernel/initramfs version mismatch: $kernel $initrd"
     dtb="/usr/lib/linux-image-$kver/$MAINLINE_DTB"
     [[ -f "$rootfs$dtb" && ! -L "$rootfs$dtb" ]] || error "kernel package lacks the target DTB: $dtb"
-    install -m 0644 "$rootfs$dtb" "$bootdir/dtb.img"
+    install -m 0644 "$rootfs$dtb" "$bootdir/$(basename "$MAINLINE_DTB")"
+    install -m 0644 "$rootfs$initrd" "$bootdir/initrd.img"
     printf '%s\n%s\n%s\n' "$kernel" "$initrd" "$dtb" >"$WORK_DIR/boot-sources"
-
-    # Self-contained Android legacy v0 writer (Ubuntu's mkbootimg is broken).
-    python3 - "$rootfs$kernel" "$rootfs$initrd" "$bootdir/kernel.img" "$WORK_DIR/kernel-img.json" \
-        "$PAGE_SIZE" "$KERNEL_BASE" "$KERNEL_LIMIT" "$RAMDISK_ADDR" "$TAGS_ADDR" "$DTB_ADDR" "$BOOTARGS" <<'PY'
-import gzip, hashlib, json, struct, sys
+    python3 - "$rootfs$kernel" "$bootdir/Image" <<'PY'
+import gzip, sys
 from pathlib import Path
-
-kernel_path, ramdisk_path, out_path, info_path = sys.argv[1:5]
-page, base, limit, ramdisk_addr, tags_addr, dtb_addr = (int(v, 0) for v in sys.argv[5:11])
-cmdline = sys.argv[11].encode()
-
-kernel = Path(kernel_path).read_bytes()
-compression = "none"
+kernel = Path(sys.argv[1]).read_bytes()
 if kernel[:2] == b"\x1f\x8b":
-    # Vendor U-Boot bootm only reliably boots an uncompressed arm64 Image.
-    kernel, compression = gzip.decompress(kernel), "gzip"
+    kernel = gzip.decompress(kernel)
 if len(kernel) < 64 or kernel[56:60] != b"ARM\x64":
-    raise SystemExit("kernel is not an arm64 Image (missing ARM\\x64 magic)")
-text_offset, image_size = struct.unpack_from("<QQ", kernel, 8)
-image_size = image_size or len(kernel)
-kernel_addr = base + text_offset
-if kernel_addr + image_size > limit:
-    raise SystemExit(f"kernel footprint 0x{kernel_addr + image_size:x} exceeds limit 0x{limit:x}")
-ramdisk = Path(ramdisk_path).read_bytes()
-if ramdisk_addr + len(ramdisk) > dtb_addr:
-    raise SystemExit("initramfs would overlap the DTB load address")
-if len(cmdline) >= 512:
-    raise SystemExit("bootargs exceed the 512-byte Android header field")
-
-header = bytearray(page)
-header[:8] = b"ANDROID!"
-# kernel_size, kernel_addr, ramdisk_size, ramdisk_addr, second_size,
-# second_addr, tags_addr, page_size, header_version(0), os_version(0)
-struct.pack_into("<10I", header, 8, len(kernel), kernel_addr, len(ramdisk), ramdisk_addr,
-                 0, 0, tags_addr, page, 0, 0)
-header[48:64] = b"AshipaOS-A95X".ljust(16, b"\0")
-header[64:576] = cmdline.ljust(512, b"\0")
-# Legacy ID: SHA-1 over each section followed by its size.
-sha = hashlib.sha1()
-for blob in (kernel, ramdisk, b""):
-    sha.update(blob)
-    sha.update(struct.pack("<I", len(blob)))
-header[576:596] = sha.digest()
-
-pad = lambda blob: blob + b"\0" * (-len(blob) % page)
-Path(out_path).write_bytes(bytes(header) + pad(kernel) + pad(ramdisk))
-Path(info_path).write_text(json.dumps({
-    "format": "android-legacy-v0", "page_size": page,
-    "kernel": {"source_compression": compression, "size": len(kernel), "text_offset": hex(text_offset),
-               "image_size": hex(image_size), "load_addr": hex(kernel_addr),
-               "sha256": hashlib.sha256(kernel).hexdigest()},
-    "ramdisk": {"size": len(ramdisk), "load_addr": hex(ramdisk_addr),
-                "sha256": hashlib.sha256(ramdisk).hexdigest()},
-    "tags_addr": hex(tags_addr), "cmdline": cmdline.decode(),
-}), encoding="utf-8")
+    raise SystemExit("kernel is not an arm64 Image (missing ARM64 magic)")
+Path(sys.argv[2]).write_bytes(kernel)
 PY
-    [[ "$(head -c 8 "$bootdir/kernel.img")" == "ANDROID!" ]] || error "kernel.img has no Android header"
+}
+
+# Script run by vendor U-Boot through any of the entry names: record that it
+# ran (on the SD card's own FAT partition), then jump to mainline U-Boot. The
+# load and the jump are one statement, so overwriting the running script's
+# buffer cannot matter. The environment is never persisted (that would write
+# eMMC).
+vendor_entry_script() {
+    local entry="$1"
+    cat <<EOF
+echo AshipaOS: vendor U-Boot entered through $entry
+setenv ashipa_stage vendor-u-boot:$entry
+env export -t $LOG_ADDR ashipa_stage bootcmd loadaddr
+fatwrite mmc 0:1 $LOG_ADDR ashipaos-stage1-vendor.txt \${filesize}
+if fatload mmc 0:1 $UBOOT_EXT_ADDR u-boot.ext; then go $UBOOT_EXT_ADDR; fi
+echo AshipaOS: could not load u-boot.ext
+EOF
 }
 
 make_boot_scripts() {
-    local bootdir="$1"
+    local bootdir="$1" entry dtb_name
+    dtb_name="$(basename "$MAINLINE_DTB")"
     command -v mkimage >/dev/null || error "u-boot-tools (mkimage) is required"
-    # Run by the vendor U-Boot recovery path. The environment is reset in RAM
-    # only; the environment is never persisted, because that would write eMMC.
-    cat >"$WORK_DIR/aml_autoscript.txt" <<EOF
-defenv
-setenv ashipa_script_addr 0x01000000
-setenv ashipa_img_addr $IMAGE_LOAD_ADDR
-setenv dtb_mem_addr $DTB_ADDR
-setenv device mmc
-setenv devnr 0
-setenv partnr 1
-if fatload \${device} \${devnr}:\${partnr} \${ashipa_script_addr} cfgload; then autoscr \${ashipa_script_addr}; fi
+    for entry in aml_autoscript cfgload s905_autoscript; do
+        vendor_entry_script "$entry" >"$WORK_DIR/$entry.txt"
+        mkimage -A arm64 -O linux -T script -C none -n "AshipaOS $entry" \
+            -d "$WORK_DIR/$entry.txt" "$bootdir/$entry" >/dev/null
+    done
+    # Run by mainline U-Boot (u-boot.ext) from this card, found by ashipaos.id.
+    cat >"$WORK_DIR/boot.cmd" <<EOF
+echo AshipaOS: mainline U-Boot booting from mmc \${ashipa_dev}
+setenv ashipa_stage mainline-u-boot
+setenv bootargs "$BOOTARGS"
+setenv ashipa_part mmc \${ashipa_dev}:1
+env export -t $LOG_ADDR ashipa_stage ashipa_dev ver fdtfile bootargs kernel_addr_r ramdisk_addr_r fdt_addr_r
+fatwrite \${ashipa_part} $LOG_ADDR ashipaos-stage2-u-boot.txt \${filesize}
+load \${ashipa_part} \${kernel_addr_r} Image || echo AshipaOS: failed to load Image
+load \${ashipa_part} \${fdt_addr_r} $dtb_name || echo AshipaOS: failed to load $dtb_name
+load \${ashipa_part} \${ramdisk_addr_r} initrd.img || echo AshipaOS: failed to load initrd.img
+booti \${kernel_addr_r} \${ramdisk_addr_r}:\${filesize} \${fdt_addr_r}
+setenv ashipa_stage mainline-u-boot-booti-failed
+env export -t $LOG_ADDR ashipa_stage
+fatwrite \${ashipa_part} $LOG_ADDR ashipaos-stage2-u-boot-failed.txt \${filesize}
+echo AshipaOS: booti returned, see ashipaos-stage2-u-boot-failed.txt on the SD card
 EOF
-    cat >"$WORK_DIR/cfgload.txt" <<EOF
-setenv bootargs '$BOOTARGS'
-fatload \${device} \${devnr}:\${partnr} \${dtb_mem_addr} dtb.img
-fatload \${device} \${devnr}:\${partnr} \${ashipa_img_addr} kernel.img
-bootm \${ashipa_img_addr}
-EOF
-    mkimage -A arm64 -O linux -T script -C none -n A95X-AUTOSCRIPT \
-        -d "$WORK_DIR/aml_autoscript.txt" "$bootdir/aml_autoscript" >/dev/null
-    mkimage -A arm64 -O linux -T script -C none -n A95X-CFGLOAD \
-        -d "$WORK_DIR/cfgload.txt" "$bootdir/cfgload" >/dev/null
+    mkimage -A arm64 -O linux -T script -C none -n "AshipaOS boot.scr" \
+        -d "$WORK_DIR/boot.cmd" "$bootdir/boot.scr" >/dev/null
+    printf 'AshipaOS %s boot card\n' "$TARGET" >"$bootdir/ashipaos.id"
 }
 
 write_boot_manifest() {
-    local bootdir="$1" rootfs_tar="$2"
-    local sources
+    local bootdir="$1" rootfs_tar="$2" dtb_name sources
+    dtb_name="$(basename "$MAINLINE_DTB")"
     mapfile -t sources <"$WORK_DIR/boot-sources"
-    python3 - "$bootdir" "$WORK_DIR/kernel-img.json" "$rootfs_tar" "$TARGET" "$BOOT_LABEL" "$ROOT_LABEL" \
-        "$BOOT_START" "$ROOT_START" "$IMAGE_LOAD_ADDR" "$DTB_ADDR" "${sources[@]}" <<'PY'
+    python3 - "$bootdir" "$rootfs_tar" "$TARGET" "$BOOT_LABEL" "$ROOT_LABEL" "$BOOT_START" "$ROOT_START" \
+        "$UBOOT_EXT_ADDR" "$BOOTARGS" "$dtb_name" "${sources[@]}" <<'PY'
 import hashlib, json, sys
 from pathlib import Path
-bootdir, info, rootfs_tar = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
-target, boot_label, root_label, boot_start, root_start, load_addr, dtb_addr, kernel, initrd, dtb = sys.argv[4:14]
+bootdir, rootfs_tar = Path(sys.argv[1]), Path(sys.argv[2])
+target, boot_label, root_label, boot_start, root_start, ext_addr, bootargs, dtb_name, kernel, initrd, dtb = sys.argv[3:14]
 digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+names = ["aml_autoscript", "cfgload", "s905_autoscript", "u-boot.ext", "boot.scr", "ashipaos.id",
+         "Image", "initrd.img", dtb_name]
 manifest = {
-    "format": "ashipaos-a95x-boot-v2",
+    "format": "ashipaos-a95x-boot-v3",
     "target": target,
+    "chain": ["vendor U-Boot (eMMC, untouched)", "entry script", "u-boot.ext (mainline)", "boot.scr", "booti"],
     "partition": {"table": "dos", "start_sector": int(boot_start), "filesystem": "fat16", "label": boot_label},
     "root_partition": {"start_sector": int(root_start), "filesystem": "ext4", "label": root_label},
-    "files": {name: digest(bootdir / name) for name in ("aml_autoscript", "cfgload", "kernel.img", "dtb.img")},
-    "kernel_img": json.loads(info.read_text(encoding="utf-8")),
-    "load_addresses": {"kernel_img": load_addr, "dtb": dtb_addr},
+    "files": {name: digest(bootdir / name) for name in names},
+    "u_boot_ext_addr": ext_addr,
+    "bootargs": bootargs,
     "rootfs": {"archive_sha256": digest(rootfs_tar), "kernel": kernel, "initrd": initrd, "dtb": dtb},
+    "diagnostics": ["ashipaos-stage1-vendor.txt", "ashipaos-stage2-u-boot.txt", "ashipaos-stage3-linux.txt"],
     "provenance": "layers/layer2-image/files/a95x-f3-air/provenance.json",
     "hardware_claim": "none; physical boot is unverified",
 }
@@ -275,15 +254,20 @@ build_boot_partition() {
     truncate -s "${BOOT_SIZE_MB}M" "$fat"
     mkfs.fat -F 16 -S 512 -n "$BOOT_LABEL" "$fat" >/dev/null
     export MTOOLS_SKIP_CHECK=1
-    for name in aml_autoscript cfgload kernel.img dtb.img manifest.json; do
-        mcopy -o -i "$fat" "$bootdir/$name" "::$name"
+    for name in "$bootdir"/*; do
+        mcopy -o -i "$fat" "$name" "::$(basename "$name")"
     done
     dd if="$fat" of="$image" bs=512 seek="$BOOT_START" conv=notrunc,sparse status=none
 }
 
 build_root_partition() {
     local image="$1" rootfs="$2" ext4="$WORK_DIR/root.ext4"
-    printf 'LABEL=%s\t/\text4\tdefaults,noatime\t0\t1\n' "$ROOT_LABEL" >"$rootfs/etc/fstab"
+    {
+        printf 'LABEL=%s\t/\text4\tdefaults,noatime\t0\t1\n' "$ROOT_LABEL"
+        # The boot partition carries the no-UART boot-stage logs.
+        printf 'LABEL=%s\t/boot/firmware\tvfat\tdefaults,nofail,umask=0022\t0\t0\n' "$BOOT_LABEL"
+    } >"$rootfs/etc/fstab"
+    mkdir -p "$rootfs/boot/firmware"
     truncate -s "${ROOT_SIZE_MB}M" "$ext4"
     mkfs.ext4 -q -F -L "$ROOT_LABEL" -d "$rootfs" "$ext4"
     dd if="$ext4" of="$image" bs=512 seek="$ROOT_START" conv=notrunc,sparse status=none
@@ -326,11 +310,13 @@ PY
 }
 
 build_image() {
-    local rootfs_tar="$1" rootfs bootdir final_image
+    local rootfs_tar="$1" uboot="$2" rootfs bootdir final_image
     for cmd in sfdisk mkfs.fat mcopy mkfs.ext4 mkimage python3 tar; do
         command -v "$cmd" >/dev/null || error "missing dependency: $cmd"
     done
     [[ -f "$rootfs_tar" ]] || error "rootfs tarball not found: $rootfs_tar"
+    [[ -s "$uboot" ]] || error "u-boot.bin not found: $uboot"
+    grep -aq 'ashipaos-a95x-f3-air' "$uboot" || error "$uboot is not the AshipaOS A95X U-Boot build"
     rootfs_tar="$(realpath "$rootfs_tar")"
     mkdir -p "$OUTPUT_DIR"
     final_image="$OUTPUT_DIR/ashipaos-$TARGET-$(date -u +%Y%m%d).img"
@@ -343,7 +329,8 @@ build_image() {
     log "Extracting $rootfs_tar"
     tar -C "$rootfs" --numeric-owner --xattrs --acls -xpzf "$rootfs_tar"
 
-    make_kernel_img "$rootfs" "$bootdir"
+    stage_kernel "$rootfs" "$bootdir"
+    install -m 0644 "$uboot" "$bootdir/u-boot.ext"
     make_boot_scripts "$bootdir"
     write_boot_manifest "$bootdir" "$rootfs_tar"
 
@@ -378,18 +365,18 @@ main() {
             PARTIAL_IMAGE=""
             return 0 ;;
     esac
-    if [[ $# -lt 1 || $# -gt 2 ]]; then
+    if [[ $# -lt 2 || $# -gt 3 ]]; then
         usage >&2
         exit 2
     fi
-    [[ "${2:-$TARGET}" == "$TARGET" ]] || error "unsupported target: $2"
+    [[ "${3:-$TARGET}" == "$TARGET" ]] || error "unsupported target: $3"
     if [[ $EUID -ne 0 ]]; then
         # Root keeps rootfs ownership intact while the ext4 tree is staged.
         exec sudo --preserve-env=GITHUB_WORKSPACE,GITHUB_RUN_ID,RUNNER_TEMP,ASHIPAOS_IMAGE_CONFIG,ASHIPAOS_IMAGE_DIR,ASHIPAOS_EVIDENCE_DIR \
             bash "${BASH_SOURCE[0]}" "$@"
     fi
     load_config
-    build_image "$1"
+    build_image "$1" "$2"
 }
 
 main "$@"

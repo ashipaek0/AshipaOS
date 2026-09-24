@@ -235,6 +235,15 @@ install_boot_status() {
     in_rootfs systemctl enable ashipaos-boot-status.service ashipaos-boot-success.service
 }
 
+# No-UART diagnostics: always installed.
+install_boot_report() {
+    install -D -m 0755 "$OVERLAY_DIR/usr/libexec/ashipaos-boot-report" \
+        "$ROOTFS/usr/libexec/ashipaos-boot-report"
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-boot-report.service" \
+        "$ROOTFS/etc/systemd/system/ashipaos-boot-report.service"
+    in_rootfs systemctl enable ashipaos-boot-report.service
+}
+
 minimize_rootfs() {
     in_rootfs apt-get clean
     find "$ROOTFS/usr/share/doc" -type f ! -name copyright -delete 2>/dev/null || true
@@ -338,6 +347,7 @@ main() {
     install_packages
     configure_system
     install_boot_status
+    install_boot_report
     minimize_rootfs
     rm -f "$ROOTFS/usr/sbin/policy-rc.d"
     cleanup_mounts

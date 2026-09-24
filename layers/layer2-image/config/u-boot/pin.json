@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "purpose": "mainline U-Boot chain-loaded from SD by the box's vendor U-Boot (u-boot.ext)",
+  "repository": "https://github.com/u-boot/u-boot.git",
+  "tag": "v2024.07",
+  "tag_object": "7522739c854f48b435be83c9eaba541f3a6be0e8",
+  "commit": "3f772959501c99fbe5aa0b22a36efe3478d1ae1c",
+  "tree": "85e865b4f952c04a11fd9029bf5edf49818d202d",
+  "base_defconfig": "bananapi-m5_defconfig",
+  "config_fragment": "layers/layer2-image/config/u-boot/a95x-f3-air.config",
+  "device_tree": "amlogic/meson-sm1-a95xf3-air",
+  "text_base": "0x01000000",
+  "cross_compile": "aarch64-linux-gnu-"
+}

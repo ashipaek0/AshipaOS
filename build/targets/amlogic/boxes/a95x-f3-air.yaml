@@ -24,7 +24,7 @@ kernel_branch:
   status: UNKNOWN
 
 device_tree:
-  value: sm1_s905x3_4g_1gbit.dtb
+  value: sm1_s905x3_4g.dtb
   install_as: dtb.img
   partition: fat-boot-root
   status: CONFIRMED
@@ -32,7 +32,9 @@ device_tree:
     - class: MANUAL
       runner: human
       target: a95x-f3-air
-      source: CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic baseline
+      source: owner boots CoreELEC from SD with this dtb.img
+      file: evidence/amlogic/a95x-f3-air/device-tree/sm1_s905x3_4g.dtb
+      sha256: 3c51d8a67b447f3f2afdcdb7ad5993f40a2e5d57cda905b43459d8b6660c48fc
 
 # This is target-owned baseline metadata, not a claim about completed
 # AshipaOS replacement integration.
@@ -72,13 +74,36 @@ coreelec_baseline:
 # Boot payload the AshipaOS image actually ships. The image boots Debian's
 # mainline arm64 kernel, which cannot use the CoreELEC 4.9 vendor DTB above
 # (or the stock Android meson1.dtb), so it boots the matching mainline DTB
-# from the same kernel package. PROVISIONAL until hardware UART evidence exists.
+# from the same kernel package: the internal-PHY (100 Mbit) variant, matching
+# this unit. The vendor U-Boot chain-loads a pinned mainline U-Boot
+# (layers/layer2-image/config/u-boot/) which boots the kernel.
+# PROVISIONAL until a boot on the exact unit is evidenced (no UART: the SD
+# boot-stage logs are the evidence path).
 mainline_boot:
   kernel_package: linux-image-arm64
-  device_tree: amlogic/meson-sm1-a95xf3-air-gbit.dtb
+  device_tree: amlogic/meson-sm1-a95xf3-air.dtb
+  bootloader: mainline-u-boot-chainload
   console: ttyAML0
   status: PROVISIONAL
   evidence: []
+
+stock_firmware:
+  value: slimBOXtv ATV 9.20 (A95X_F3_AIR_M-9.0.0-202006121521, Android 9)
+  u_boot_environment: rewritten by CoreELEC aml_autoscript (runs cfgload from SD at power-on)
+  status: CONFIRMED
+  evidence:
+    - class: MANUAL
+      runner: human
+      source: evidence/amlogic/a95x-f3-air/README.md
+
+ethernet:
+  speed: 100M
+  phy: internal
+  status: CONFIRMED
+  evidence:
+    - class: MANUAL
+      runner: human
+      source: owner report; internal_phy = <1> in the CoreELEC dtb above
 
 wifi:
   driver: null
@@ -91,9 +116,12 @@ bluetooth:
   evidence: []
 
 ram:
-  variants: []
-  status: UNKNOWN
-  evidence: []
+  variants: [4GB]
+  status: CONFIRMED
+  evidence:
+    - class: MANUAL
+      runner: human
+      source: owner report; usable memory in the CoreELEC dtb above
 
 ir:
   receiver: null

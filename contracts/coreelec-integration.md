@@ -21,7 +21,7 @@ govern any future CoreELEC-based integration.
 |---|---|---|
 | CoreELEC source | `CONFIRMED` | `ashipaek0/CoreELEC`, tag `21.3-Omega`, commit `fc61125e8900ab0c2593a29b615980ed0cd5b939`; source archive SHA256 `c31d4d047682915190fbfc16b46134e7d0a6bb8a119edee59a31b0b2b332a73a` |
 | CoreELEC build tuple | `CONFIRMED` | `PROJECT=Amlogic-ce`, `DEVICE=Amlogic-ng`, `ARCH=arm`, `OFFICIAL=yes`; artifact `CoreELEC-Amlogic-ng.arm-21.3-Omega-Generic.img.gz` |
-| Target DTB | `CONFIRMED` | `sm1_s905x3_4g_1gbit.dtb`, copied to the FAT boot-partition root and renamed `dtb.img` |
+| Target DTB | `CONFIRMED` | `sm1_s905x3_4g.dtb`, copied to the FAT boot-partition root and renamed `dtb.img` |
 | Amlogic-ng options | `CONFIRMED` | `Image.lzo`, `kernel.img`, `DISPLAYSERVER=no`, `OPENGLES=opengl-meson`, `ALSA_SUPPORT=yes`, `KODIPLAYER_DRIVER=libamcodec`, `AMREMOTE_SUPPORT=yes` |
 | CoreELEC Python | `CONFIRMED` | version `3.11.9` |
 | ffmpeg | `CONFIRMED` | version `6.0.1` |

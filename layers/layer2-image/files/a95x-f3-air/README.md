@@ -13,12 +13,12 @@ SHA-256 values are recorded in `provenance.json` and checked by
 None of these are written to the image; they are kept for provenance and
 recovery only. The image never writes sectors 1..8191 and never touches eMMC.
 
-The image boots through the vendor U-Boot already on the box: its SD recovery
-path runs `aml_autoscript`, which runs `cfgload`, which loads `dtb.img` and
-`bootm`s `kernel.img`. `kernel.img` wraps Debian's mainline arm64 kernel and
-initramfs from the rootfs, and `dtb.img` is the mainline DTB shipped by the same
-kernel package (`build/targets/amlogic/boxes/a95x-f3-air.yaml`,
-`mainline_boot`). The stock `meson1.dtb` cannot be used for that kernel.
+The image boots through the vendor U-Boot already on the box: an SD entry
+script (`aml_autoscript`, `cfgload` or `s905_autoscript`) chain-loads the
+pinned mainline U-Boot (`u-boot.ext`), which boots Debian's mainline kernel,
+initramfs and the mainline DTB shipped by the same kernel package
+(`build/targets/amlogic/boxes/a95x-f3-air.yaml`, `mainline_boot`). The stock
+`meson1.dtb` cannot be used for that kernel.
 
-Physical boot is unverified. Test only from removable SD, with a 3.3 V TTL UART
-(never connect VCC; never RS-232 levels).
+Physical boot is unverified. Test only from removable SD. The reference unit has
+no UART: read the `ashipaos-stage*.txt` logs from the SD card instead.
