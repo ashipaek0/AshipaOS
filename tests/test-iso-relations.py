@@ -100,6 +100,16 @@ El Torito img path :   2  /efi.img
             out.seek(0); out.write(bytes(440))
         self.bad()
 
+    def test_xorriso_apm_block0_is_accepted(self):
+        with self.iso.open('r+b') as out:
+            out.seek(0); out.write(b'ER\x08\x00\xeb\x02\xff\xff')
+        self.valid()
+
+    def test_other_bytes_over_bootstrap_start_are_rejected(self):
+        with self.iso.open('r+b') as out:
+            out.seek(0); out.write(b'ER\x08\x00\x90\x90\x90\x90')
+        self.bad()
+
     def test_non_grub_bootstrap_is_rejected(self):
         with self.iso.open('r+b') as out:
             out.seek(10); out.write(b'not-grub')

@@ -3,8 +3,15 @@ set -Eeuo pipefail
 archive=${1:?initramfs archive}; command -v gzip >/dev/null; command -v cpio >/dev/null; command -v file >/dev/null; command -v readelf >/dev/null
 root=$(mktemp -d); trap 'rm -rf "$root"' EXIT
 gzip -dc "$archive" | (cd "$root" && cpio -idm --quiet)
-for required in init installer/discover-source.sh installer/select-target.sh installer/install.sh bin/bash usr/bin/mount usr/bin/findmnt usr/bin/blkid etc/ashipaos-runtime.commands; do
+for required in init installer/discover-source.sh installer/select-target.sh installer/install.sh bin/bash etc/ashipaos-runtime.commands; do
   [[ -e "$root/$required" ]] || { echo "initramfs missing $required" >&2; exit 1; }
+done
+# The kernel starts /init with PATH=/sbin:/usr/sbin:/bin:/usr/bin; hosts differ
+# on which of these hold a command (Ubuntu 24.04 ships blkid in /usr/sbin).
+for command_name in mount findmnt blkid; do
+  found=0
+  for dir in sbin usr/sbin bin usr/bin; do [[ -e "$root/$dir/$command_name" ]] && found=1; done
+  (( found )) || { echo "initramfs missing $command_name on the init PATH" >&2; exit 1; }
 done
 # Every absolute or repository-relative shell source in the shipped scripts
 # must also be present; keep this list derived rather than hand-maintained.
@@ -12,14 +19,18 @@ while IFS= read -r sourced; do
   [[ -n "$sourced" ]] || continue
   [[ -e "$root/$sourced" ]] || { echo "initramfs missing sourced helper: $sourced" >&2; exit 1; }
 done < <(grep -hE '^[[:space:]]*(source|\.)[[:space:]]+"?(\$ROOT_DIR/)?installer/[A-Za-z0-9_.-]+\.sh' "$root/init" "$root/installer"/*.sh 2>/dev/null | sed -E 's/.*(installer\/[A-Za-z0-9_.-]+\.sh).*/\1/' | sort -u)
+# List once: `find | grep -q` under pipefail fails spuriously when grep exits
+# early and find dies of SIGPIPE on a real-sized tree.
+files=$(find "$root" \( -type f -o -type l \) -printf '/%P\n')
 while IFS= read -r command_name; do
   [[ -n "$command_name" ]] || continue
-  find "$root" -type f -o -type l | grep -Eq "/${command_name//./\\.}$" || { echo "initramfs missing runtime command: $command_name" >&2; exit 1; }
+  grep -Eq "/${command_name//./\\.}$" <<<"$files" || { echo "initramfs missing runtime command: $command_name" >&2; exit 1; }
 done < "$root/etc/ashipaos-runtime.commands"
 [[ -x "$root/init" && -x "$root/installer/select-target.sh" && -x "$root/installer/install.sh" ]] || { echo 'initramfs executable bit missing' >&2; exit 1; }
 find "$root" -type f \( -name '*.img' -o -name '*.img.zst' -o -name '*.manifest' \) -print -quit | grep -q . && { echo 'appliance payload must not be in initramfs' >&2; exit 1; }
 while IFS= read -r script; do
-  shebang=$(head -n1 "$script"); [[ "$shebang" == '#!'* ]] || continue
+  [[ "$(head -c2 "$script")" == '#!' ]] || continue
+  shebang=$(head -n1 "$script")
   interp=${shebang#\#!}; interp=${interp%% *}; [[ "$interp" == /* ]] || continue
   [[ -x "$root$interp" ]] || { echo "missing script interpreter $interp" >&2; exit 1; }
 done < <(find "$root" -type f -perm /111)

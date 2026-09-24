@@ -28,10 +28,10 @@ command -v mkfs.vfat >/dev/null || { echo 'mkfs.vfat is required' >&2; exit 1; }
 esp="$tmp/efi.img"; truncate -s 16M "$esp"; mkfs.vfat "$esp" >/dev/null
 command -v mcopy >/dev/null || { echo 'mtools is required' >&2; exit 1; }; mmd -i "$esp" ::EFI ::EFI/BOOT; mcopy -i "$esp" "$tmp/EFI/BOOT/BOOTX64.EFI" ::EFI/BOOT/BOOTX64.EFI
 mkdir -p "$(dirname "$out")"
-# grub-mkrescue creates the authoritative i386-pc El Torito image.  These
-# xorriso options add the GRUB2 hybrid MBR and boot-info patching; do not use
-# the ISOLINUX isohybrid template.
-grub-mkrescue -o "$tmp/image.iso" "$tmp" -- \
-  -iso-level 3 -boot_image grub2_mbr=/usr/lib/grub/i386-pc/boot_hybrid.img \
-  -boot_image grub2_boot_info=on -boot-load-size 4 -boot-info-table
+# grub-mkrescue creates the i386-pc and UEFI El Torito images and already
+# adds the GRUB2 hybrid MBR (boot_hybrid.img) and boot-info patching. Options
+# after -- reach xorriso in native command mode, where mkisofs-style flags
+# such as -boot-info-table are rejected; only raise the ISO level so payload
+# files over 4 GiB fit.
+grub-mkrescue -o "$tmp/image.iso" "$tmp" -- -compliance iso_9660_level=3
 mv "$tmp/image.iso" "$out"; sha256sum "$out" > "$out.sha256"

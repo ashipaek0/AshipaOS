@@ -16,7 +16,8 @@ qemu_version=$(qemu-system-x86_64 --version | head -n1)
 declare -a vars_files=()
 stage_args() {
   local stage=$1 mode=$2
-  args=(-nographic -serial stdio -m 2048 -nic none -no-reboot)
+  # -nographic would also claim stdio for the monitor and clash with -serial.
+  args=(-display none -serial stdio -m 2048 -nic none -no-reboot)
   # Stages write and hash a 20 GiB image; software emulation cannot do that
   # inside the stage timeout, so use KVM whenever the runner exposes it.
   if [[ -r /dev/kvm && -w /dev/kvm ]]; then args+=(-accel kvm -cpu host); fi

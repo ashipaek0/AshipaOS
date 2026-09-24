@@ -39,7 +39,13 @@ def validate(report, tree, iso, boot_hybrid, mdir='mdir', zstd='zstd'):
         fail('invalid GRUB boot_hybrid.img template')
     if len(image) < 32768 or image[510:512] != b'\x55\xaa':
         fail('missing or truncated ISO system-area MBR')
-    if image[:432] != template[:432] or image[436:440] != template[436:440]:
+    # grub-mkrescue also writes an Apple Partition Map, whose block 0 replaces
+    # the first 8 bytes with xorriso's executable APM header: "ER\x08\x00"
+    # followed by a jmp over the rest of it into GRUB's NOP sled.
+    apm_block0 = b'ER\x08\x00\xeb\x02\xff\xff'
+    if image[:8] not in (template[:8], apm_block0):
+        fail('GRUB BIOS hybrid bootstrap does not match boot_hybrid.img')
+    if image[8:432] != template[8:432] or image[436:440] != template[436:440]:
         fail('GRUB BIOS hybrid bootstrap does not match boot_hybrid.img')
     records = [image[offset:offset+16] for offset in range(446, 510, 16)]
     if not any(row[0] in (0, 0x80) and row[4] != 0 and int.from_bytes(row[8:12], 'little') > 0 and int.from_bytes(row[12:16], 'little') > 0 for row in records):

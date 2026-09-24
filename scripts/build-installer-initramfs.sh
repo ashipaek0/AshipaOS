@@ -10,7 +10,9 @@ copy_runtime() {
   local src=$1 dst="$tmp$1" lib line
   [[ -e "$src" || -L "$src" ]] || { echo "missing initramfs runtime: $src" >&2; exit 1; }
   mkdir -p "$(dirname "$dst")"; cp -aL "$src" "$dst"
-  if file "$src" 2>/dev/null | grep -q 'dynamically linked'; then
+  # -L: many commands are symlinks (pvs -> lvm, awk -> mawk, reboot ->
+  # systemctl) and their libraries must still be copied.
+  if file -L "$src" 2>/dev/null | grep -q 'dynamically linked'; then
     # ldd prints the ELF interpreter as a bare /lib... line, not an => entry.
     interp=$(readelf -l "$src" 2>/dev/null | sed -n 's/.*Requesting program interpreter: \([^]]*\)].*/\1/p' | tr -d ' ' || true)
     if [[ -n "${interp:-}" && -e "$interp" ]]; then mkdir -p "$tmp$(dirname "$interp")"; cp -aL "$interp" "$tmp$interp"; fi
@@ -21,7 +23,7 @@ copy_runtime() {
     done < <(ldd "$src" 2>/dev/null || true)
   fi
 }
-runtime_commands=(bash env mount umount switch_root zstd dd stat sha256sum awk head install readlink sed cat sync sfdisk sgdisk parted flock grep find findmnt blkid lsblk e2fsck resize2fs partprobe udevadm modprobe pvs dmsetup mdadm reboot poweroff mktemp rm rmdir dirname mkdir readelf)
+runtime_commands=(bash env ln mount umount switch_root zstd dd stat sha256sum awk head install readlink sed cat sync sfdisk sgdisk parted flock grep find findmnt blkid lsblk e2fsck resize2fs partprobe udevadm modprobe pvs dmsetup mdadm reboot poweroff mktemp rm rmdir dirname mkdir readelf)
 for cmd in "${runtime_commands[@]}"; do
   src=$(command -v "$cmd" || true)
   [[ -n "$src" ]] || { echo "missing initramfs runtime command: $cmd" >&2; exit 1; }
@@ -56,6 +58,10 @@ set -Eeuo pipefail
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
+# devtmpfs lacks the /dev/fd links udev normally creates; bash process
+# substitution (used by the selector) needs them.
+ln -sfn /proc/self/fd /dev/fd
+ln -sfn /proc/self/fd/0 /dev/stdin; ln -sfn /proc/self/fd/1 /dev/stdout; ln -sfn /proc/self/fd/2 /dev/stderr
 udevadm trigger --action=add || true
 udevadm settle --timeout=20 || { echo "udev did not settle" >&2; exit 1; }
 essential_modules=(virtio_pci virtio_blk sr_mod isofs ext4)
