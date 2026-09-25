@@ -42,3 +42,22 @@ Jellyfin MPV Shim 3.0.0 sets mpv 0.37+/0.38+ options unconditionally; Debian
 bookworm ships libmpv 0.35.1. The image moves to Debian trixie (libmpv 0.40).
 The vendor DTB's `wifi` node (`dhd_static_buf`, Broadcom DHD) and the SDIO card
 on `mmc2` indicate a Broadcom Wi-Fi module; its exact chip ID is PROVISIONAL.
+
+## Third boot (2026-09-25, image from commit c12b050, Debian trixie)
+
+Logs in `boot-2026-09-25/`. Owner report: the box booted into the Jellyfin MPV
+Shim login screen; neither the remote nor a USB mouse could focus or type in
+the entry boxes; the remote's power key turned the box off; Wi-Fi status
+unknown.
+
+- The shim ran (kernel `6.12.107+deb13-arm64`, libmpv 0.40) with mpv's DRM
+  output. That output has no mouse support and libmpv ignores console input,
+  so no input reached the app. The "remote" is the XING WEI 2.4G USB dongle
+  (HID keyboard, mouse, consumer/system control); its power key works because
+  systemd handles KEY_POWER. The app now runs inside the cage kiosk compositor.
+- Wi-Fi is a Realtek RTL8822CS: SDIO `vendor=0x024c device=0xc822`, driver
+  `rtw_8822cs` bound, firmware `rtw88/rtw8822c_fw.bin` missing (the image
+  carried Broadcom firmware). `wifi.txt` was imported (network `NXNEW`).
+- The GitHub source archive lacks the default shader pack; the app is now
+  installed from PyPI's wheel, whose Python files are checked byte-for-byte
+  against the pinned source commit.

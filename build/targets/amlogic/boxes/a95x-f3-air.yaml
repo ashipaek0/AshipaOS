@@ -111,13 +111,15 @@ ethernet:
       source: owner report; internal_phy = <1> in the CoreELEC dtb above
 
 wifi:
-  driver: brcmfmac
-  chip: Broadcom SDIO module (exact ID pending; vendor DTB uses the DHD driver)
+  driver: rtw_8822cs
+  chip: Realtek RTL8822CS (SDIO 024c:c822)
+  firmware: rtw88/rtw8822c_fw.bin (Debian firmware-realtek)
+  # Chip identity is CONFIRMED; association and DHCP are not yet evidenced.
   status: PROVISIONAL
   evidence:
     - class: HARDWARE
       runner: human
-      source: evidence/amlogic/a95x-f3-air/boot-2026-09-24b/ (SDIO card on mmc2); vendor DTB wifi node
+      source: evidence/amlogic/a95x-f3-air/boot-2026-09-25/ (SDIO IDs, rtw_8822cs probe)
 
 bluetooth:
   supported: null

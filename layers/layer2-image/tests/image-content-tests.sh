@@ -103,7 +103,8 @@ for f in /usr/libexec/ashipaos-jellyfin-mpv-shim \
          /etc/systemd/system/ashipaos-boot-report.service \
          /usr/libexec/ashipaos-wifi-import \
          /etc/systemd/system/ashipaos-wifi-import.service \
-         /etc/iwd/main.conf; do
+         /etc/iwd/main.conf \
+         /etc/systemd/system/seatd.service.d/ashipaos.conf; do
     debugfs -R "stat $f" "$root_fs" 2>/dev/null | grep -q 'Type: regular' || fail "root filesystem is missing $f"
 done
 [[ -z "$(debugfs -R 'cat /etc/machine-id' "$root_fs" 2>/dev/null)" ]] || fail "image carries a fixed machine-id"

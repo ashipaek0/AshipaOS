@@ -19,7 +19,10 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
   `contracts/boot-bundle.md` and `contracts/storage.md`.
 - Application: Jellyfin MPV Shim is installed from a hash-pinned lock
   (`layers/layer5-application/config/dependencies.lock.json`) and started at
-  boot by `ashipaos-jellyfin-mpv-shim.service` (user `ashipa`, tty1, DRM/KMS).
+  boot by `ashipaos-jellyfin-mpv-shim.service` (user `ashipa`) inside the `cage`
+  Wayland kiosk compositor on `seatd`, which delivers keyboard/mouse/remote
+  input. Wi-Fi is a Realtek RTL8822CS (`firmware-realtek`), configured from
+  `wifi.txt` on the boot partition.
 - CoreELEC: `build/coreelec/` pins and inspects the stock CoreELEC baseline as
   hardware-fact evidence only; nothing from it is copied into the image.
 - Full image builds run in GitHub Actions only; local full image builds are not

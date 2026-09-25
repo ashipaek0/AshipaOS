@@ -43,6 +43,15 @@ VERSION = "3.0.0"
 SOURCE_COMMIT = "9970b2dc4a91f0c96a9fa5a1fcecf6a69331e315"
 SOURCE_URL = f"https://github.com/jellyfin/jellyfin-mpv-shim/archive/{SOURCE_COMMIT}.tar.gz"
 SOURCE_SHA256 = "c27b8ae2d698a152052586149b30b3125d82f9ac7695d2b32ca865ef6bd7f731"
+# The installed application is PyPI's wheel for this release: unlike the
+# GitHub archive it carries the default shader pack and compiled translations.
+# resolve proves every Python file in it is byte-identical to SOURCE_COMMIT.
+APP_WHEEL = {
+    "name": NAME, "version": VERSION,
+    "filename": "jellyfin_mpv_shim-3.0.0-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/aa/4b/ecb13979bf39d6e07fb61ca48f4eec4058e8cd0c4c78636db00904ac401d/jellyfin_mpv_shim-3.0.0-py3-none-any.whl",
+    "sha256": "3fd0149f43222d9e6848de3c6f12696381aa57eddaa9c573662257cddde9911b",
+}
 REQUIRED = ["python-mpv>=1.0.8", "jellyfin-apiclient-python>=1.18.0",
             "python-mpv-jsonipc>=1.4.0", "requests", "pillow"]
 BUILD = ["setuptools>=77", "wheel"]
@@ -173,6 +182,9 @@ def load_lock(path: pathlib.Path) -> dict[str, Any]:
     if lock.get("source") != {"name": NAME, "version": VERSION, "commit": SOURCE_COMMIT,
                               "url": SOURCE_URL, "sha256": SOURCE_SHA256, "requirements": REQUIRED}:
         raise ValueError("dependency lock source does not match the pinned application source")
+    if lock.get("application") != APP_WHEEL:
+        raise ValueError("dependency lock application wheel does not match the pinned wheel")
+    check_artifact(lock["application"])
     artifacts = lock.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         raise ValueError("dependency lock has no artifacts")
@@ -254,6 +266,17 @@ def install_closure(lock: dict[str, Any], artifacts_dir: pathlib.Path,
         if not wheel.is_file() or sha256(wheel) != item["sha256"]:
             raise ValueError(f"artifact missing or hash mismatch: {item['filename']}")
         install_wheel(wheel, site)
+    app = artifacts_dir / lock["application"]["filename"]
+    if not app.is_file() or sha256(app) != lock["application"]["sha256"]:
+        raise ValueError(f"application wheel missing or hash mismatch: {app.name}")
+    verify_wheel_matches_source(app, source_archive)
+    install_wheel(app, site)
+    if not (site / "jellyfin_mpv_shim" / "default_shader_pack" / "pack.json").is_file():
+        raise ValueError("installed application lacks the default shader pack")
+
+
+def verify_wheel_matches_source(wheel: pathlib.Path, source_archive: pathlib.Path) -> None:
+    """Every Python file of the app in the wheel must equal the pinned source."""
     source_metadata(source_archive)
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
@@ -261,7 +284,16 @@ def install_closure(lock: dict[str, Any], artifacts_dir: pathlib.Path,
         package = next(root.glob("*/jellyfin_mpv_shim"), None)
         if package is None or not (package / "mpv_shim.py").is_file():
             raise ValueError("pinned source archive lacks the jellyfin_mpv_shim package")
-        shutil.copytree(package, site / "jellyfin_mpv_shim", dirs_exist_ok=False)
+        source = {str(p.relative_to(package.parent)): p.read_bytes() for p in package.rglob("*.py")}
+    with zipfile.ZipFile(wheel) as archive:
+        built = {n: archive.read(n) for n in archive.namelist()
+                 if n.startswith("jellyfin_mpv_shim/") and n.endswith(".py")}
+    if set(built) != set(source):
+        raise ValueError("wheel and pinned source differ in their Python files: "
+                         + ", ".join(sorted(set(built) ^ set(source))[:10]))
+    differing = sorted(name for name in source if source[name] != built[name])
+    if differing:
+        raise ValueError("wheel Python files differ from the pinned source: " + ", ".join(differing[:10]))
 
 
 PROBE = r'''import ctypes, ctypes.util, importlib, json, pathlib, sys
@@ -331,6 +363,7 @@ def cmd_update_lock(args: argparse.Namespace) -> int:
                        "platform_tag": PLATFORM_TAG, "architecture": "arm64"},
             "source": {k: meta[k] for k in ("name", "version", "commit", "url", "sha256", "requirements")},
             "forbidden_debian_package": FORBIDDEN[0],
+            "application": APP_WHEEL,
             "artifacts": sorted(artifacts, key=lambda a: canonicalize_name(a["name"]))}
     args.lock.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
     load_lock(args.lock)
@@ -352,7 +385,7 @@ def cmd_resolve(args: argparse.Namespace) -> int:
         with tempfile.TemporaryDirectory(prefix="ashipaos-resolve-", ignore_cleanup_errors=True) as tmp:
             work = pathlib.Path(tmp)
             verify_closure(lock, work)
-            for item in lock["artifacts"]:
+            for item in [*lock["artifacts"], lock["application"]]:
                 download(item["url"], args.artifacts_dir / item["filename"], item["sha256"])
             site = work / "site-packages"
             install_closure(lock, args.artifacts_dir, source, site)

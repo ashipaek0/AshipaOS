@@ -23,6 +23,13 @@
     ]
   },
   "forbidden_debian_package": "python3-mpv",
+  "application": {
+    "name": "jellyfin-mpv-shim",
+    "version": "3.0.0",
+    "filename": "jellyfin_mpv_shim-3.0.0-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/aa/4b/ecb13979bf39d6e07fb61ca48f4eec4058e8cd0c4c78636db00904ac401d/jellyfin_mpv_shim-3.0.0-py3-none-any.whl",
+    "sha256": "3fd0149f43222d9e6848de3c6f12696381aa57eddaa9c573662257cddde9911b"
+  },
   "artifacts": [
     {
       "name": "certifi",

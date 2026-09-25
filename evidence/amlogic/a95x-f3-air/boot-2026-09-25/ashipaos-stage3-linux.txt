@@ -1,0 +1,551 @@
+== AshipaOS boot report (stage 3: Linux userspace) ==
+2026-04-13T19:48:16Z (may be wrong before NTP)
+uptime: 617.96 2405.67
+report written by: /usr/libexec/ashipaos-boot-report (rewritten 1, 3 and 10 minutes after boot)
+kernel: Linux ashipaos 6.12.107+deb13-arm64 #1 SMP Debian 6.12.107-1 (2026-08-29) aarch64 GNU/Linux
+cmdline: root=LABEL=RootFS rootwait rw console=ttyAML0,115200 console=tty0
+model: Shenzhen CYX Industrial Co., Ltd A95XF3-AIR
+
+== failed units ==
+
+== jellyfin mpv shim ==
+● ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim
+     Loaded: loaded (/etc/systemd/system/ashipaos-jellyfin-mpv-shim.service; enabled; preset: enabled)
+     Active: active (running) since Mon 2026-04-13 19:38:16 UTC; 9min ago
+ Invocation: 1af4482533f749399b3620341eaf6bb4
+   Main PID: 571 (python3)
+      Tasks: 28 (limit: 4209)
+     Memory: 219.1M (peak: 225.2M)
+        CPU: 12.172s
+     CGroup: /system.slice/ashipaos-jellyfin-mpv-shim.service
+             ├─571 /usr/bin/python3 -s -c "from jellyfin_mpv_shim.mpv_shim import main; main()"
+             └─619 /usr/bin/python3 -s -c "from multiprocessing.resource_tracker import main;main(20)"
+
+== jellyfin mpv shim log (this boot, all priorities) ==
+[   18.127865] ashipaos systemd[1]: Started ashipaos-jellyfin-mpv-shim.service - AshipaOS Jellyfin MPV Shim.
+[   21.640642] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:19,737 [    INFO] root: text shaping: raqm=yes
+[   25.703707] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:23,800 [    INFO] player: Using libmpv playback backend.
+[   25.711525] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:23,808 [    INFO] window: CREATE mpv (first) <- jellyfin_mpv_shim.player.__init__:844
+[   26.026765] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:24,123 [   ERROR] mpv: vo/gpu/drm: Can't handle VT release - signal already used
+[   26.027345] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:24,124 [ WARNING] mpv: vo/gpu/drm: Failed to set up VT switcher. Terminal switching will be unavailable.
+[   31.889065] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:29,986 [    INFO] player: This mpv cannot give up its window on request (needs 0.41+); minimizing will quit mpv instead.
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:29,989 [   ERROR] menu: Could not load profile manager.
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]: Traceback (most recent call last):
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/menu.py", line 81, in __init__
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]:     self.profile_manager = VideoProfileManager(self, player_manager, player)
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]:                            ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/video_profile.py", line 194, in __init__
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]:     raise FileNotFoundError("Could not find default shader pack.")
+[   31.901052] ashipaos ashipaos-jellyfin-mpv-shim[571]: FileNotFoundError: Could not find default shader pack.
+[   34.173259] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,270 [    INFO] mpvtk_browser.app: theme: Default (accent 00a4dc, glow False)
+[   34.176935] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,274 [    INFO] window: browse=on (alive=1 video=0 loading=0 mpvtk=1 bg=0) <- jellyfin_mpv_shim.mpvtk_browser.gateway.playback.on_browse_enter:23
+[   34.179085] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,276 [    INFO] window: colorspace hint parked at no (was False) <- jellyfin_mpv_shim.player_window.set_browse_window:710
+[   34.236485] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,333 [    INFO] update_check: Checking for updates...
+[   34.281224] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,378 [ WARNING] mpvtk_browser.ui: mpvtk browser: no servers configured; showing login
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,387 [   ERROR] update_check: Could not check for updates.
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]: Traceback (most recent call last):
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connection.py", line 239, in _new_conn
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     sock = connection.create_connection(
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:         (self._dns_host, self.port),
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     ...<2 lines>...
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:         socket_options=self.socket_options,
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     )
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/util/connection.py", line 60, in create_connection
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     for res in socket.getaddrinfo(host, port, family, socket.SOCK_STREAM):
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:                ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/python3.13/socket.py", line 977, in getaddrinfo
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:                ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]: socket.gaierror: [Errno -3] Temporary failure in name resolution
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]: The above exception was the direct cause of the following exception:
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]: Traceback (most recent call last):
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connectionpool.py", line 793, in urlopen
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     response = self._make_request(
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:         conn,
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     ...<10 lines>...
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:         **response_kw,
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     )
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connectionpool.py", line 494, in _make_request
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     raise new_e
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connectionpool.py", line 470, in _make_request
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     self._validate_conn(conn)
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     ~~~~~~~~~~~~~~~~~~~^^^^^^
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connectionpool.py", line 1125, in _validate_conn
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     conn.connect()
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     ~~~~~~~~~~~~^^
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connection.py", line 827, in connect
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:     self.sock = sock = self._new_conn()
+[   34.396115] ashipaos ashipaos-jellyfin-mpv-shim[571]:                        ~~~~~~~~~~~~~~^^
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connection.py", line 246, in _new_conn
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     raise NameResolutionError(self.host, self, e) from e
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]: urllib3.exceptions.NameResolutionError: HTTPSConnection(host='github.com', port=443): Failed to resolve 'github.com' ([Errno -3] Temporary failure in name resolution)
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]: The above exception was the direct cause of the following exception:
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]: Traceback (most recent call last):
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/requests/adapters.py", line 696, in send
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     resp = conn.urlopen(
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:         method=request.method,
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     ...<9 lines>...
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:         chunked=chunked,
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     )
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/connectionpool.py", line 847, in urlopen
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     retries = retries.increment(
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:         method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     )
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/urllib3/util/retry.py", line 555, in increment
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]: urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='github.com', port=443): Max retries exceeded with url: /jellyfin/jellyfin-mpv-shim/releases/latest (Caused by NameResolutionError("HTTPSConnection(host='github.com', port=443): Failed to resolve 'github.com' ([Errno -3] Temporary failure in name resolution)"))
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]: During handling of the above exception, another exception occurred:
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]: Traceback (most recent call last):
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/update_check.py", line 198, in _check_updates
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     found = self._resolve_latest(base)
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/jellyfin_mpv_shim/update_check.py", line 146, in _resolve_latest
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:     response = requests.get(
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:         url, allow_redirects=False,
+[   34.399823] ashipaos ashipaos-jellyfin-mpv-shim[571]:         timeout=(3, max(1.0, min(10.0, remaining))))
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/requests/api.py", line 87, in get
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:     return request("get", url, params=params, **kwargs)
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/requests/api.py", line 71, in request
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:     return session.request(method=method, url=url, **kwargs)
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/requests/sessions.py", line 651, in request
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:     resp = self.send(prep, **send_kwargs)
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/requests/sessions.py", line 784, in send
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:     r = adapter.send(request, **kwargs)
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:   File "/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0/site-packages/requests/adapters.py", line 729, in send
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]:     raise ConnectionError(e, request=request)
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]: requests.exceptions.ConnectionError: HTTPSConnectionPool(host='github.com', port=443): Max retries exceeded with url: /jellyfin/jellyfin-mpv-shim/releases/latest (Caused by NameResolutionError("HTTPSConnection(host='github.com', port=443): Failed to resolve 'github.com' ([Errno -3] Temporary failure in name resolution)"))
+[   34.403228] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,467 [    INFO] mpvtk: mpvtk metrics: measured DejaVu Sans (libass factor 0.853)
+[   34.408077] ashipaos ashipaos-jellyfin-mpv-shim[620]: Failed to import pystray: No module named 'pystray'
+[   34.427389] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:32,524 [ WARNING] tray: System tray is unavailable (missing pystray/AppIndicator).
+[   35.553968] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:38:33,651 [    INFO] mpvtk: mpvtk metrics: 221 kerning pairs
+[  322.317731] ashipaos ashipaos-jellyfin-mpv-shim[571]: 2026-04-13 19:43:20,414 [    INFO] clients: Performing client health check...
+
+== jellyfin mpv shim config ==
+total 48
+drwx------ 7 ashipa ashipa 4096 Apr 13 19:38 .
+drwxr-xr-x 4 root   root   4096 Sep 24  2026 ..
+drwx------ 7 ashipa ashipa 4096 Apr 13 19:38 cache
+-rw-r--r-- 1 ashipa ashipa 5856 Apr 13 19:38 conf.json
+drwxr-xr-x 2 ashipa ashipa 4096 Apr 13 19:38 fonts
+-rw-r--r-- 1 ashipa ashipa    0 Apr 13 19:38 input.conf
+-rw------- 1 ashipa ashipa   39 Apr 13 19:38 instance.lock
+-rw------- 1 ashipa ashipa    0 Apr 13 19:38 instance.lock.guard
+-rw------- 1 ashipa ashipa  423 Apr 13 19:38 mpv.conf
+drwxr-xr-x 2 ashipa ashipa 4096 Apr 13 19:38 offline
+drwxr-xr-x 2 ashipa ashipa 4096 Apr 13 19:38 scripts
+drwxr-xr-x 2 ashipa ashipa 4096 Apr 13 19:38 themes
+-rw-r--r-- 1 ashipa ashipa  448 Apr 13 19:38 users.json
+
+== clock ==
+               Local time: Mon 2026-04-13 19:48:16 UTC
+           Universal time: Mon 2026-04-13 19:48:16 UTC
+                 RTC time: Mon 2026-04-13 19:48:16
+                Time zone: Etc/UTC (UTC, +0000)
+System clock synchronized: no
+              NTP service: active
+          RTC in local TZ: no
+
+== display/input/audio devices ==
+/dev/dri:
+total 0
+drwxr-xr-x 2 root root        100 Apr 13 19:38 by-path
+crw-rw---- 1 root video  226,   0 Apr 13 19:38 card0
+crw-rw---- 1 root video  226,   1 Apr 13 19:38 card1
+crw-rw---- 1 root render 226, 128 Apr 13 19:38 renderD128
+
+/dev/input:
+total 0
+drwxr-xr-x 2 root root     240 Apr 13 19:39 by-id
+drwxr-xr-x 2 root root     480 Apr 13 19:39 by-path
+crw-rw---- 1 root input 13, 64 Apr 13 19:38 event0
+crw-rw---- 1 root input 13, 65 Apr 13 19:38 event1
+crw-rw---- 1 root input 13, 74 Apr 13 19:39 event10
+crw-rw---- 1 root input 13, 75 Apr 13 19:39 event11
+crw-rw---- 1 root input 13, 66 Apr 13 19:38 event2
+crw-rw---- 1 root input 13, 67 Apr 13 19:38 event3
+crw-rw---- 1 root input 13, 68 Apr 13 19:38 event4
+crw-rw---- 1 root input 13, 69 Apr 13 19:38 event5
+crw-rw---- 1 root input 13, 70 Apr 13 19:38 event6
+crw-rw---- 1 root input 13, 71 Apr 13 19:39 event7
+crw-rw---- 1 root input 13, 72 Apr 13 19:39 event8
+crw-rw---- 1 root input 13, 73 Apr 13 19:39 event9
+crw-rw---- 1 root input 13, 63 Apr 13 19:38 mice
+crw-rw---- 1 root input 13, 32 Apr 13 19:38 mouse0
+crw-rw---- 1 root input 13, 33 Apr 13 19:39 mouse1
+
+/dev/snd:
+total 0
+drwxr-xr-x 2 root root       60 Apr 13 19:38 by-id
+drwxr-xr-x 2 root root      100 Apr 13 19:38 by-path
+crw-rw---- 1 root audio 116,  3 Apr 13 19:38 controlC0
+crw-rw---- 1 root audio 116,  7 Apr 13 19:38 controlC1
+crw-rw---- 1 root audio 116,  2 Apr 13 19:38 pcmC0D0c
+crw-rw---- 1 root audio 116,  4 Apr 13 19:38 pcmC1D0p
+crw-rw---- 1 root audio 116,  5 Apr 13 19:38 pcmC1D1p
+crw-rw---- 1 root audio 116,  6 Apr 13 19:38 pcmC1D2p
+crw-rw---- 1 root audio 116,  1 Apr 13 19:38 seq
+crw-rw---- 1 root audio 116, 33 Apr 13 19:38 timer
+
+== network ==
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+end0             DOWN           
+IDX LINK TYPE     OPERATIONAL SETUP
+  1 lo   loopback carrier     unmanaged
+  2 end0 ether    no-carrier  configuring
+
+2 links listed.
+
+== wi-fi ==
+sdio mmc2:0001:1: vendor=0x024c device=0xc822 class=0x07
+[    0.000000] psci: PSCIv1.0 detected in firmware.
+[    9.208688] systemd[1]: systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info skipped, unmet condition check ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67
+[   14.020116] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_fw.bin (-2)
+[   14.020156] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_fw.bin (-2)
+[   14.020181] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_fw.bin (-2)
+[   14.020188] rtw_8822cs mmc2:0001:1: Direct firmware load for rtw88/rtw8822c_fw.bin failed with error -2
+[   14.020199] rtw_8822cs mmc2:0001:1: failed to request firmware
+[   14.020254] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_wow_fw.bin (-2)
+[   14.020279] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_wow_fw.bin (-2)
+[   14.020301] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_wow_fw.bin (-2)
+[   14.020308] rtw_8822cs mmc2:0001:1: Direct firmware load for rtw88/rtw8822c_wow_fw.bin failed with error -2
+[   14.020315] rtw_8822cs mmc2:0001:1: failed to request firmware
+[   14.030053] rtw_8822cs mmc2:0001:1: failed to load firmware
+iwd networks configured: 2
+                            Devices in Station Mode[1;90m                            [0m
+[90m--------------------------------------------------------------------------------
+[0m[1;90m  Name                  State            Scanning
+[0m[90m--------------------------------------------------------------------------------
+[0mNo devices in Station mode available.
+
+Apr 13 19:38:14 ashipaos systemd[1]: Starting ashipaos-wifi-import.service - AshipaOS Wi-Fi setup from wifi.txt on the SD boot partition...
+Apr 13 19:38:15 ashipaos ashipaos-wifi-import[467]: wifi.txt: imported network 'NXNEW'
+Apr 13 19:38:15 ashipaos systemd[1]: ashipaos-wifi-import.service: Deactivated successfully.
+Apr 13 19:38:15 ashipaos systemd[1]: Finished ashipaos-wifi-import.service - AshipaOS Wi-Fi setup from wifi.txt on the SD boot partition.
+Apr 13 19:38:15 ashipaos systemd[1]: Starting iwd.service - Wireless service...
+Apr 13 19:38:16 ashipaos iwd[486]: Wireless daemon version 3.8
+Apr 13 19:38:16 ashipaos iwd[486]: Loaded configuration from /etc/iwd/main.conf
+Apr 13 19:38:16 ashipaos systemd[1]: Started iwd.service - Wireless service.
+Apr 13 19:38:16 ashipaos iwd[486]: station: Network configuration is disabled.
+
+== journal warnings (this boot) ==
+Apr 13 19:38:07 ashipaos kernel: KASLR disabled due to lack of seed
+Apr 13 19:38:07 ashipaos kernel: dwc2 ff400000.usb: supply vusb_d not found, using dummy regulator
+Apr 13 19:38:07 ashipaos kernel: dwc2 ff400000.usb: supply vusb_a not found, using dummy regulator
+Apr 13 19:38:10 ashipaos kernel: meson-pwm ff802000.pwm: using obsolete compatible, please consider updating dt
+Apr 13 19:38:11 ashipaos kernel: meson-gx-mmc ffe03000.mmc: card claims to support voltages below defined range
+Apr 13 19:38:11 ashipaos kernel: debugfs: Directory 'ff800280.cec' with parent 'regmap' already present!
+Apr 13 19:38:11 ashipaos kernel: panfrost ffe40000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+Apr 13 19:38:11 ashipaos kernel: meson-drm ff900000.vpu: DSI transceiver device is disabled
+Apr 13 19:38:11 ashipaos kernel: meson_vdec: module is from the staging directory, the quality is unknown, you have been warned.
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: Direct firmware load for rtw88/rtw8822c_fw.bin failed with error -2
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: failed to request firmware
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: Direct firmware load for rtw88/rtw8822c_wow_fw.bin failed with error -2
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: failed to request firmware
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: failed to load firmware
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: failed to setup chip efuse info
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: failed to setup chip information
+Apr 13 19:38:12 ashipaos kernel: rtw_8822cs mmc2:0001:1: probe with driver rtw_8822cs failed with error -22
+Apr 13 19:38:40 ashipaos kernel: rc rc0: two consecutive events of type space
+
+== kernel log (tail) ==
+[    0.261636] UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.262016] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.262061] NET: Registered PF_XDP protocol family
+[    0.262088] PCI: CLS 0 bytes, default 64
+[    0.262413] Trying to unpack rootfs image as initramfs...
+[    0.266820] kvm [1]: nv: 554 coarse grained trap handlers
+[    0.267347] kvm [1]: IPA Size Limit: 40 bits
+[    0.267448] kvm [1]: vgic interrupt IRQ9
+[    0.267506] kvm [1]: VHE mode initialized successfully
+[    0.273016] Initialise system trusted keyrings
+[    0.273106] Key type blacklist registered
+[    0.273429] workingset: timestamp_bits=42 max_order=20 bucket_order=0
+[    0.273540] zbud: loaded
+[    0.274995] fuse: init (API version 7.41)
+[    0.275888] integrity: Platform Keyring initialized
+[    0.275940] integrity: Machine keyring initialized
+[    0.351804] Key type asymmetric registered
+[    0.351846] Asymmetric key parser 'x509' registered
+[    0.832663] Freeing initrd memory: 36036K
+[    0.861350] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 245)
+[    0.861568] io scheduler mq-deadline registered
+[    0.868412] irq_meson_gpio: 100 to 8 gpio interrupt mux initialized
+[    0.880933] ledtrig-cpu: registered to indicate activity on CPUs
+[    0.881167] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[    0.899664] soc soc0: Amlogic Meson SM1 (S905X3) Revision 2b:c (10:2) Detected
+[    0.905156] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    0.909192] Serial: AMBA driver
+[    0.910457] ff803000.serial: ttyAML0 at MMIO 0xff803000 (irq = 14, base_baud = 1500000) is a meson_uart
+[    0.910518] printk: legacy console [ttyAML0] enabled
+[    2.095711] msm_serial: driver initialized
+[    2.098971] SuperH (H)SCI(F) driver initialized
+[    2.107926] mousedev: PS/2 mouse device common for all mice
+[    2.114498] meson-sm: secure-monitor enabled
+[    2.119719] NET: Registered PF_INET6 protocol family
+[    2.146609] Segment Routing with IPv6
+[    2.146728] In-situ OAM (IOAM) with IPv6
+[    2.148679] mip6: Mobile IPv6
+[    2.151533] NET: Registered PF_PACKET protocol family
+[    2.156704] mpls_gso: MPLS GSO support
+[    2.171425] registered taskstats version 1
+[    2.171857] Loading compiled-in X.509 certificates
+[    2.279805] Loaded X.509 cert 'Build time autogenerated kernel key: 3ab51d028bcd3a6bc9dcb3bd39fe728d90affb15'
+[    2.295889] Demotion targets for Node 0: null
+[    2.296548] Key type .fscrypt registered
+[    2.298534] Key type fscrypt-provisioning registered
+[    2.425425] Key type encrypted registered
+[    2.425490] AppArmor: AppArmor sha256 policy hashing enabled
+[    2.429525] ima: No TPM chip found, activating TPM-bypass!
+[    2.434930] ima: Allocated hash algorithm: sha256
+[    2.439649] ima: No architecture policies found
+[    2.444177] evm: Initialising EVM extended attributes:
+[    2.449225] evm: security.selinux
+[    2.452515] evm: security.SMACK64 (disabled)
+[    2.456760] evm: security.SMACK64EXEC (disabled)
+[    2.461354] evm: security.SMACK64TRANSMUTE (disabled)
+[    2.466379] evm: security.SMACK64MMAP (disabled)
+[    2.470976] evm: security.apparmor
+[    2.474345] evm: security.ima
+[    2.477300] evm: security.capability
+[    2.480853] evm: HMAC attrs: 0x1
+[    2.543434] clk: Disabling unused clocks
+[    2.543688] PM: genpd: Disabling unused power domains
+[    2.567373] Freeing unused kernel memory: 3136K
+[    2.625782] Checked W+X mappings: passed, no W+X pages found
+[    2.625865] Run /init as init process
+[    2.629510]   with arguments:
+[    2.629519]     /init
+[    2.629525]   with environment:
+[    2.629531]     HOME=/
+[    2.629536]     TERM=linux
+[    3.997639] meson-gx-mmc ffe05000.mmc: Got CD GPIO
+[    3.999587] meson-gx-mmc ffe07000.mmc: allocated mmc-pwrseq
+[    4.098377] mmc0: new high speed SDHC card at address 0001
+[    4.140719] mmc1: new HS200 MMC card at address 0001
+[    4.149227] mmcblk1: mmc1:0001 SGY3XD 57.9 GiB
+[    4.153756] mmcblk1boot0: mmc1:0001 SGY3XD 4.00 MiB
+[    4.168706] mmcblk1boot1: mmc1:0001 SGY3XD 4.00 MiB
+[    4.171782] mmcblk1rpmb: mmc1:0001 SGY3XD 4.00 MiB, chardev (238:0)
+[    4.186871] dwc3-meson-g12a ffe09000.usb: USB2 ports: 2
+[    4.186938] dwc3-meson-g12a ffe09000.usb: USB3 ports: 1
+[    4.208175] mmcblk0: mmc0:0001 SD16G 29.1 GiB
+[    4.223942]  mmcblk0: p1 p2
+[    4.276668] meson-vrtc ff8000a8.rtc: registered as rtc0
+[    4.276756] meson-vrtc ff8000a8.rtc: setting system clock to 1970-01-01T00:00:04 UTC (4)
+[    4.470454] meson8b-dwmac ff3f0000.ethernet: IRQ eth_wake_irq not found
+[    4.471487] meson8b-dwmac ff3f0000.ethernet: IRQ sfty not found
+[    4.477541] meson8b-dwmac ff3f0000.ethernet: PTP uses main clock
+[    4.484804] meson8b-dwmac ff3f0000.ethernet: User ID: 0x11, Synopsys ID: 0x37
+[    4.490612] meson8b-dwmac ff3f0000.ethernet: 	DWMAC1000
+[    4.495707] meson8b-dwmac ff3f0000.ethernet: DMA HW capability register supported
+[    4.499458] usbcore: registered new interface driver usbfs
+[    4.503127] meson8b-dwmac ff3f0000.ethernet: RX Checksum Offload Engine supported
+[    4.503237] usbcore: registered new interface driver hub
+[    4.508580] meson8b-dwmac ff3f0000.ethernet: COE Type 2
+[    4.508715] usbcore: registered new device driver usb
+[    4.516023] meson8b-dwmac ff3f0000.ethernet: TX Checksum insertion supported
+[    4.516035] meson8b-dwmac ff3f0000.ethernet: Wake-Up On Lan supported
+[    4.545104] meson8b-dwmac ff3f0000.ethernet: Normal descriptors
+[    4.550909] meson8b-dwmac ff3f0000.ethernet: Ring mode enabled
+[    4.556680] meson8b-dwmac ff3f0000.ethernet: Enable RX Mitigation via HW Watchdog Timer
+[    4.618637] meson8b-dwmac ff3f0000.ethernet end0: renamed from eth0
+[    4.621246] dwc2 ff400000.usb: supply vusb_d not found, using dummy regulator
+[    4.626780] dwc2 ff400000.usb: supply vusb_a not found, using dummy regulator
+[    4.635143] dwc2 ff400000.usb: EPs: 7, dedicated fifos, 712 entries in SPRAM
+[    4.756312] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    4.756393] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 1
+[    4.764015] xhci-hcd xhci-hcd.1.auto: hcc params 0x0228fe6c hci version 0x110 quirks 0x0000808000000010
+[    4.773243] xhci-hcd xhci-hcd.1.auto: irq 19, io mem 0xff500000
+[    4.779295] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    4.784568] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 2
+[    4.792173] xhci-hcd xhci-hcd.1.auto: Host supports USB 3.0 SuperSpeed
+[    4.798878] usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 6.12
+[    4.806922] usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    4.814094] usb usb1: Product: xHCI Host Controller
+[    4.818943] usb usb1: Manufacturer: Linux 6.12.107+deb13-arm64 xhci-hcd
+[    4.825531] usb usb1: SerialNumber: xhci-hcd.1.auto
+[    4.831273] hub 1-0:1.0: USB hub found
+[    4.834163] hub 1-0:1.0: 2 ports detected
+[    4.838809] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    4.846384] usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 6.12
+[    4.854503] usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    4.861608] usb usb2: Product: xHCI Host Controller
+[    4.866448] usb usb2: Manufacturer: Linux 6.12.107+deb13-arm64 xhci-hcd
+[    4.873033] usb usb2: SerialNumber: xhci-hcd.1.auto
+[    4.878727] hub 2-0:1.0: USB hub found
+[    4.881670] hub 2-0:1.0: 1 port detected
+[    5.103020] usb 1-2: new full-speed USB device number 2 using xhci-hcd
+[    5.248683] usb 1-2: New USB device found, idVendor=1915, idProduct=1025, bcdDevice= 1.00
+[    5.251293] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=0
+[    5.258385] usb 1-2: Product: USB Composite Device
+[    5.263156] usb 1-2: Manufacturer: XING WEI 2.4G USB
+[    5.333528] EXT4-fs (mmcblk0p2): mounted filesystem da8a0c9e-a4d9-4009-b078-506191f99883 r/w with ordered data mode. Quota mode: none.
+[    5.357416] hid: raw HID events driver (C) Jiri Kosina
+[    5.393563] usbcore: registered new interface driver usbhid
+[    5.393622] usbhid: USB HID core driver
+[    5.434300] input: XING WEI 2.4G USB USB Composite Device as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.2/0003:1915:1025.0001/input/input0
+[    5.563297] hid-generic 0003:1915:1025.0001: input,hidraw0: USB HID v2.01 Keyboard [XING WEI 2.4G USB USB Composite Device] on usb-xhci-hcd.1.auto-2/input2
+[    5.572824] input: XING WEI 2.4G USB USB Composite Device Mouse as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input1
+[    5.588257] input: XING WEI 2.4G USB USB Composite Device Consumer Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input2
+[    5.659199] input: XING WEI 2.4G USB USB Composite Device System Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input3
+[    5.670623] input: XING WEI 2.4G USB USB Composite Device as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-2/1-2:1.3/0003:1915:1025.0002/input/input4
+[    5.686213] hid-generic 0003:1915:1025.0002: input,hidraw1: USB HID v2.01 Mouse [XING WEI 2.4G USB USB Composite Device] on usb-xhci-hcd.1.auto-2/input3
+[    6.082151] Not activating Mandatory Access Control as /sbin/tomoyo-init does not exist.
+[    6.918533] systemd[1]: System time advanced to built-in epoch: Mon 2026-04-13 19:38:05 UTC
+[    7.044117] systemd[1]: Inserted module 'autofs4'
+[    7.228558] systemd[1]: systemd 257.13-1~deb13u1 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF -XKBCOMMON -UTMP +SYSVINIT +LIBARCHIVE)
+[    7.257335] systemd[1]: Detected architecture arm64.
+[    7.291967] systemd[1]: Hostname set to <ashipaos>.
+[    7.306847] systemd[1]: Initializing machine ID from random generator.
+[    7.938946] systemd[1]: bpf-restrict-fs: LSM BPF program attached
+[    8.733025] systemd[1]: Queued start job for default target graphical.target.
+[    8.824204] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+[    8.830146] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+[    8.837901] systemd[1]: Created slice user.slice - User and Session Slice.
+[    8.843050] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+[    8.853886] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+[    8.865250] systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+[    8.876495] systemd[1]: Expecting device dev-disk-by\x2dlabel-A95XBOOT.device - /dev/disk/by-label/A95XBOOT...
+[    8.886246] systemd[1]: Expecting device dev-ttyAML0.device - /dev/ttyAML0...
+[    8.893575] systemd[1]: Reached target paths.target - Path Units.
+[    8.899497] systemd[1]: Reached target remote-fs.target - Remote File Systems.
+[    8.906635] systemd[1]: Reached target slices.target - Slice Units.
+[    8.912904] systemd[1]: Reached target swap.target - Swaps.
+[    8.924461] systemd[1]: Listening on systemd-creds.socket - Credential Encryption/Decryption.
+[    8.928537] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[    8.937397] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[    8.946230] systemd[1]: Listening on systemd-journald.socket - Journal Sockets.
+[    8.953688] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[    8.961293] systemd[1]: systemd-pcrextend.socket - TPM PCR Measurements skipped, unmet condition check ConditionSecurity=measured-uki
+[    8.972856] systemd[1]: systemd-pcrlock.socket - Make TPM PCR Policy skipped, unmet condition check ConditionSecurity=measured-uki
+[    8.985208] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[    8.993445] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[    9.009162] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+[    9.018185] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+[    9.027615] systemd[1]: Mounting run-lock.mount - Legacy Locks Directory /run/lock...
+[    9.043449] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+[    9.056055] systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+[    9.087837] systemd[1]: Mounting tmp.mount - Temporary Directory /tmp...
+[    9.103448] systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+[    9.121164] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+[    9.132695] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+[    9.145028] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    9.193489] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+[    9.199852] systemd[1]: systemd-fsck-root.service - File System Check on Root Device skipped, unmet condition check ConditionPathIsReadWrite=!/
+[    9.208688] systemd[1]: systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info skipped, unmet condition check ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67
+[    9.240109] systemd[1]: Starting systemd-journald.service - Journal Service...
+[    9.264103] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    9.276094] systemd[1]: Starting systemd-network-generator.service - Generate Network Units from Kernel Command Line...
+[    9.287790] systemd[1]: systemd-pcrmachine.service - TPM PCR Machine ID Measurement skipped, unmet condition check ConditionSecurity=measured-uki
+[    9.390937] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    9.395607] systemd[1]: systemd-tpm2-setup-early.service - Early TPM SRK Setup skipped, unmet condition check ConditionSecurity=measured-uki
+[    9.420276] systemd[1]: Starting systemd-udev-load-credentials.service - Load udev Rules from Credentials...
+[    9.443180] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[    9.466806] Asymmetric key parser 'pkcs8' registered
+[    9.484282] systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
+[    9.487835] systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+[    9.498797] systemd[1]: Mounted run-lock.mount - Legacy Locks Directory /run/lock.
+[    9.503067] systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+[    9.509905] systemd[1]: Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+[    9.518160] systemd[1]: Mounted tmp.mount - Temporary Directory /tmp.
+[    9.525591] systemd[1]: Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+[    9.534804] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    9.535154] systemd-journald[279]: Collecting audit messages is disabled.
+[    9.540498] systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+[    9.555765] EXT4-fs (mmcblk0p2): re-mounted da8a0c9e-a4d9-4009-b078-506191f99883.
+[    9.556880] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[    9.569714] systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
+[    9.583868] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+[    9.587224] systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+[    9.597995] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    9.602370] systemd[1]: Finished modprobe@fuse.service - Load Kernel Module fuse.
+[    9.611577] systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+[    9.619479] systemd[1]: Finished systemd-network-generator.service - Generate Network Units from Kernel Command Line.
+[    9.633594] systemd[1]: Finished systemd-remount-fs.service - Remount Root and Kernel File Systems.
+[    9.640872] systemd[1]: Finished systemd-udev-load-credentials.service - Load udev Rules from Credentials.
+[    9.654386] systemd[1]: Reached target network-pre.target - Preparation for Network.
+[    9.666128] systemd[1]: Mounting sys-fs-fuse-connections.mount - FUSE Control File System...
+[    9.683944] systemd[1]: Mounting sys-kernel-config.mount - Kernel Configuration File System...
+[    9.693278] systemd[1]: systemd-hwdb-update.service - Rebuild Hardware Database skipped, no trigger condition checks were met.
+[    9.706659] systemd[1]: systemd-pstore.service - Platform Persistent Storage Archival skipped, unmet condition check ConditionDirectoryNotEmpty=/sys/fs/pstore
+[    9.744370] systemd[1]: Starting systemd-random-seed.service - Load/Save OS Random Seed...
+[    9.762386] systemd[1]: Starting systemd-sysctl.service - Apply Kernel Variables...
+[    9.776231] systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+[    9.782457] systemd[1]: systemd-tpm2-setup.service - TPM SRK Setup skipped, unmet condition check ConditionSecurity=measured-uki
+[    9.800738] systemd[1]: Started systemd-journald.service - Journal Service.
+[   10.088174] systemd-journald[279]: Received client request to flush runtime journal.
+[   11.559032] random: crng init done
+[   12.348567] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[   12.395934] Loaded X.509 cert 'benh@debian.org: 577e021cb980e0e820821ba7b54b4961b8b4fadf'
+[   12.399343] Loaded X.509 cert 'romain.perier@gmail.com: 3abbc6ec146e09d1b6016ab9d6cf71dd233f0328'
+[   12.409251] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[   12.413812] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[   12.849398] meson-pwm ff802000.pwm: using obsolete compatible, please consider updating dt
+[   12.908685] mc: Linux media interface: v0.10
+[   12.948037] Registered IR keymap rc-empty
+[   12.948238] rc rc0: meson-ir as /devices/platform/soc/ff800000.bus/ff808000.ir/rc/rc0
+[   12.976572] rc rc0: lirc_dev: driver meson-ir registered at minor = 0, raw IR receiver, no transmitter
+[   12.994540] meson-gx-mmc ffe03000.mmc: allocated mmc-pwrseq
+[   13.051324] input: meson-ir as /devices/platform/soc/ff800000.bus/ff808000.ir/rc/rc0/input5
+[   13.054104] meson-gx-mmc ffe03000.mmc: card claims to support voltages below defined range
+[   13.063564] meson8b-dwmac ff3f0000.ethernet end0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[   13.077810] debugfs: Directory 'ff800280.cec' with parent 'regmap' already present!
+[   13.089161] rc rc0: sw decoder init
+[   13.089271] meson-ir ff808000.ir: receiver initialized
+[   13.101849] Registered IR keymap rc-cec
+[   13.102022] rc rc1: meson_g12a_ao_cec as /devices/platform/soc/ff800000.bus/ff800280.cec/rc/rc1
+[   13.109831] input: meson_g12a_ao_cec as /devices/platform/soc/ff800000.bus/ff800280.cec/rc/rc1/input6
+[   13.120194] mmc2: new ultra high speed SDR104 SDIO card at address 0001
+[   13.134719] meson-drm ff900000.vpu: Queued 2 outputs on vpu
+[   13.139710] meson8b-dwmac ff3f0000.ethernet end0: PHY [mdio_mux-0.1:08] driver [Meson G12A Internal PHY] (irq=21)
+[   13.155033] meson8b-dwmac ff3f0000.ethernet end0: No Safety Features support found
+[   13.157017] meson8b-dwmac ff3f0000.ethernet end0: PTP not supported by HW
+[   13.171525] meson8b-dwmac ff3f0000.ethernet end0: configuring for phy/rmii link mode
+[   13.201577] panfrost ffe40000.gpu: clock rate = 24000000
+[   13.201698] panfrost ffe40000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+[   13.213251] panfrost ffe40000.gpu: mali-g31 id 0x7093 major 0x0 minor 0x0 status 0x0
+[   13.214205] videodev: Linux video capture interface: v2.00
+[   13.217842] panfrost ffe40000.gpu: features: 00000000,000027f7, issues: 00000000,00000400
+[   13.217890] meson-dw-hdmi ff600000.hdmi-tx: Detected HDMI TX controller v2.01a with HDCP (meson_dw_hdmi_phy)
+[   13.223695] meson-dw-hdmi ff600000.hdmi-tx: registered DesignWare HDMI I2C bus driver
+[   13.231393] panfrost ffe40000.gpu: Features: L2:0x07100206 Shader:0x00000000 Tiler:0x00000209 Mem:0x1 MMU:0x00002821 AS:0xff JS:0x7
+[   13.235857] meson-drm ff900000.vpu: bound ff600000.hdmi-tx (ops meson_dw_hdmi_ops [meson_dw_hdmi])
+[   13.241210] panfrost ffe40000.gpu: shader_present=0x1 l2_present=0x1
+[   13.251249] meson-drm ff900000.vpu: DSI transceiver device is disabled
+[   13.284090] [drm] Initialized meson 1.0.0 for ff900000.vpu on minor 0
+[   13.295491] [drm] Initialized panfrost 1.2.0 for ffe40000.gpu on minor 1
+[   13.528536] usbcore: registered new interface driver snd-usb-audio
+[   13.627321] meson_vdec: module is from the staging directory, the quality is unknown, you have been warned.
+[   14.020116] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_fw.bin (-2)
+[   14.020156] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_fw.bin (-2)
+[   14.020181] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_fw.bin (-2)
+[   14.020188] rtw_8822cs mmc2:0001:1: Direct firmware load for rtw88/rtw8822c_fw.bin failed with error -2
+[   14.020199] rtw_8822cs mmc2:0001:1: failed to request firmware
+[   14.020254] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_wow_fw.bin (-2)
+[   14.020279] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_wow_fw.bin (-2)
+[   14.020301] rtw_8822cs mmc2:0001:1: firmware: failed to load rtw88/rtw8822c_wow_fw.bin (-2)
+[   14.020308] rtw_8822cs mmc2:0001:1: Direct firmware load for rtw88/rtw8822c_wow_fw.bin failed with error -2
+[   14.020315] rtw_8822cs mmc2:0001:1: failed to request firmware
+[   14.030053] rtw_8822cs mmc2:0001:1: failed to load firmware
+[   14.030066] rtw_8822cs mmc2:0001:1: failed to setup chip efuse info
+[   14.030070] rtw_8822cs mmc2:0001:1: failed to setup chip information
+[   14.030898] rtw_8822cs mmc2:0001:1: probe with driver rtw_8822cs failed with error -22
+[   14.059800] Console: switching to colour frame buffer device 200x56
+[   14.192060] meson-drm ff900000.vpu: [drm] fb0: mesondrmfb frame buffer device
+[   17.269280] NET: Registered PF_ALG protocol family
+[   17.366904] alg: No test for hmac(md4) (hmac(md4-generic))
+[   42.795002] rc rc0: two consecutive events of type space
+[   69.103027] usb 1-1: new full-speed USB device number 3 using xhci-hcd
+[   69.246787] usb 1-1: New USB device found, idVendor=045e, idProduct=07b2, bcdDevice= 7.04
+[   69.249481] usb 1-1: New USB device strings: Mfr=1, Product=2, SerialNumber=0
+[   69.256579] usb 1-1: Product: Microsoft® Nano Transceiver v1.0
+[   69.262482] usb 1-1: Manufacturer: Microsoft
+[   69.285804] input: Microsoft Microsoft® Nano Transceiver v1.0 as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-1/1-1:1.0/0003:045E:07B2.0003/input/input7
+[   69.399444] hid-generic 0003:045E:07B2.0003: input,hidraw2: USB HID v1.11 Keyboard [Microsoft Microsoft® Nano Transceiver v1.0] on usb-xhci-hcd.1.auto-1/input0
+[   69.417959] input: Microsoft Microsoft® Nano Transceiver v1.0 Mouse as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-1/1-1:1.1/0003:045E:07B2.0004/input/input8
+[   69.429647] input: Microsoft Microsoft® Nano Transceiver v1.0 Consumer Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-1/1-1:1.1/0003:045E:07B2.0004/input/input9
+[   69.446910] hid-generic 0003:045E:07B2.0004: input,hidraw3: USB HID v1.11 Mouse [Microsoft Microsoft® Nano Transceiver v1.0] on usb-xhci-hcd.1.auto-1/input1
+[   69.469208] input: Microsoft Microsoft® Nano Transceiver v1.0 Consumer Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-1/1-1:1.2/0003:045E:07B2.0005/input/input10
+[   69.535492] input: Microsoft Microsoft® Nano Transceiver v1.0 System Control as /devices/platform/soc/ffe09000.usb/ff500000.usb/xhci-hcd.1.auto/usb1/1-1/1-1:1.2/0003:045E:07B2.0005/input/input12
+[   69.548151] hid-generic 0003:045E:07B2.0005: input,hiddev0,hidraw4: USB HID v1.11 Device [Microsoft Microsoft® Nano Transceiver v1.0] on usb-xhci-hcd.1.auto-1/input2

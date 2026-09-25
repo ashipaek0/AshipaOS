@@ -5,5 +5,7 @@
   "fullscreen": true,
   "window_controls_fullscreen": false,
   "mpv_idle_quit": false,
-  "headless": false
+  "headless": false,
+  "check_updates": false,
+  "notify_updates": false
 }

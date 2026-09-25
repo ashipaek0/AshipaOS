@@ -29,10 +29,12 @@ The appliance boots with or without a network: no unit waits for
 `network-online.target` (`systemd-networkd-wait-online` is masked), and the
 clock is set by `systemd-timesyncd` once a network appears.
 
-`ashipaos-jellyfin-mpv-shim.service` runs the validated launcher as `ashipa`
-on tty1 (getty masked there), restarting on failure with a bounded limit. On
-first start the launcher seeds `/storage/jellyfin-mpv-shim/conf.json`
-(fullscreen library browser, no idle quit) and `mpv.conf` (DRM/KMS output,
+`ashipaos-jellyfin-mpv-shim.service` runs `cage` (Wayland kiosk compositor,
+via `seatd`) with the validated launcher inside it, as `ashipa`, restarting on
+failure with a bounded limit; the getty on tty1 is masked. cage delivers
+keyboard, mouse and remote input through libinput. On first start the launcher
+seeds `/storage/jellyfin-mpv-shim/conf.json` (fullscreen library browser, no
+idle quit, no GitHub update checks) and `mpv.conf` (Wayland output,
 `hwdec=auto-safe`); later edits persist. `ASHIPAOS_BOOT_SUCCESS=1` on the UART
 means the shim and the boot-status endpoint are still running 20 s after start.
 

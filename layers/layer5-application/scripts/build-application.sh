@@ -101,6 +101,10 @@ done
 mkdir -p "$ROOTFS/etc/systemd/system/multi-user.target.wants"
 ln -sfn "../$SERVICE" "$ROOTFS/etc/systemd/system/multi-user.target.wants/$SERVICE"
 ln -sfn /dev/null "$ROOTFS/etc/systemd/system/getty@tty1.service"
+install -D -m 0644 -o 0 -g 0 "$FILES/etc/systemd/system/seatd.service.d/ashipaos.conf" \
+    "$ROOTFS/etc/systemd/system/seatd.service.d/ashipaos.conf"
+[[ -x "$ROOTFS/usr/bin/cage" ]] || error "target rootfs lacks cage (the kiosk compositor $SERVICE runs)"
+[[ -f "$ROOTFS/usr/lib/systemd/system/seatd.service" ]] || error "target rootfs lacks seatd.service"
 for group in video render audio input; do
     grep -q "^$group:" "$ROOTFS/etc/group" || error "target rootfs lacks the $group group required by $SERVICE"
 done

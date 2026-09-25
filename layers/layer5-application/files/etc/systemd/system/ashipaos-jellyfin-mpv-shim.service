@@ -1,10 +1,14 @@
 # The appliance UI: Jellyfin MPV Shim's library browser and player, fullscreen
-# on the HDMI output via DRM/KMS, started at boot on tty1.
+# on HDMI inside the cage kiosk compositor (Wayland), started at boot.
+# cage supplies keyboard, mouse and remote input through libinput: mpv's own
+# DRM output has no mouse support and libmpv ignores console keys, so the app
+# was unusable without it (evidence/amlogic/a95x-f3-air/boot-2026-09-25/).
 [Unit]
 Description=AshipaOS Jellyfin MPV Shim
 # Boots with or without a network: the shim starts at once and handles
 # connectivity itself (its browser shows the server/login screen).
-After=network.target systemd-user-sessions.service
+Wants=seatd.service
+After=network.target systemd-user-sessions.service seatd.service
 # The shim owns tty1 and the display; no login prompt is drawn over it.
 Conflicts=getty@tty1.service
 After=getty@tty1.service
@@ -25,15 +29,14 @@ Environment=XDG_CACHE_HOME=/storage/jellyfin-mpv-shim/cache
 Environment=XDG_RUNTIME_DIR=/run/ashipaos-jellyfin-mpv-shim
 RuntimeDirectory=ashipaos-jellyfin-mpv-shim
 RuntimeDirectoryMode=0700
-ExecStart=/usr/libexec/ashipaos-jellyfin-mpv-shim
-# mpv's DRM backend takes keyboard/remote input from its controlling VT.
-StandardInput=tty
+# cage opens the display and input devices through seatd (group video).
+Environment=LIBSEAT_BACKEND=seatd
+# Start even when no keyboard/remote is plugged in yet (hotplug still works).
+Environment=WLR_LIBINPUT_NO_DEVICES=1
+# -d: no client-side decorations; -s: allow VT switching.
+ExecStart=/usr/bin/cage -d -s -- /usr/libexec/ashipaos-jellyfin-mpv-shim
 StandardOutput=journal
 StandardError=journal
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
-TTYVTDisallocate=yes
 Restart=always
 RestartSec=3
 NoNewPrivileges=yes

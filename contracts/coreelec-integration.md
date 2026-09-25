@@ -55,6 +55,10 @@ They are not proof of AshipaOS post-replacement behavior.
   confirmed final selection.
 - No final bridge, compositor, launcher, `hwdec` value, display mode, audio
   route, input route, or decoder result is proven by this inventory.
+- Evidence from the exact unit (`evidence/amlogic/a95x-f3-air/boot-2026-09-25/`)
+  established the need for a compositor in the current Debian image: with
+  mpv's DRM output no keyboard, mouse or remote input reached the app. That
+  image runs the app inside `cage` (Wayland) on `seatd`.
 - Do not add cage, Wayland, another compositor, or a replacement kernel/
   firmware/DTB/graphics/audio/network/decode stack unless pinned-source,
   build, and exact-target probes establish the need and compatibility.

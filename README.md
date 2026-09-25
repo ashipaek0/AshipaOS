@@ -1,7 +1,8 @@
 # AshipaOS A95X F3 Air
 
 Appliance image for the Amlogic S905X3 A95X F3 Air that boots straight into
-Jellyfin MPV Shim, fullscreen on HDMI (`ashipaos-jellyfin-mpv-shim.service`).
+Jellyfin MPV Shim, fullscreen on HDMI (`ashipaos-jellyfin-mpv-shim.service`,
+inside the `cage` kiosk compositor so a keyboard, mouse or 2.4 GHz remote works).
 
 Target: `a95x-f3-air` · Architecture: `arm64` · Media: removable SD only.
 

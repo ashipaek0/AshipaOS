@@ -53,22 +53,30 @@ unit = configparser.ConfigParser(strict=False, interpolation=None)
 unit.optionxform = str
 unit.read(unit_path)
 svc = unit["Service"]
-assert svc["User"] == "ashipa" and svc["ExecStart"] == "/usr/libexec/ashipaos-jellyfin-mpv-shim"
+assert svc["User"] == "ashipa"
+# The app runs inside cage (Wayland kiosk) so libinput delivers keyboard,
+# mouse and remote input; mpv's DRM output alone cannot.
+assert svc["ExecStart"] == "/usr/bin/cage -d -s -- /usr/libexec/ashipaos-jellyfin-mpv-shim", svc["ExecStart"]
+after = " ".join(l.split("=", 1)[1] for l in open(unit_path) if l.startswith("After="))
+assert "seatd.service" in unit["Unit"]["Wants"] and "seatd.service" in after.split()
 assert unit["Install"]["WantedBy"] == "multi-user.target"
-assert svc["TTYPath"] == "/dev/tty1" and svc["StandardInput"] == "tty"
+assert "StandardInput" not in svc, "input comes from libinput via cage, not the console"
 assert "getty@tty1.service" in unit["Unit"]["Conflicts"]
 assert int(unit["Unit"]["StartLimitBurst"]) > 0 and svc["Restart"] == "always"
 assert {"video", "render", "audio", "input"} <= set(svc["SupplementaryGroups"].split())
 env = dict(l.strip().split("=", 2)[1:] for l in open(unit_path) if l.startswith("Environment="))
+assert env["LIBSEAT_BACKEND"] == "seatd" and env["WLR_LIBINPUT_NO_DEVICES"] == "1"
 config_dir = env["XDG_CONFIG_HOME"] + "/jellyfin-mpv-shim"
 assert f'CONFIG="${{ASHIPAOS_CONFIG:-{config_dir}}}"' in launcher, "unit and launcher disagree on the config dir"
 assert config_dir in svc["ReadWritePaths"].split() and "/storage/apps/jellyfin-mpv-shim" in svc["ReadWritePaths"].split()
 conf = json.loads((defaults / "conf.json").read_text())
 assert conf["enable_gui"] and conf["browser_fullscreen"] and conf["fullscreen"] and not conf["mpv_idle_quit"]
+assert conf["check_updates"] is False and conf["notify_updates"] is False, "an appliance must not poll GitHub"
 mpv = dict(l.split("=", 1) for l in (defaults / "mpv.conf").read_text().split("\n") if l and not l.startswith("#"))
-assert mpv["vo"] == "gpu" and mpv["gpu-context"] == "drm"
+assert mpv["vo"] == "gpu" and mpv["gpu-context"] == "wayland"
 assert not {"idle", "force-window", "fullscreen"} & set(mpv), "mpv.conf must not override shim-managed options"
 PY
 grep -q 'multi-user.target.wants/$SERVICE' "$SCRIPT" || fail "build-application.sh must enable the shim service"
 grep -q 'ln -sfn /dev/null "$ROOTFS/etc/systemd/system/getty@tty1.service"' "$SCRIPT" || fail "tty1 getty must be masked"
+grep -qx 'ExecStart=/usr/bin/env seatd -g video' "$LAYER/files/etc/systemd/system/seatd.service.d/ashipaos.conf" || fail "seatd must serve group video"
 printf 'layer5-application-static: PASS\n'
