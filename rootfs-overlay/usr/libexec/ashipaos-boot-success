@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Confirms a boot as healthy and, if this was a "pending" boot (a fresh OS
+# update, contracts/os-ota.md), clears pending/boot_tries in active-root.txt
+# so the next reboot is an ordinary one, not another attempt counted toward
+# boot.scr's revert threshold. Never touches active_root itself: only
+# boot.scr, running in U-Boot, ever changes which slot is active; this only
+# ever confirms or leaves alone the slot U-Boot already chose.
+set -Eeuo pipefail
+BOOT_MOUNT="${ASHIPAOS_BOOT_MOUNT:-/boot/firmware}"
+ACTIVE_ROOT_FILE="$BOOT_MOUNT/active-root.txt"
+CONSOLE="${ASHIPAOS_CONSOLE:-/dev/console}"
+
+error() { printf 'ashipaos-boot-success: %s\n' "$*" >&2; exit 1; }
+
+systemctl is-active --quiet ashipaos-boot-status.service ashipaos-jellyfin-mpv-shim.service ||
+    error "appliance is not healthy; not confirming this boot"
+
+if [[ -f "$ACTIVE_ROOT_FILE" ]]; then
+    active_root=a pending=0
+    # Parsed field-by-field, never sourced or run as a script:
+    # active-root.txt is U-Boot-written state on removable media.
+    while IFS='=' read -r key value; do
+        case "$key" in
+            active_root) active_root="$value" ;;
+            pending) pending="$value" ;;
+        esac
+    done <"$ACTIVE_ROOT_FILE"
+    case "$active_root" in
+        a|b) ;;
+        *) error "active-root.txt has an invalid active_root: ${active_root:-<empty>}" ;;
+    esac
+    if [[ "$pending" == "1" ]]; then
+        tmp="$(mktemp "$BOOT_MOUNT/.active-root.txt.XXXXXX")"
+        trap 'rm -f -- "$tmp"' EXIT
+        printf 'active_root=%s\npending=0\nboot_tries=0\n' "$active_root" >"$tmp"
+        mv -f -- "$tmp" "$ACTIVE_ROOT_FILE"
+        trap - EXIT
+        printf 'ashipaos-boot-success: confirmed slot %s, cleared pending\n' "$active_root" >&2
+    fi
+fi
+
+printf 'ASHIPAOS_BOOT_SUCCESS=1\n' >"$CONSOLE" 2>/dev/null || true

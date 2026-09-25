@@ -1,0 +1,16 @@
+# Grows the STORAGE partition table entry to fill the SD card, once, before
+# STORAGE is ever mounted. Pulled in and ordered strictly before storage.mount
+# by that mount's own fstab line (x-systemd.requires=ashipaos-storage-grow.service
+# in rootfs-overlay/etc/fstab, written by layers/layer2-image/scripts/build-image.sh);
+# systemd then runs systemd-growfs@storage.service (the ext4 online resize)
+# after the mount, once the kernel already sees the grown partition. See
+# rootfs-overlay/usr/libexec/ashipaos-storage-grow and contracts/storage.md.
+[Unit]
+Description=AshipaOS: grow the STORAGE partition to fill the SD card
+After=local-fs-pre.target
+RequiresMountsFor=/boot/firmware
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/ashipaos-storage-grow

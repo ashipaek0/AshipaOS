@@ -21,8 +21,15 @@ mainline U-Boot in `layers/layer2-image/config/u-boot/`, and the target's
    only (`ENV_IS_NOWHERE`), and DFU, USB gadget and mass-storage support are
    disabled. It shows its console on HDMI, finds the card by `ashipaos.id`,
    and runs `boot.scr`.
-4. `boot.scr` records `ashipaos-stage2-u-boot.txt`, loads `Image`, the mainline
-   DTB and `initrd.img`, and runs `booti`. If `booti` returns, it records
+4. `boot.scr` reads `active-root.txt` (`active_root`, `pending`, `boot_tries`).
+   If a boot is `pending`, it counts this attempt; at `max_boot_tries` (see
+   `image-config.yaml`) it flips `active_root` to the other slot and clears
+   `pending`/`boot_tries`, writing the result back to `active-root.txt` before
+   ever loading a kernel. See `contracts/os-ota.md` for the full update and
+   rollback contract this exists for. It then records
+   `ashipaos-stage2-u-boot.txt`, loads that slot's `Image-<slot>`, mainline DTB
+   and `initrd.img-<slot>`, assembles `root=LABEL=<RootFS-A|RootFS-B>` onto
+   `bootargs`, and runs `booti`. If `booti` returns, it records
    `ashipaos-stage2-u-boot-failed.txt`.
 5. Linux writes `ashipaos-stage3-linux.txt` 60 s after boot
    (`ashipaos-boot-report.service`).
@@ -32,10 +39,11 @@ mainline U-Boot in `layers/layer2-image/config/u-boot/`, and the target's
 | File | Source | Rule |
 |---|---|---|
 | `u-boot.ext` | pinned mainline U-Boot | must carry the `ashipaos-a95x-f3-air` identity and the target's mainline DTB |
-| `Image` | rootfs `/vmlinuz` | decompressed to a raw arm64 Image |
-| `initrd.img` | rootfs `/initrd.img` | same kernel version as `Image` |
-| `meson-sm1-a95xf3-air.dtb` | rootfs `/usr/lib/linux-image-<kver>/amlogic/` | same kernel package version as `Image` |
-| `manifest.json` | generated | SHA-256 of every boot file and the rootfs archive hash |
+| `active-root.txt` | generated (`a`/`0`/`0` on a fresh flash) | the only mutable boot-partition state; rewritten solely by `boot.scr`'s U-Boot logic, never by Linux |
+| `Image-a` / `Image-b` | slot rootfs `/vmlinuz` | decompressed to a raw arm64 Image; slot B's files exist only once an OS update has installed into it |
+| `initrd.img-a` / `initrd.img-b` | slot rootfs `/initrd.img` | same kernel version as the matching `Image-<slot>` |
+| `meson-sm1-a95xf3-air-a.dtb` / `-b.dtb` | slot rootfs `/usr/lib/linux-image-<kver>/amlogic/` | same kernel package version as the matching `Image-<slot>` |
+| `manifest.json` | generated | format `ashipaos-a95x-boot-v4`; SHA-256 of every fixed boot file (not `active-root.txt`, which changes at runtime) and the rootfs archive hash; records both root slots and the STORAGE partition |
 
 The CoreELEC vendor DTB and the stock `meson1.dtb` are 4.9-kernel device trees
 and are never paired with the mainline kernel. FAT names are lower case where
@@ -44,6 +52,12 @@ comparing it with long file names.
 
 ## Status
 
-`mainline_boot` is `PROVISIONAL`: the chain is build-verified and its scripts
-were executed in U-Boot's sandbox, but it has not yet booted on the exact unit.
-The unit has no UART; the three stage logs on the SD card are the evidence path.
+`mainline_boot` is `CONFIRMED` to Linux userspace on the exact unit (see
+`build/targets/amlogic/boxes/a95x-f3-air.yaml` and
+`evidence/amlogic/a95x-f3-air/`): the chain-load, `boot.scr` and `booti` of the
+single-slot layout were exercised on real hardware before the A/B slot
+mechanism was introduced. The A/B slot selection and revert logic in
+`boot.scr` is build- and sandbox-verified (a real cross-compiled U-Boot build
+executing the generated script) but not yet re-confirmed on the exact unit.
+The unit has no UART; the SD card's stage logs and `active-root.txt` are the
+evidence path.

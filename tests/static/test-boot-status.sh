@@ -7,12 +7,13 @@ OVERLAY="$ROOT/rootfs-overlay"
 HANDLER="$OVERLAY/usr/libexec/ashipaos-boot-status-handler"
 SERVICE="$OVERLAY/etc/systemd/system/ashipaos-boot-status.service"
 SUCCESS="$OVERLAY/etc/systemd/system/ashipaos-boot-success.service"
+SUCCESS_SCRIPT="$OVERLAY/usr/libexec/ashipaos-boot-success"
 ROOTFS_CONFIG="$ROOT/layers/layer1-rootfs/config/rootfs-config.yaml"
 ROOTFS_SCRIPT="$ROOT/layers/layer1-rootfs/scripts/build-rootfs.sh"
 TARGET="$ROOT/build/targets/amlogic/boxes/a95x-f3-air.yaml"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
-[[ -x "$HANDLER" && -f "$SERVICE" && -f "$SUCCESS" ]] || fail "boot-status overlay files exist"
+[[ -x "$HANDLER" && -f "$SERVICE" && -f "$SUCCESS" && -x "$SUCCESS_SCRIPT" ]] || fail "boot-status overlay files exist"
 python3 - "$ROOTFS_CONFIG" "$TARGET" <<'PY' || fail "busybox is installed and the target enables boot status"
 import sys, yaml
 config, target = (yaml.safe_load(open(p, encoding="utf-8")) for p in sys.argv[1:])
@@ -30,7 +31,18 @@ grep -q 'HTTP/1.1 405 Method Not Allowed' "$HANDLER" || fail "handler rejects un
 
 grep -qx 'DynamicUser=yes' "$SERVICE" || fail "service is non-root"
 grep -qx 'ExecStart=/bin/busybox nc -ll -p 8080 -e /usr/libexec/ashipaos-boot-status-handler' "$SERVICE" || fail "service uses the validated busybox nc command"
-! grep -qEi 'ssh|password|credential' "$SERVICE" "$SUCCESS" "$HANDLER" || fail "boot-status assets contain no SSH or credentials"
+! grep -qEi 'ssh|password|credential' "$SERVICE" "$SUCCESS" "$HANDLER" "$SUCCESS_SCRIPT" || fail "boot-status assets contain no SSH or credentials"
+
+# The pending-confirmation step (contracts/os-ota.md) runs after the sleep,
+# is wired into the boot partition mount, never touches eMMC, never accesses
+# the network, and never sources/evals the U-Boot-written state file it reads.
+grep -qx 'ExecStart=/bin/sleep 20' "$SUCCESS" || fail "success service still sleeps before confirming"
+grep -qx 'ExecStart=/usr/libexec/ashipaos-boot-success' "$SUCCESS" || fail "success service does not run the pending-confirmation script"
+grep -qx 'RequiresMountsFor=/boot/firmware' "$SUCCESS" || fail "success service is not ordered after the boot partition mount"
+grep -q 'usr/libexec/ashipaos-boot-success' "$ROOTFS_SCRIPT" || fail "rootfs builder installs ashipaos-boot-success"
+! grep -Eq 'mmcblk|/dev/mmc' "$SUCCESS_SCRIPT" || fail "ashipaos-boot-success must never target eMMC (mmcblk) devices"
+! grep -Eq '(^|[[:space:]])(curl|wget|nc)([[:space:]]|$)' "$SUCCESS_SCRIPT" || fail "ashipaos-boot-success does not invoke network clients"
+! grep -Eq '\bsource\b|\beval\b' "$SUCCESS_SCRIPT" || fail "ashipaos-boot-success must not source/eval the U-Boot-written state file"
 
 # Every ashipaos-* unit a boot-status unit depends on must ship in the image
 # (Layer 1 overlay or the Layer 5 application files).

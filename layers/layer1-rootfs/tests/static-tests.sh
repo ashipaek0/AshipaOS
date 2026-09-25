@@ -33,6 +33,8 @@ assert debian["keyring"] == "/usr/share/keyrings/debian-archive-keyring.gpg"
 assert "python3-mpv" not in packages
 assert config["debian"]["suite"] == "trixie", "libmpv must be >= 0.38 (Jellyfin MPV Shim 3.0)"
 assert {"firmware-realtek", "wireless-regdb", "iwd", "cage", "seatd", "ir-keytable"} <= set(packages)
+# STORAGE partition growth (contracts/storage.md) needs sfdisk/partx and resize2fs.
+assert {"util-linux", "e2fsprogs"} <= set(packages)
 assert len(packages) == len(set(packages))
 PY
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/network/20-wired.network" ]] || fail "network overlay is missing"
@@ -41,6 +43,17 @@ grep -q 'systemctl enable iwd.service ashipaos-wifi-import.service' "$SCRIPT" ||
 ! grep -q 'Passphrase=' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-wifi-import" || fail "Wi-Fi import must store only the hashed PSK"
 [[ -x "$ROOT/rootfs-overlay/usr/libexec/ashipaos-boot-report" ]] || fail "boot report script is missing"
 ! grep -Eq 'mmcblk|/dev/mmc|dd ' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-boot-report" || fail "boot report must not touch block devices directly"
+# STORAGE partition growth (contracts/storage.md): grown once on first boot,
+# before it is ever mounted, strictly ahead of Layer 2's storage.mount.
+grep -q 'ashipaos-storage-grow' "$SCRIPT" || fail "the storage-grow helper must be installed into the rootfs"
+grep -q 'ashipaos-storage-grow.service' "$SCRIPT" || fail "the storage-grow service unit must be installed into the rootfs"
+grep -q 'ashipaos-storage.conf' "$SCRIPT" || fail "the /storage tmpfiles.d rule must be installed into the rootfs"
+[[ -x "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" ]] || fail "storage-grow script is missing or not executable"
+grep -q 'mmcblk1' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must explicitly refuse the box's eMMC (mmcblk1)"
+grep -q 'removable' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must require the target disk be reported removable"
+grep -q -- '--no-tell-kernel' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must not force a whole-disk kernel partition-table reread"
+[[ -f "$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-storage-grow.service" ]] || fail "storage-grow service unit is missing"
+[[ -f "$ROOT/rootfs-overlay/usr/lib/tmpfiles.d/ashipaos-storage.conf" ]] || fail "the /storage tmpfiles.d rule is missing"
 grep -q ': >"$ROOTFS/etc/machine-id"' "$SCRIPT" || fail "rootfs must not ship a fixed machine-id"
 grep -q -- '--keyring="$DEBIAN_KEYRING" --force-check-gpg' "$SCRIPT" || fail "debootstrap must verify Release signatures"
 ! grep -Eq 'DEBIAN_(MIRROR|SUITE)=.*\$\{DEBIAN_' "$SCRIPT" || fail "Debian sources must not be overridable from the environment"

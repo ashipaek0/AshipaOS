@@ -1,15 +1,19 @@
-# Prints ASHIPAOS_BOOT_SUCCESS=1 on /dev/console (the UART) once the boot-status
-# endpoint and the Jellyfin MPV Shim appliance UI are both still running
-# 20 seconds after the shim started.
+# Confirms a boot as healthy once the boot-status endpoint and the Jellyfin
+# MPV Shim appliance UI are both still running 20 seconds after the shim
+# started: prints ASHIPAOS_BOOT_SUCCESS=1 on /dev/console (the UART), and, if
+# this was a "pending" boot into a freshly updated slot (contracts/os-ota.md),
+# clears pending/boot_tries in active-root.txt so it counts as confirmed.
 [Unit]
 Description=AshipaOS boot readiness marker
 Requires=ashipaos-boot-status.service
 Wants=ashipaos-jellyfin-mpv-shim.service
 After=ashipaos-boot-status.service ashipaos-jellyfin-mpv-shim.service
+RequiresMountsFor=/boot/firmware
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'sleep 20; systemctl is-active --quiet ashipaos-boot-status.service ashipaos-jellyfin-mpv-shim.service && printf "ASHIPAOS_BOOT_SUCCESS=1\n" > /dev/console'
+ExecStart=/bin/sleep 20
+ExecStart=/usr/libexec/ashipaos-boot-success
 RemainAfterExit=yes
 
 [Install]

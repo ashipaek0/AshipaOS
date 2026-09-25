@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Grow the STORAGE partition table entry to fill the SD card (run once).
+
+The base image ships a small STORAGE partition; real SD cards for this box
+are much larger. This only rewrites the STORAGE partition's own table entry
+(never boot or either root slot) and only via `partx -u` on that one,
+currently-unmounted partition, so it never needs the kernel to re-read the
+whole disk's table while boot/root partitions are in use. The ext4 filesystem
+itself is grown afterwards by systemd-growfs (fstab's x-systemd.growfs on the
+STORAGE line), ordered after this service by x-systemd.requires.
+
+Safety: only ever touches the disk holding the AshipaOS boot partition, and
+only after confirming from /sys/block that it is removable. Never eMMC.
+See contracts/storage.md.
+"""
+import json
+import os
+import pathlib
+import re
+import subprocess
+import sys
+
+MARKER = pathlib.Path(os.environ.get("ASHIPAOS_STORAGE_GROW_MARKER", "/var/lib/ashipaos/storage-grown"))
+BOOT_MOUNT = os.environ.get("ASHIPAOS_STORAGE_GROW_BOOT_MOUNT", "/boot/firmware")
+SYSBLOCK_ROOT = pathlib.Path(os.environ.get("ASHIPAOS_STORAGE_GROW_SYSBLOCK_ROOT", "/sys/block"))
+# Fixed A95X layout (image-config.yaml): boot, root_a, root_b, storage.
+STORAGE_PARTITION_NUMBER = 4
+EXPECTED_PARTITION_COUNT = 4
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, capture_output=True, text=True, **kwargs).stdout
+
+
+def resolve_disk():
+    """The bare device name (e.g. "mmcblk0") holding the boot partition."""
+    override = os.environ.get("ASHIPAOS_STORAGE_GROW_DISK")
+    if override:
+        return override
+    source = run("findmnt", "-n", "-o", "SOURCE", BOOT_MOUNT).strip()
+    try:
+        disk = run("lsblk", "-no", "PKNAME", source).strip()
+    except subprocess.CalledProcessError:
+        disk = ""
+    if not disk:
+        match = re.fullmatch(r"/dev/(mmcblk\d+)p\d+", source)
+        if not match:
+            raise SystemExit(f"cannot resolve the parent disk of boot source {source!r}")
+        disk = match.group(1)
+    return disk
+
+
+def require_removable(disk: str) -> None:
+    # Belt and braces: the exact eMMC device name observed on this hardware,
+    # even though the removable check below is the general, authoritative one.
+    if disk == "mmcblk1":
+        raise SystemExit(f"refusing to touch {disk}: this is the box's eMMC, never removable SD")
+    removable = SYSBLOCK_ROOT / disk / "removable"
+    if not removable.is_file() or removable.read_text().strip() != "1":
+        raise SystemExit(f"refusing to touch {disk}: not reported as a removable disk")
+
+
+def disk_size_sectors(disk: str) -> int:
+    return int((SYSBLOCK_ROOT / disk / "size").read_text().strip())
+
+
+def main() -> int:
+    if MARKER.exists():
+        return 0
+    disk = resolve_disk()
+    require_removable(disk)
+    device = os.environ.get("ASHIPAOS_STORAGE_GROW_DEVICE", f"/dev/{disk}")
+
+    table = json.loads(run("sfdisk", "-J", device))["partitiontable"]
+    if table.get("label") != "dos" or len(table["partitions"]) != EXPECTED_PARTITION_COUNT:
+        raise SystemExit(f"unexpected partition table on {device}: not the A95X {EXPECTED_PARTITION_COUNT}-partition layout")
+    storage = table["partitions"][STORAGE_PARTITION_NUMBER - 1]
+
+    available = disk_size_sectors(disk) - storage["start"]
+    if available > storage["size"]:
+        print(f"ashipaos-storage-grow: growing partition {STORAGE_PARTITION_NUMBER} on {device} "
+              f"from {storage['size']} to {available} sectors", file=sys.stderr)
+        # "<start unchanged>, +" extends the partition to the next partition or
+        # disk end. --no-tell-kernel stops sfdisk asking the kernel to reread
+        # the WHOLE table, which fails while boot/root are mounted; --no-reread
+        # skips its related busy check. partx below updates the kernel's view
+        # of only the one, currently-unmounted STORAGE partition instead.
+        subprocess.run(["sfdisk", "--no-reread", "--no-tell-kernel", "-N", str(STORAGE_PARTITION_NUMBER), device],
+                        input=", +\n", check=True, text=True)
+        # Tell the kernel about only this one, currently-unmounted partition.
+        nr = f"{STORAGE_PARTITION_NUMBER}:{STORAGE_PARTITION_NUMBER}"
+        subprocess.run(["partx", "-u", "-n", nr, device], check=True)
+    else:
+        print(f"ashipaos-storage-grow: partition {STORAGE_PARTITION_NUMBER} already fills the disk", file=sys.stderr)
+
+    MARKER.parent.mkdir(parents=True, exist_ok=True)
+    MARKER.touch()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

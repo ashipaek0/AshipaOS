@@ -43,7 +43,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/storage/jellyfin-mpv-shim /storage/apps/jellyfin-mpv-shim
+ReadWritePaths=/storage/jellyfin-mpv-shim
 
 [Install]
 WantedBy=multi-user.target

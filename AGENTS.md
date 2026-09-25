@@ -12,11 +12,14 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
   PHY) from the same kernel package.
 - Boot: the box's vendor U-Boot runs an SD entry script (`aml_autoscript`,
   `cfgload` or `s905_autoscript`), which chain-loads a pinned mainline U-Boot
-  (`u-boot.ext`, RAM-only environment), which runs `boot.scr` → `booti`. Each
-  stage writes a log to the SD card's FAT partition (no-UART diagnostics). The
-  image contract is the DOS/MBR layout with a FAT16 boot partition at sector
-  8192 and an ext4 root partition at sector 532480; see
-  `contracts/boot-bundle.md` and `contracts/storage.md`.
+  (`u-boot.ext`, RAM-only environment), which runs `boot.scr` → `booti`.
+  `boot.scr` also picks the active A/B root slot from `active-root.txt` and
+  reverts to the other slot after repeated failed boots, entirely inside
+  U-Boot. Each stage writes a log to the SD card's FAT partition (no-UART
+  diagnostics). The image contract is the DOS/MBR layout with a FAT16 boot
+  partition at sector 8192, two ext4 root slots (A/B) at sectors 532480 and
+  4726784, and an ext4 STORAGE partition at sector 8921088; see
+  `contracts/boot-bundle.md`, `contracts/storage.md` and `contracts/os-ota.md`.
 - Application: Jellyfin MPV Shim is installed from a hash-pinned lock
   (`layers/layer5-application/config/dependencies.lock.json`) and started at
   boot by `ashipaos-jellyfin-mpv-shim.service` (user `ashipa`) inside the `cage`

@@ -10,9 +10,12 @@ REPO_ROOT="$(cd "$LAYER_DIR/../.." && pwd)"
 BUNDLE_TOOL="$SCRIPT_DIR/jellyfin-bundle.py"
 LOCK="$LAYER_DIR/config/dependencies.lock.json"
 LAUNCHER="$LAYER_DIR/files/usr/libexec/ashipaos-jellyfin-mpv-shim"
+# The version this build resolved and installed (read from the lock, not
+# hardcoded): each root slot always carries exactly one app version, baked in
+# at build time; an update ships as a whole new root slot, never an in-place
+# swap of this one bundle. See contracts/os-ota.md.
 APP_NAME="jellyfin-mpv-shim"
-APP_VERSION="3.0.0"
-BUNDLE_REL="usr/lib/ashipaos/apps/$APP_NAME/$APP_VERSION"
+BUNDLE_REL="usr/lib/ashipaos/apps/$APP_NAME"
 SERVICE_USER="ashipa"
 SERVICE="ashipaos-jellyfin-mpv-shim.service"
 
@@ -57,11 +60,12 @@ PYTHONPATH="$bundle/site-packages" exec /usr/bin/python3 -s -c \
     'from jellyfin_mpv_shim.mpv_shim import main; main()' "$@"
 EOF
 
-python3 - "$LOCK" "$BUNDLE" "$APP_NAME" "$APP_VERSION" <<'PY'
+python3 - "$LOCK" "$BUNDLE" "$APP_NAME" <<'PY'
 import hashlib, json, pathlib, sys
-lock_path, bundle, name, version = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3], sys.argv[4]
+lock_path, bundle, name = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3]
 lock = json.loads(pathlib.Path(lock_path).read_text(encoding="utf-8"))
 target = lock["target"]
+version = lock["source"]["version"]
 executable = bundle / "bin" / name
 sbom = {
     "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
@@ -81,8 +85,11 @@ manifest = {"schema": "ashipaos.jellyfin-mpv-shim.slot.v1", "name": name, "versi
 (bundle / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PY
 
-# The immutable bundle is root-owned and read-only to everyone else; the
-# launcher refuses it otherwise.
+APP_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source"]["version"])' "$LOCK")"
+[[ -n "$APP_VERSION" ]] || error "could not read the application version from $LOCK"
+
+# The bundle is root-owned and read-only to everyone else; the launcher
+# refuses it otherwise.
 chown -R 0:0 "$BUNDLE"
 find "$BUNDLE" -type d -exec chmod 0755 {} +
 find "$BUNDLE" -type f -exec chmod 0644 {} +
@@ -108,14 +115,13 @@ install -D -m 0644 -o 0 -g 0 "$FILES/etc/systemd/system/seatd.service.d/ashipaos
 for group in video render audio input; do
     grep -q "^$group:" "$ROOTFS/etc/group" || error "target rootfs lacks the $group group required by $SERVICE"
 done
+grep -q "^$SERVICE_USER:" "$ROOTFS/etc/passwd" || error "target rootfs lacks the $SERVICE_USER identity"
 
-# Writable state lives under /storage and belongs to the service user.
-uid="$(awk -F: -v u="$SERVICE_USER" '$1 == u {print $3; exit}' "$ROOTFS/etc/passwd")"
-gid="$(awk -F: -v u="$SERVICE_USER" '$1 == u {print $3; exit}' "$ROOTFS/etc/group")"
-[[ "$uid" =~ ^[0-9]+$ && "$gid" =~ ^[0-9]+$ ]] || error "target rootfs lacks the $SERVICE_USER identity"
-install -d -m 0755 -o 0 -g 0 "$ROOTFS/storage" "$ROOTFS/storage/apps"
-install -d -m 0700 -o "$uid" -g "$gid" "$ROOTFS/storage/$APP_NAME" \
-    "$ROOTFS/storage/apps/$APP_NAME" "$ROOTFS/storage/apps/$APP_NAME/slots"
+# Writable state lives on the STORAGE partition (contracts/storage.md), a
+# separate filesystem mounted by Layer 2; the ashipa-owned directory it needs
+# is created there by tmpfiles.d once it is mounted, not baked in here.
+install -D -m 0644 -o 0 -g 0 "$FILES/usr/lib/tmpfiles.d/ashipaos-$APP_NAME.conf" \
+    "$ROOTFS/usr/lib/tmpfiles.d/ashipaos-$APP_NAME.conf"
 
 partial="$INPUT.partial"
 tar -C "$ROOTFS" --numeric-owner --xattrs --acls -czf "$partial" .

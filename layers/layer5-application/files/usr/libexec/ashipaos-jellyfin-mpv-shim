@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-# Select only a complete, hash- and ownership-validated application slot.
-IMMUTABLE="${ASHIPAOS_IMMUTABLE:-/usr/lib/ashipaos/apps/jellyfin-mpv-shim/3.0.0}"
-ACTIVE="${ASHIPAOS_ACTIVE:-/storage/apps/jellyfin-mpv-shim/active.json}"
-SLOTS="${ASHIPAOS_SLOTS:-/storage/apps/jellyfin-mpv-shim/slots}"
+# Run the one application bundle this root slot was built with, after
+# validating its manifest, hash and ownership. There is deliberately no other
+# candidate to fall back to or select between: an OS update (contracts/os-ota.md)
+# replaces this whole root slot atomically, so the bundle here is always
+# exactly what this build shipped, never independently swapped.
+BUNDLE="${ASHIPAOS_BUNDLE:-/usr/lib/ashipaos/apps/jellyfin-mpv-shim}"
 CONFIG="${ASHIPAOS_CONFIG:-/storage/jellyfin-mpv-shim}"
 DEFAULTS="${ASHIPAOS_DEFAULTS:-/usr/share/ashipaos/jellyfin-mpv-shim}"
-EXPECTED_VERSION="3.0.0"
 EXPECTED_NAME="jellyfin-mpv-shim"
 error() { printf 'jellyfin-mpv-shim: %s\n' "$*" >&2; exit 1; }
-ashipa_uid=$(getent passwd ashipa | awk -F: 'NR == 1 {print $3}')
-ashipa_gid=$(getent group ashipa | awk -F: 'NR == 1 {print $3}')
-[[ "$ashipa_uid" =~ ^[0-9]+$ && "$ashipa_gid" =~ ^[0-9]+$ ]] || error "ashipa ownership identity is unavailable"
+
 owned_mode() {
     local path="$1" owner="$2" group="$3" mode="$4" actual_owner actual_group actual_mode
     [[ -e "$path" && ! -L "$path" ]] || return 1
     read -r actual_owner actual_group actual_mode < <(stat -c '%u %g %a' "$path") || return 1
     [[ "$actual_owner" == "$owner" && "$actual_group" == "$group" && "$actual_mode" == "$mode" ]]
 }
+
+# getent (not id): resolves the ashipa identity through NSS the same way on
+# the target and in tests, without requiring the caller to already be ashipa.
+IFS=: read -r _ _ ashipa_uid ashipa_gid _ < <(getent passwd ashipa) || error "the ashipa user is missing"
+[[ -n "$ashipa_uid" && -n "$ashipa_gid" ]] || error "could not resolve the ashipa user"
+
 [[ -d "$CONFIG" ]] || install -d -m 0700 "$CONFIG" || error "cannot create configuration directory"
-owned_mode "$CONFIG" "$ashipa_uid" "$ashipa_gid" 700 "configuration ownership" || error "configuration ownership or mode is invalid"
+owned_mode "$CONFIG" "$ashipa_uid" "$ashipa_gid" 700 || error "configuration ownership or mode is invalid"
 # First boot: seed the appliance defaults (fullscreen browser, DRM output).
 # Existing files are never overwritten, so settings changed in the UI persist.
 for default in conf.json mpv.conf; do
@@ -27,64 +32,32 @@ for default in conf.json mpv.conf; do
         install -m 0600 "$DEFAULTS/$default" "$CONFIG/$default" || error "cannot seed $default"
     fi
 done
-[[ -d "$SLOTS" ]] || error "slot directory is missing"
-owned_mode "$SLOTS" "$ashipa_uid" "$ashipa_gid" 700 "slot directory ownership" || error "slot directory ownership or mode is invalid"
-if [[ -e "$ACTIVE" ]]; then
-    owned_mode "$ACTIVE" "$ashipa_uid" "$ashipa_gid" 600 "active metadata ownership" || error "active metadata ownership or mode is invalid"
-fi
 
-validate_slot() {
-    local dir="$1" owner="$2" group="$3" dir_mode="$4" manifest_mode="$5" manifest="$1/manifest.json" expected_hash actual_hash actual_owner actual_group actual_mode
-    owned_mode "$dir" "$owner" "$group" "$dir_mode" "slot directory ownership" || return 1
-    [[ -f "$manifest" && ! -L "$manifest" ]] || return 1
-    [[ -f "$dir/bin/jellyfin-mpv-shim" && ! -L "$dir/bin/jellyfin-mpv-shim" ]] || return 1
-    read -r actual_owner actual_group actual_mode < <(stat -c '%u %g %a' "$manifest")
-    [[ "$actual_owner" == "$owner" && "$actual_group" == "$group" && "$actual_mode" == "$manifest_mode" ]] || return 1
-    python3 - "$manifest" "$EXPECTED_NAME" "$EXPECTED_VERSION" <<'PY' || return 1
-import json, sys
-try:
-    value = json.load(open(sys.argv[1], encoding="utf-8"))
-    required = {"schema", "name", "version", "executable", "sha256", "python_tag", "abi_tag", "platform_tag", "dependency_status"}
-    if set(value) != required or value["schema"] != "ashipaos.jellyfin-mpv-shim.slot.v1": raise ValueError
-    if value["name"] != sys.argv[2] or value["version"] != sys.argv[3]: raise ValueError
-    if value["executable"] != "bin/jellyfin-mpv-shim" or value["dependency_status"] != "RESOLVED": raise ValueError
-    if not isinstance(value["python_tag"], str) or not value["python_tag"].startswith("cp3"): raise ValueError
-    if not isinstance(value["abi_tag"], str) or not value["abi_tag"].startswith("cp3"): raise ValueError
-    if not isinstance(value["platform_tag"], str) or not any(platform in value["platform_tag"] for platform in ("aarch64",)): raise ValueError
-    if any(not isinstance(value[k], str) or not value[k] for k in ("sha256", "python_tag", "abi_tag", "platform_tag")): raise ValueError
-    if len(value["sha256"]) != 64 or any(c not in "0123456789abcdef" for c in value["sha256"]): raise ValueError
-except (OSError, ValueError, KeyError, json.JSONDecodeError, TypeError):
-    raise SystemExit(1)
-PY
-    expected_hash=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest") || return 1
-    actual_hash=$(sha256sum "$dir/bin/jellyfin-mpv-shim" | awk '{print $1}')
-    [[ "$actual_hash" == "$expected_hash" ]] || return 1
-    read -r actual_owner actual_group actual_mode < <(stat -c '%u %g %a' "$dir/bin/jellyfin-mpv-shim")
-    [[ "$actual_owner" == "$owner" && "$actual_group" == "$group" && "$actual_mode" == 755 ]] || return 1
-    [[ -x "$dir/bin/jellyfin-mpv-shim" ]] || return 1
-}
+manifest="$BUNDLE/manifest.json"
+owned_mode "$BUNDLE" 0 0 755 || error "bundle directory ownership or mode is invalid"
+[[ -f "$manifest" && ! -L "$manifest" ]] || error "bundle manifest is missing"
+owned_mode "$manifest" 0 0 644 || error "bundle manifest ownership or mode is invalid"
+[[ -f "$BUNDLE/bin/$EXPECTED_NAME" && ! -L "$BUNDLE/bin/$EXPECTED_NAME" ]] || error "bundle executable is missing"
+owned_mode "$BUNDLE/bin/$EXPECTED_NAME" 0 0 755 || error "bundle executable ownership or mode is invalid"
+[[ -x "$BUNDLE/bin/$EXPECTED_NAME" ]] || error "bundle executable is not executable"
 
-candidate=""
-if [[ -s "$ACTIVE" ]]; then
-    slot_data=$(python3 - "$ACTIVE" <<'PY'
+python3 - "$manifest" "$EXPECTED_NAME" <<'PY' || error "bundle manifest failed validation"
 import json, sys
-try:
-    value = json.load(open(sys.argv[1], encoding="utf-8"))
-    if set(value) != {"slot", "version"} or value["slot"] not in {"A", "B"} or value["version"] != "3.0.0": raise ValueError
-    print(value["slot"])
-except (OSError, ValueError, KeyError, json.JSONDecodeError, TypeError):
-    raise SystemExit(1)
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+required = {"schema", "name", "version", "executable", "sha256", "python_tag", "abi_tag", "platform_tag", "dependency_status"}
+assert set(value) == required and value["schema"] == "ashipaos.jellyfin-mpv-shim.slot.v1"
+assert value["name"] == sys.argv[2]
+assert value["executable"] == f"bin/{sys.argv[2]}" and value["dependency_status"] == "RESOLVED"
+assert isinstance(value["python_tag"], str) and value["python_tag"].startswith("cp3")
+assert isinstance(value["abi_tag"], str) and value["abi_tag"].startswith("cp3")
+assert isinstance(value["platform_tag"], str) and "aarch64" in value["platform_tag"]
+assert isinstance(value["version"], str) and value["version"]
+sha256 = value["sha256"]
+assert isinstance(sha256, str) and len(sha256) == 64 and all(c in "0123456789abcdef" for c in sha256)
 PY
-    ) || { printf 'jellyfin-mpv-shim: malformed or mismatched active.json; using immutable bundle\n' >&2; slot_data=""; }
-    if [[ -n "$slot_data" ]] && validate_slot "$SLOTS/$slot_data" "$ashipa_uid" "$ashipa_gid" 700 600; then
-        candidate="$SLOTS/$slot_data/bin/jellyfin-mpv-shim"
-    else
-        [[ -z "$slot_data" ]] || printf 'jellyfin-mpv-shim: active slot failed manifest/hash/ABI/ownership validation; using immutable bundle\n' >&2
-    fi
-fi
-# Prefer a validated immutable bundle when no active slot is selected.
-if [[ -z "$candidate" ]] && [[ -d "$IMMUTABLE" ]] && validate_slot "$IMMUTABLE" 0 0 755 644; then
-    candidate="$IMMUTABLE/bin/jellyfin-mpv-shim"
-fi
-[[ -n "$candidate" ]] || error "no validated executable bundle is available; dependency closure is unresolved; refusing activation"
-exec "$candidate" "$@"
+
+expected_hash="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest")"
+actual_hash="$(sha256sum "$BUNDLE/bin/$EXPECTED_NAME" | awk '{print $1}')"
+[[ "$actual_hash" == "$expected_hash" ]] || error "bundle executable does not match its manifest hash"
+
+exec "$BUNDLE/bin/$EXPECTED_NAME" "$@"

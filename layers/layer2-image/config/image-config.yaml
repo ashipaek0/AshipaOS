@@ -1,10 +1,16 @@
 # Layer 2: A95X F3 Air removable-SD image. build-image.sh reads this file.
-image_size_mb: 4096
+image_size_mb: 4868
 partition_table: dos
 # Sectors 1..8191 stay zero: nothing is written ahead of the boot partition
 # (the stock SD U-Boot bundle is never written to the image).
 prepartition_gap: {start_sector: 1, end_sector: 8191, contents: zero}
 raw_sd_payload_writes: false
+# Two root slots (A/B) so an OS update never touches the running root
+# filesystem: the new content is written entirely to the inactive slot, and
+# only a small text file on the boot partition (active-root.txt) switches
+# which one boots next. A STORAGE partition holds settings and app state
+# separately from both root slots, so it survives an OS update untouched.
+# MBR allows exactly 4 primary partitions, which is exactly what this needs.
 partitions:
   boot:
     start_sector: 8192
@@ -12,25 +18,44 @@ partitions:
     mbr_type: "0x0e"  # W95 FAT16 (LBA)
     filesystem: fat16
     label: A95XBOOT
-  root:
+  root_a:
     start_sector: 532480
-    size_mb: 3584
+    size_mb: 2048
     mbr_type: "0x83"
     filesystem: ext4
-    label: RootFS
+    label: RootFS-A
+  root_b:
+    start_sector: 4726784
+    size_mb: 2048
+    mbr_type: "0x83"
+    filesystem: ext4
+    label: RootFS-B
+  storage:
+    start_sector: 8921088
+    size_mb: 512
+    mbr_type: "0x83"
+    filesystem: ext4
+    label: STORAGE
 # Boot chain (no eMMC writes anywhere):
 #   vendor U-Boot 2015.01 on eMMC (untouched) finds one of the SD entry scripts
 #   -> it loads the pinned mainline U-Boot (u-boot.ext) and jumps to it
-#   -> mainline U-Boot finds this card by ashipaos.id and runs boot.scr
-#   -> boot.scr booti's the Debian kernel with its initramfs and mainline DTB.
+#   -> mainline U-Boot reads active-root.txt and runs boot.scr
+#   -> boot.scr booti's the active slot's kernel/initramfs/DTB.
 # Three entry scripts cover the ways vendor U-Boot looks at the SD card: its
 # own recovery path (aml_autoscript), a CoreELEC-installed environment
 # (cfgload) and an Armbian-style environment (s905_autoscript).
-# FAT names are lower case: vendor U-Boot lower-cases lookups before
-# comparing them with long file names.
+# FAT names on the boot partition are lower case: vendor U-Boot lower-cases
+# lookups before comparing them with long file names.
 boot:
   entry_scripts: [aml_autoscript, cfgload, s905_autoscript]
-  files: [ashipaos.id, u-boot.ext, boot.scr, Image, initrd.img, manifest.json]
+  # Files boot.scr itself needs; the kernel/initramfs/DTB are per-slot (below).
+  files: [ashipaos.id, u-boot.ext, boot.scr, active-root.txt, manifest.json]
+  # <base>-a / <base>-b, one set per root slot; the DTB keeps its .dtb suffix.
+  per_slot_files: [Image, initrd.img]
   u_boot_ext_addr: "0x01000000"  # mainline U-Boot's TEXT_BASE
   log_addr: "0x03000000"         # scratch buffer for the SD boot-stage logs
-  bootargs: "root=LABEL=RootFS rootwait rw console=ttyAML0,115200 console=tty0"
+  # A failed boot into a newly-updated slot (see contracts/os-ota.md) reverts
+  # to the other slot after this many attempts, entirely inside U-Boot: it
+  # works even if the new kernel never reaches Linux at all.
+  max_boot_tries: 3
+  bootargs: "rootwait rw console=ttyAML0,115200 console=tty0"

@@ -225,6 +225,18 @@ configure_system() {
     # The appliance must boot with or without a network: nothing may wait for
     # one, so network-online.target is reached at once.
     ln -sfn /dev/null "$ROOTFS/etc/systemd/system/systemd-networkd-wait-online.service"
+
+    # STORAGE partition (settings/app state, survives an OS update): grown to
+    # fill the SD card on first boot, before it is ever mounted; see
+    # contracts/storage.md and contracts/os-ota.md. The mount itself and its
+    # fstab line (with the ordering that pulls this service in) come from
+    # Layer 2 (build-image.sh), which knows the STORAGE label.
+    install -D -m 0644 "$OVERLAY_DIR/usr/lib/tmpfiles.d/ashipaos-storage.conf" \
+        "$ROOTFS/usr/lib/tmpfiles.d/ashipaos-storage.conf"
+    install -D -m 0755 "$OVERLAY_DIR/usr/libexec/ashipaos-storage-grow" \
+        "$ROOTFS/usr/libexec/ashipaos-storage-grow"
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-storage-grow.service" \
+        "$ROOTFS/etc/systemd/system/ashipaos-storage-grow.service"
 }
 
 target_enables_boot_status() {
@@ -240,12 +252,17 @@ install_boot_status() {
     target_enables_boot_status || return 0
     local file
     for file in usr/libexec/ashipaos-boot-status-handler \
+                usr/libexec/ashipaos-boot-success \
                 etc/systemd/system/ashipaos-boot-status.service \
                 etc/systemd/system/ashipaos-boot-success.service; do
         [[ -f "$OVERLAY_DIR/$file" ]] || error "Missing boot-status overlay file: $file"
     done
     install -D -m 0755 "$OVERLAY_DIR/usr/libexec/ashipaos-boot-status-handler" \
         "$ROOTFS/usr/libexec/ashipaos-boot-status-handler"
+    # Confirms a healthy boot and clears active-root.txt's "pending" flag
+    # after an OS update (contracts/os-ota.md); never touches eMMC.
+    install -D -m 0755 "$OVERLAY_DIR/usr/libexec/ashipaos-boot-success" \
+        "$ROOTFS/usr/libexec/ashipaos-boot-success"
     install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-boot-status.service" \
         "$ROOTFS/etc/systemd/system/ashipaos-boot-status.service"
     install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-boot-success.service" \

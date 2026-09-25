@@ -3,9 +3,11 @@
 # Verification Class: BUILD (CI only; VM and HARDWARE gates remain open)
 #
 # Builds a DOS/MBR image with a FAT16 boot partition (vendor-U-Boot entry
-# scripts, the chain-loaded mainline U-Boot, boot.scr, kernel, initramfs, DTB)
-# and an ext4 root partition from the Layer 1/5 rootfs tarball. Nothing is
-# written before sector 8192, and nothing ever writes the box's eMMC.
+# scripts, the chain-loaded mainline U-Boot, boot.scr, per-slot kernel /
+# initramfs / DTB), two ext4 root slots (A/B, see contracts/os-ota.md for the
+# update-and-rollback contract they exist for) and an ext4 STORAGE partition
+# for settings and app state, shared by both slots. Nothing is written before
+# sector 8192, and nothing ever writes the box's eMMC.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,14 +26,16 @@ usage() {
 Usage: $(basename "$0") [OPTIONS] <rootfs.tar.gz> <u-boot.bin> [$TARGET]
 
 Build the $TARGET SD image from the Layer 1/5 rootfs tarball and the
-chain-loaded mainline U-Boot from build-u-boot.sh (runs as root).
+chain-loaded mainline U-Boot from build-u-boot.sh (runs as root). The rootfs
+becomes root slot A; slot B is created empty, ready for an OS update
+(contracts/os-ota.md) to install into without touching slot A or STORAGE.
 
 Options:
   -h, --help                 Show this help
   --validate                 Validate the configuration only
   --layout-only FILE         Write only the partition layout to FILE (test aid)
 
-Dependencies: python3-yaml, util-linux (sfdisk), dosfstools, mtools,
+Dependencies: python3-yaml, util-linux (sfdisk, partx), dosfstools, mtools,
               e2fsprogs (mkfs.ext4 -d), u-boot-tools (mkimage)
 EOF
 }
@@ -63,7 +67,8 @@ target = yaml.safe_load(open(sys.argv[2], encoding="utf-8"))
 def fail(message):
     raise SystemExit(f"image-config: {message}")
 
-boot, root = config["partitions"]["boot"], config["partitions"]["root"]
+parts = config["partitions"]
+boot, root_a, root_b, storage = parts["boot"], parts["root_a"], parts["root_b"], parts["storage"]
 size_mb = config["image_size_mb"]
 if config["partition_table"] != "dos":
     fail("partition_table must be dos")
@@ -73,25 +78,41 @@ if config["raw_sd_payload_writes"] is not False:
     fail("raw SD payload writes are forbidden")
 if (boot["start_sector"], boot["size_mb"], boot["filesystem"], boot["mbr_type"]) != (8192, 256, "fat16", "0x0e"):
     fail("boot partition must be FAT16 (0x0e), 256 MiB at sector 8192")
-if root["start_sector"] != boot["start_sector"] + boot["size_mb"] * 2048:
-    fail("root partition must directly follow the boot partition")
-if (root["start_sector"], root["filesystem"], root["mbr_type"]) != (532480, "ext4", "0x83"):
-    fail("root partition must be ext4 (0x83) at sector 532480")
-if root["start_sector"] + root["size_mb"] * 2048 > size_mb * 2048:
+
+label_re = re.compile(r"[A-Za-z0-9_-]{1,16}")
+end = boot["start_sector"] + boot["size_mb"] * 2048
+for name, part in (("root_a", root_a), ("root_b", root_b), ("storage", storage)):
+    if part["start_sector"] != end:
+        fail(f"{name} must directly follow the previous partition (expected start_sector {end})")
+    if (part["filesystem"], part["mbr_type"]) != ("ext4", "0x83"):
+        fail(f"{name} must be ext4 (0x83)")
+    if not label_re.fullmatch(part["label"]):
+        fail(f"{name}: invalid filesystem label")
+    end += part["size_mb"] * 2048
+if end > size_mb * 2048:
     fail("partitions exceed image_size_mb")
-if not re.fullmatch(r"[A-Z0-9_]{1,11}", boot["label"]) or not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", root["label"]):
-    fail("invalid filesystem label")
+if not re.fullmatch(r"[A-Z0-9_]{1,11}", boot["label"]):
+    fail("invalid boot filesystem label")
+if root_a["label"] == root_b["label"] or storage["label"] in (root_a["label"], root_b["label"]):
+    fail("root_a, root_b and storage must have distinct labels")
+
 b = config["boot"]
 if b["entry_scripts"] != ["aml_autoscript", "cfgload", "s905_autoscript"]:
     fail("vendor U-Boot entry scripts changed")
-if b["files"] != ["ashipaos.id", "u-boot.ext", "boot.scr", "Image", "initrd.img", "manifest.json"]:
+if b["files"] != ["ashipaos.id", "u-boot.ext", "boot.scr", "active-root.txt", "manifest.json"]:
     fail("boot file set changed")
+if b["per_slot_files"] != ["Image", "initrd.img"]:
+    fail("per-slot boot file set changed")
 if int(b["u_boot_ext_addr"], 16) != 0x01000000:
     fail("u-boot.ext must load at mainline U-Boot's TEXT_BASE 0x01000000")
 if not 0x02000000 <= int(b["log_addr"], 16) < 0x05000000:
     fail("log_addr must stay clear of u-boot.ext and the secure-monitor carve-out")
-if f"root=LABEL={root['label']}" not in b["bootargs"] or "console=ttyAML0" not in b["bootargs"]:
-    fail("bootargs must select the root label and the mainline ttyAML0 console")
+if not isinstance(b["max_boot_tries"], int) or not 1 <= b["max_boot_tries"] <= 10:
+    fail("max_boot_tries must be a small positive integer")
+# The active root's LABEL= is assembled dynamically by boot.scr from
+# active-root.txt; a static root= here would silently override that.
+if "root=" in b["bootargs"] or "rootwait" not in b["bootargs"] or "console=ttyAML0" not in b["bootargs"]:
+    fail("bootargs must not set root= statically and must select the mainline ttyAML0 console")
 dtb = target["mainline_boot"]["device_tree"]
 if not re.fullmatch(r"amlogic/meson-[a-z0-9-]+[.]dtb", dtb):
     fail(f"unexpected mainline DTB path: {dtb}")
@@ -99,9 +120,12 @@ values = {
     "IMAGE_SIZE_MB": size_mb,
     "BOOT_START": boot["start_sector"], "BOOT_SIZE_MB": boot["size_mb"], "BOOT_LABEL": boot["label"],
     "BOOT_TYPE": boot["mbr_type"][2:],
-    "ROOT_START": root["start_sector"], "ROOT_SIZE_MB": root["size_mb"], "ROOT_LABEL": root["label"],
-    "ROOT_TYPE": root["mbr_type"][2:],
-    "UBOOT_EXT_ADDR": b["u_boot_ext_addr"], "LOG_ADDR": b["log_addr"],
+    "ROOT_A_START": root_a["start_sector"], "ROOT_A_SIZE_MB": root_a["size_mb"], "ROOT_A_LABEL": root_a["label"],
+    "ROOT_B_START": root_b["start_sector"], "ROOT_B_SIZE_MB": root_b["size_mb"], "ROOT_B_LABEL": root_b["label"],
+    "ROOT_TYPE": root_a["mbr_type"][2:],
+    "STORAGE_START": storage["start_sector"], "STORAGE_SIZE_MB": storage["size_mb"],
+    "STORAGE_LABEL": storage["label"], "STORAGE_TYPE": storage["mbr_type"][2:],
+    "UBOOT_EXT_ADDR": b["u_boot_ext_addr"], "LOG_ADDR": b["log_addr"], "MAX_BOOT_TRIES": b["max_boot_tries"],
     "BOOTARGS": b["bootargs"], "MAINLINE_DTB": dtb,
 }
 for key, value in values.items():
@@ -109,7 +133,9 @@ for key, value in values.items():
 PY
 )" || error "configuration is invalid: $CONFIG_FILE"
     eval "$assignments"
-    log "Layout: ${IMAGE_SIZE_MB} MiB; boot FAT16 ${BOOT_SIZE_MB} MiB @${BOOT_START}; root ext4 ${ROOT_SIZE_MB} MiB @${ROOT_START}"
+    log "Layout: ${IMAGE_SIZE_MB} MiB; boot FAT16 ${BOOT_SIZE_MB} MiB @${BOOT_START};" \
+        "root-a ext4 ${ROOT_A_SIZE_MB} MiB @${ROOT_A_START}; root-b ext4 ${ROOT_B_SIZE_MB} MiB @${ROOT_B_START};" \
+        "storage ext4 ${STORAGE_SIZE_MB} MiB @${STORAGE_START}"
 }
 
 make_work_dir() {
@@ -127,7 +153,9 @@ unit: sectors
 sector-size: 512
 
 start=$BOOT_START, size=$((BOOT_SIZE_MB * 2048)), type=$BOOT_TYPE, bootable
-start=$ROOT_START, size=$((ROOT_SIZE_MB * 2048)), type=$ROOT_TYPE
+start=$ROOT_A_START, size=$((ROOT_A_SIZE_MB * 2048)), type=$ROOT_TYPE
+start=$ROOT_B_START, size=$((ROOT_B_SIZE_MB * 2048)), type=$ROOT_TYPE
+start=$STORAGE_START, size=$((STORAGE_SIZE_MB * 2048)), type=$STORAGE_TYPE
 EOF
     sfdisk --verify "$image" >/dev/null
 }
@@ -145,20 +173,21 @@ rootfs_boot_file() {
     printf '%s\n' "$target"
 }
 
-# Stage the kernel (as a raw arm64 Image), initramfs and mainline DTB from one
-# rootfs; nothing is taken from the build host.
+# Stage the kernel (as a raw arm64 Image), initramfs and mainline DTB for one
+# root slot, from one rootfs; nothing is taken from the build host.
 stage_kernel() {
-    local rootfs="$1" bootdir="$2" kernel initrd kver dtb
+    local rootfs="$1" bootdir="$2" slot="$3" kernel initrd kver dtb dtb_base
     kernel="$(rootfs_boot_file "$rootfs" vmlinuz vmlinuz)"
     initrd="$(rootfs_boot_file "$rootfs" initrd.img initrd.img)"
     kver="${kernel#/boot/vmlinuz-}"
     [[ "$initrd" == "/boot/initrd.img-$kver" ]] || error "kernel/initramfs version mismatch: $kernel $initrd"
     dtb="/usr/lib/linux-image-$kver/$MAINLINE_DTB"
     [[ -f "$rootfs$dtb" && ! -L "$rootfs$dtb" ]] || error "kernel package lacks the target DTB: $dtb"
-    install -m 0644 "$rootfs$dtb" "$bootdir/$(basename "$MAINLINE_DTB")"
-    install -m 0644 "$rootfs$initrd" "$bootdir/initrd.img"
-    printf '%s\n%s\n%s\n' "$kernel" "$initrd" "$dtb" >"$WORK_DIR/boot-sources"
-    python3 - "$rootfs$kernel" "$bootdir/Image" <<'PY'
+    dtb_base="$(basename "$MAINLINE_DTB" .dtb)"
+    install -m 0644 "$rootfs$dtb" "$bootdir/$dtb_base-$slot.dtb"
+    install -m 0644 "$rootfs$initrd" "$bootdir/initrd.img-$slot"
+    printf '%s\n%s\n%s\n' "$kernel" "$initrd" "$dtb" >"$WORK_DIR/boot-sources-$slot"
+    python3 - "$rootfs$kernel" "$bootdir/Image-$slot" <<'PY'
 import gzip, sys
 from pathlib import Path
 kernel = Path(sys.argv[1]).read_bytes()
@@ -187,59 +216,96 @@ echo AshipaOS: could not load u-boot.ext
 EOF
 }
 
+# Run by mainline U-Boot (u-boot.ext) from this card, found by ashipaos.id.
+# Reads active-root.txt to choose slot A or B, applies the boot-tries/revert
+# protocol from contracts/os-ota.md entirely inside U-Boot (so it works even
+# if the selected slot's kernel never reaches Linux), then boots that slot.
+boot_scr_script() {
+    local dtb_base
+    dtb_base="$(basename "$MAINLINE_DTB" .dtb)"
+    cat <<EOF
+echo AshipaOS: mainline U-Boot booting from mmc \${ashipa_dev}
+setenv ashipa_part mmc \${ashipa_dev}:1
+setenv active_root a
+setenv pending 0
+setenv boot_tries 0
+if fatload \${ashipa_part} $LOG_ADDR active-root.txt; then env import -t $LOG_ADDR \${filesize}; fi
+if test "\${pending}" = "1"; then
+    setexpr boot_tries \${boot_tries} + 1
+    if test \${boot_tries} -ge $MAX_BOOT_TRIES; then
+        echo AshipaOS: slot \${active_root} did not confirm after \${boot_tries} attempts, reverting
+        if test "\${active_root}" = "a"; then setenv active_root b; else setenv active_root a; fi
+        setenv pending 0
+        setenv boot_tries 0
+    fi
+    env export -t $LOG_ADDR active_root pending boot_tries
+    fatwrite \${ashipa_part} $LOG_ADDR active-root.txt \${filesize}
+fi
+if test "\${active_root}" = "b"; then setenv root_label $ROOT_B_LABEL; else setenv root_label $ROOT_A_LABEL; fi
+echo AshipaOS: booting slot \${active_root} (\${root_label}), pending=\${pending} tries=\${boot_tries}
+setenv ashipa_stage mainline-u-boot
+setenv bootargs "root=LABEL=\${root_label} $BOOTARGS"
+env export -t $LOG_ADDR ashipa_stage ashipa_dev ver fdtfile bootargs active_root pending boot_tries kernel_addr_r ramdisk_addr_r fdt_addr_r
+fatwrite \${ashipa_part} $LOG_ADDR ashipaos-stage2-u-boot.txt \${filesize}
+load \${ashipa_part} \${kernel_addr_r} Image-\${active_root} || echo AshipaOS: failed to load Image-\${active_root}
+load \${ashipa_part} \${fdt_addr_r} $dtb_base-\${active_root}.dtb || echo AshipaOS: failed to load $dtb_base-\${active_root}.dtb
+load \${ashipa_part} \${ramdisk_addr_r} initrd.img-\${active_root} || echo AshipaOS: failed to load initrd.img-\${active_root}
+booti \${kernel_addr_r} \${ramdisk_addr_r}:\${filesize} \${fdt_addr_r}
+setenv ashipa_stage mainline-u-boot-booti-failed
+env export -t $LOG_ADDR ashipa_stage active_root
+fatwrite \${ashipa_part} $LOG_ADDR ashipaos-stage2-u-boot-failed.txt \${filesize}
+echo AshipaOS: booti returned, see ashipaos-stage2-u-boot-failed.txt on the SD card
+EOF
+}
+
 make_boot_scripts() {
-    local bootdir="$1" entry dtb_name
-    dtb_name="$(basename "$MAINLINE_DTB")"
+    local bootdir="$1" entry
     command -v mkimage >/dev/null || error "u-boot-tools (mkimage) is required"
     for entry in aml_autoscript cfgload s905_autoscript; do
         vendor_entry_script "$entry" >"$WORK_DIR/$entry.txt"
         mkimage -A arm64 -O linux -T script -C none -n "AshipaOS $entry" \
             -d "$WORK_DIR/$entry.txt" "$bootdir/$entry" >/dev/null
     done
-    # Run by mainline U-Boot (u-boot.ext) from this card, found by ashipaos.id.
-    cat >"$WORK_DIR/boot.cmd" <<EOF
-echo AshipaOS: mainline U-Boot booting from mmc \${ashipa_dev}
-setenv ashipa_stage mainline-u-boot
-setenv bootargs "$BOOTARGS"
-setenv ashipa_part mmc \${ashipa_dev}:1
-env export -t $LOG_ADDR ashipa_stage ashipa_dev ver fdtfile bootargs kernel_addr_r ramdisk_addr_r fdt_addr_r
-fatwrite \${ashipa_part} $LOG_ADDR ashipaos-stage2-u-boot.txt \${filesize}
-load \${ashipa_part} \${kernel_addr_r} Image || echo AshipaOS: failed to load Image
-load \${ashipa_part} \${fdt_addr_r} $dtb_name || echo AshipaOS: failed to load $dtb_name
-load \${ashipa_part} \${ramdisk_addr_r} initrd.img || echo AshipaOS: failed to load initrd.img
-booti \${kernel_addr_r} \${ramdisk_addr_r}:\${filesize} \${fdt_addr_r}
-setenv ashipa_stage mainline-u-boot-booti-failed
-env export -t $LOG_ADDR ashipa_stage
-fatwrite \${ashipa_part} $LOG_ADDR ashipaos-stage2-u-boot-failed.txt \${filesize}
-echo AshipaOS: booti returned, see ashipaos-stage2-u-boot-failed.txt on the SD card
-EOF
+    boot_scr_script >"$WORK_DIR/boot.cmd"
     mkimage -A arm64 -O linux -T script -C none -n "AshipaOS boot.scr" \
         -d "$WORK_DIR/boot.cmd" "$bootdir/boot.scr" >/dev/null
     printf 'AshipaOS %s boot card\n' "$TARGET" >"$bootdir/ashipaos.id"
+    # A fresh flash always boots slot A; slot B is empty until an OS update
+    # (contracts/os-ota.md) installs into it. Never itself pending/counted.
+    printf 'active_root=a\npending=0\nboot_tries=0\n' >"$bootdir/active-root.txt"
 }
 
 write_boot_manifest() {
-    local bootdir="$1" rootfs_tar="$2" dtb_name sources
-    dtb_name="$(basename "$MAINLINE_DTB")"
-    mapfile -t sources <"$WORK_DIR/boot-sources"
-    python3 - "$bootdir" "$rootfs_tar" "$TARGET" "$BOOT_LABEL" "$ROOT_LABEL" "$BOOT_START" "$ROOT_START" \
-        "$UBOOT_EXT_ADDR" "$BOOTARGS" "$dtb_name" "${sources[@]}" <<'PY'
+    local bootdir="$1" rootfs_tar="$2" dtb_base sources
+    dtb_base="$(basename "$MAINLINE_DTB" .dtb)"
+    mapfile -t sources <"$WORK_DIR/boot-sources-a"
+    python3 - "$bootdir" "$rootfs_tar" "$TARGET" "$BOOT_LABEL" "$ROOT_A_LABEL" "$ROOT_B_LABEL" "$STORAGE_LABEL" \
+        "$BOOT_START" "$ROOT_A_START" "$ROOT_B_START" "$STORAGE_START" \
+        "$UBOOT_EXT_ADDR" "$BOOTARGS" "$MAX_BOOT_TRIES" "$dtb_base" "${sources[@]}" <<'PY'
 import hashlib, json, sys
 from pathlib import Path
 bootdir, rootfs_tar = Path(sys.argv[1]), Path(sys.argv[2])
-target, boot_label, root_label, boot_start, root_start, ext_addr, bootargs, dtb_name, kernel, initrd, dtb = sys.argv[3:14]
+(target, boot_label, root_a_label, root_b_label, storage_label, boot_start, root_a_start, root_b_start,
+ storage_start, ext_addr, bootargs, max_tries, dtb_base, kernel, initrd, dtb) = sys.argv[3:19]
 digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 names = ["aml_autoscript", "cfgload", "s905_autoscript", "u-boot.ext", "boot.scr", "ashipaos.id",
-         "Image", "initrd.img", dtb_name]
+         "active-root.txt", f"Image-a", f"initrd.img-a", f"{dtb_base}-a.dtb"]
 manifest = {
-    "format": "ashipaos-a95x-boot-v3",
+    "format": "ashipaos-a95x-boot-v4",
     "target": target,
-    "chain": ["vendor U-Boot (eMMC, untouched)", "entry script", "u-boot.ext (mainline)", "boot.scr", "booti"],
+    "chain": ["vendor U-Boot (eMMC, untouched)", "entry script", "u-boot.ext (mainline)",
+              "boot.scr (active-root.txt slot selection)", "booti"],
     "partition": {"table": "dos", "start_sector": int(boot_start), "filesystem": "fat16", "label": boot_label},
-    "root_partition": {"start_sector": int(root_start), "filesystem": "ext4", "label": root_label},
+    "root_partitions": {
+        "a": {"start_sector": int(root_a_start), "filesystem": "ext4", "label": root_a_label, "populated": True},
+        "b": {"start_sector": int(root_b_start), "filesystem": "ext4", "label": root_b_label, "populated": False},
+    },
+    "storage_partition": {"start_sector": int(storage_start), "filesystem": "ext4", "label": storage_label},
     "files": {name: digest(bootdir / name) for name in names},
     "u_boot_ext_addr": ext_addr,
-    "bootargs": bootargs,
+    "bootargs_template": bootargs,
+    "max_boot_tries": int(max_tries),
+    "active_root": "a",
     "rootfs": {"archive_sha256": digest(rootfs_tar), "kernel": kernel, "initrd": initrd, "dtb": dtb},
     "diagnostics": ["ashipaos-stage1-vendor.txt", "ashipaos-stage2-u-boot.txt", "ashipaos-stage3-linux.txt"],
     "provenance": "layers/layer2-image/files/a95x-f3-air/provenance.json",
@@ -260,26 +326,56 @@ build_boot_partition() {
     dd if="$fat" of="$image" bs=512 seek="$BOOT_START" conv=notrunc,sparse status=none
 }
 
-build_root_partition() {
-    local image="$1" rootfs="$2" ext4="$WORK_DIR/root.ext4"
+# Root fstab: no `/` entry (the kernel cmdline mounts root; a fixed label here
+# would be wrong for whichever slot booted). STORAGE is shared by both slots
+# and grown to fill the SD card by ashipaos-storage-grow.service before it is
+# ever mounted (x-systemd.requires); ashipaos-storage-grow.service is
+# installed by Layer 1 into every root slot.
+write_shared_fstab() {
+    local rootfs="$1"
     {
-        printf 'LABEL=%s\t/\text4\tdefaults,noatime\t0\t1\n' "$ROOT_LABEL"
-        # The boot partition carries the no-UART boot-stage logs.
         printf 'LABEL=%s\t/boot/firmware\tvfat\tdefaults,nofail,umask=0022\t0\t0\n' "$BOOT_LABEL"
+        printf 'LABEL=%s\t/storage\text4\tdefaults,noatime,nofail,x-systemd.growfs,x-systemd.requires=ashipaos-storage-grow.service\t0\t2\n' \
+            "$STORAGE_LABEL"
     } >"$rootfs/etc/fstab"
-    mkdir -p "$rootfs/boot/firmware"
-    truncate -s "${ROOT_SIZE_MB}M" "$ext4"
-    mkfs.ext4 -q -F -L "$ROOT_LABEL" -d "$rootfs" "$ext4"
-    dd if="$ext4" of="$image" bs=512 seek="$ROOT_START" conv=notrunc,sparse status=none
+    mkdir -p "$rootfs/boot/firmware" "$rootfs/storage"
+}
+
+build_root_partition_a() {
+    local image="$1" rootfs="$2" ext4="$WORK_DIR/root-a.ext4"
+    write_shared_fstab "$rootfs"
+    truncate -s "${ROOT_A_SIZE_MB}M" "$ext4"
+    mkfs.ext4 -q -F -L "$ROOT_A_LABEL" -d "$rootfs" "$ext4"
+    dd if="$ext4" of="$image" bs=512 seek="$ROOT_A_START" conv=notrunc,sparse status=none
+}
+
+# Slot B starts empty: nothing boots it until an OS update installs into it.
+build_root_partition_b() {
+    local image="$1" ext4="$WORK_DIR/root-b.ext4"
+    truncate -s "${ROOT_B_SIZE_MB}M" "$ext4"
+    mkfs.ext4 -q -F -L "$ROOT_B_LABEL" "$ext4"
+    dd if="$ext4" of="$image" bs=512 seek="$ROOT_B_START" conv=notrunc,sparse status=none
+}
+
+# STORAGE starts small and empty; ashipaos-storage-grow.service claims the
+# rest of the real SD card on first boot (the base image is a few GB; SD cards
+# sold for this box are typically far larger).
+build_storage_partition() {
+    local image="$1" ext4="$WORK_DIR/storage.ext4"
+    truncate -s "${STORAGE_SIZE_MB}M" "$ext4"
+    mkfs.ext4 -q -F -L "$STORAGE_LABEL" "$ext4"
+    dd if="$ext4" of="$image" bs=512 seek="$STORAGE_START" conv=notrunc,sparse status=none
 }
 
 write_metadata() {
     local image="$1" rootfs_tar="$2"
     python3 - "$image" "$rootfs_tar" "$TARGET" "$IMAGE_SIZE_MB" "$BOOT_SIZE_MB" "$BOOT_LABEL" \
-        "$ROOT_SIZE_MB" "$ROOT_LABEL" "$EVIDENCE_DIR" "${GITHUB_RUN_ID:-local}" \
+        "$ROOT_A_SIZE_MB" "$ROOT_A_LABEL" "$ROOT_B_SIZE_MB" "$ROOT_B_LABEL" "$STORAGE_SIZE_MB" "$STORAGE_LABEL" \
+        "$EVIDENCE_DIR" "${GITHUB_RUN_ID:-local}" \
         "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf unknown)" <<'PY'
 import hashlib, json, os, sys, time
-image, rootfs_tar, target, size_mb, boot_mb, boot_label, root_mb, root_label, evidence_dir, run_id, commit = sys.argv[1:]
+(image, rootfs_tar, target, size_mb, boot_mb, boot_label, root_a_mb, root_a_label, root_b_mb, root_b_label,
+ storage_mb, storage_label, evidence_dir, run_id, commit) = sys.argv[1:]
 def digest(path):
     h = hashlib.sha256()
     with open(path, "rb") as stream:
@@ -289,8 +385,13 @@ def digest(path):
 meta = {
     "image_type": "disk_image", "target": target, "total_size_mb": int(size_mb),
     "partition_table": "dos",
-    "partitions": {"boot": {"size_mb": int(boot_mb), "type": "fat16", "label": boot_label},
-                   "root": {"size_mb": int(root_mb), "type": "ext4", "label": root_label, "mount": "/"}},
+    "partitions": {
+        "boot": {"size_mb": int(boot_mb), "type": "fat16", "label": boot_label},
+        "root_a": {"size_mb": int(root_a_mb), "type": "ext4", "label": root_a_label, "populated": True},
+        "root_b": {"size_mb": int(root_b_mb), "type": "ext4", "label": root_b_label, "populated": False},
+        "storage": {"size_mb": int(storage_mb), "type": "ext4", "label": storage_label, "mount": "/storage"},
+    },
+    "active_root": "a",
     "bootloader": "stock vendor U-Boot on eMMC (not in image); SD boot via aml_autoscript",
     "image": os.path.basename(image), "image_sha256": digest(image),
     "rootfs_sha256": digest(rootfs_tar),
@@ -329,7 +430,7 @@ build_image() {
     log "Extracting $rootfs_tar"
     tar -C "$rootfs" --numeric-owner --xattrs --acls -xpzf "$rootfs_tar"
 
-    stage_kernel "$rootfs" "$bootdir"
+    stage_kernel "$rootfs" "$bootdir" a
     install -m 0644 "$uboot" "$bootdir/u-boot.ext"
     # User-editable Wi-Fi template; imported and wiped on first boot.
     install -m 0644 "$rootfs/usr/share/ashipaos/wifi.txt" "$bootdir/wifi.txt"
@@ -339,7 +440,9 @@ build_image() {
     PARTIAL_IMAGE="$final_image.partial"
     create_partition_layout "$PARTIAL_IMAGE"
     build_boot_partition "$PARTIAL_IMAGE" "$bootdir"
-    build_root_partition "$PARTIAL_IMAGE" "$rootfs"
+    build_root_partition_a "$PARTIAL_IMAGE" "$rootfs"
+    build_root_partition_b "$PARTIAL_IMAGE"
+    build_storage_partition "$PARTIAL_IMAGE"
     mv -f -- "$PARTIAL_IMAGE" "$final_image"
     PARTIAL_IMAGE=""
     write_metadata "$final_image" "$rootfs_tar"

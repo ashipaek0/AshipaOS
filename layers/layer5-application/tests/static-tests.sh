@@ -68,7 +68,7 @@ env = dict(l.strip().split("=", 2)[1:] for l in open(unit_path) if l.startswith(
 assert env["LIBSEAT_BACKEND"] == "seatd" and env["WLR_LIBINPUT_NO_DEVICES"] == "1"
 config_dir = env["XDG_CONFIG_HOME"] + "/jellyfin-mpv-shim"
 assert f'CONFIG="${{ASHIPAOS_CONFIG:-{config_dir}}}"' in launcher, "unit and launcher disagree on the config dir"
-assert config_dir in svc["ReadWritePaths"].split() and "/storage/apps/jellyfin-mpv-shim" in svc["ReadWritePaths"].split()
+assert svc["ReadWritePaths"].split() == [config_dir], "the single-bundle launcher has no other writable state to grant"
 conf = json.loads((defaults / "conf.json").read_text())
 assert conf["enable_gui"] and conf["browser_fullscreen"] and conf["fullscreen"] and not conf["mpv_idle_quit"]
 assert conf["check_updates"] is False and conf["notify_updates"] is False, "an appliance must not poll GitHub"
