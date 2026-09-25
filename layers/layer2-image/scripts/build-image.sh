@@ -7,7 +7,12 @@
 # initramfs / DTB), two ext4 root slots (A/B, see contracts/os-ota.md for the
 # update-and-rollback contract they exist for) and an ext4 STORAGE partition
 # for settings and app state, shared by both slots. Nothing is written before
-# sector 8192, and nothing ever writes the box's eMMC.
+# sector 8192, and nothing here writes the box's eMMC directly. The one
+# exception is the vendor entry script itself: it persists the box's saved
+# U-Boot environment once (see vendor_entry_script() below and
+# contracts/boot-bundle.md), deliberately, matching CoreELEC's own proven
+# approach on this exact unit, so the recovery button is needed once rather
+# than on every single power-on.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -200,10 +205,24 @@ PY
 }
 
 # Script run by vendor U-Boot through any of the entry names: record that it
-# ran (on the SD card's own FAT partition), then jump to mainline U-Boot. The
-# load and the jump are one statement, so overwriting the running script's
-# buffer cannot matter. The environment is never persisted (that would write
-# eMMC).
+# ran (on the SD card's own FAT partition), persist automatic SD boot exactly
+# once (see the block below), then jump to mainline U-Boot. The load and the
+# jump are one statement, so overwriting the running script's buffer cannot
+# matter.
+#
+# One eMMC write, once, on purpose: on this unit a plain power-on (no
+# recovery button) boots stock Android from eMMC forever, unless something
+# calls U-Boot's own `saveenv` to persist a bootcmd that checks the SD card
+# first -- CoreELEC does exactly this on its own first (button-forced) boot,
+# which is why it needs the button once and never again
+# (evidence/amlogic/a95x-f3-air/README.md). `ashipa_boot_persisted` guards it
+# to a single write, ever: every later boot (through this same entry, now
+# reached automatically) sees it already set and changes nothing. The
+# replaced bootcmd is captured into `ashipa_fallback_bootcmd` and tried if
+# the SD card is ever missing or its script fails to load, so removing the
+# card still boots stock Android, and the recovery button still always
+# forces a fresh SD check regardless of what is persisted here -- neither
+# path depends on this write succeeding or being trustworthy.
 vendor_entry_script() {
     local entry="$1"
     cat <<EOF
@@ -211,6 +230,13 @@ echo AshipaOS: vendor U-Boot entered through $entry
 setenv ashipa_stage vendor-u-boot:$entry
 env export -t $LOG_ADDR ashipa_stage bootcmd loadaddr
 fatwrite mmc 0:1 $LOG_ADDR ashipaos-stage1-vendor.txt \${filesize}
+if test "\${ashipa_boot_persisted}" != "1"; then
+    setenv ashipa_fallback_bootcmd "\${bootcmd}"
+    setenv bootcmd 'if fatload mmc 0:1 \${loadaddr} aml_autoscript; then source \${loadaddr}; else run ashipa_fallback_bootcmd; fi'
+    setenv ashipa_boot_persisted 1
+    saveenv
+    echo AshipaOS: persisted automatic SD boot (recovery button no longer needed)
+fi
 if fatload mmc 0:1 $UBOOT_EXT_ADDR u-boot.ext; then go $UBOOT_EXT_ADDR; fi
 echo AshipaOS: could not load u-boot.ext
 EOF

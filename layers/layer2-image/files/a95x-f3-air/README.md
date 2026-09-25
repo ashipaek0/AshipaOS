@@ -11,7 +11,10 @@ SHA-256 values are recorded in `provenance.json` and checked by
 | `meson1.dtb` | Raw stock vendor 4.9 FDT (`amlogic-dt-id` `sm1_ac213_2g`), 80,329 bytes | No |
 
 None of these are written to the image; they are kept for provenance and
-recovery only. The image never writes sectors 1..8191 and never touches eMMC.
+recovery only. The image never writes sectors 1..8191 or any eMMC data
+partition. The one deliberate exception is a single, guarded write to the
+vendor U-Boot's own saved environment on the first boot, so later boots do
+not need the recovery button; see `contracts/boot-bundle.md`.
 
 The image boots through the vendor U-Boot already on the box: an SD entry
 script (`aml_autoscript`, `cfgload` or `s905_autoscript`) chain-loads the

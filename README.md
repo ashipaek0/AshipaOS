@@ -6,16 +6,19 @@ inside the `cage` kiosk compositor so a keyboard, mouse or 2.4 GHz remote works)
 
 Target: `a95x-f3-air` · Architecture: `arm64` · Media: removable SD only.
 
-Full builds run in GitHub Actions only. Never overwrite eMMC. Use a 3.3 V TTL
-UART only: never connect UART VCC/5 V, never use RS-232 levels.
+Full builds run in GitHub Actions only. Never overwrite eMMC's data
+partitions. Use a 3.3 V TTL UART only: never connect UART VCC/5 V, never use
+RS-232 levels.
 
-**Hold the recovery/update button at every power-on.** On the exact unit, a
-plain power-on always boots stock Android from eMMC; only holding the
-button makes the vendor U-Boot check the SD card at all. This project never
-works around it by writing the box's saved U-Boot environment on eMMC (see
-`contracts/boot-bundle.md`), so this is required every time, not just once.
-The remote's power key can turn a running appliance off but cannot turn the
-box back on — that is the box's own hardware, not this image.
+**Hold the recovery/update button once, on the very first boot.** A fresh
+unit boots stock Android on a plain power-on; only the recovery button makes
+the vendor U-Boot check the SD card at all — same as a fresh CoreELEC card
+on this exact box. That first boot persists automatic SD boot (one guarded
+write to the vendor U-Boot's own saved environment, matching CoreELEC's own
+approach; see `contracts/boot-bundle.md`), so every boot after that is a
+plain power-on, no button. The remote's power key can turn a running
+appliance off but cannot turn the box back on — that part really is the
+box's own hardware (PMIC/bootloader), not something this image controls.
 
 ## Pipeline (`.github/workflows/build-images.yml`)
 

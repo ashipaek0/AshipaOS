@@ -10,13 +10,19 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
   (`layers/layer1-rootfs/config/rootfs-config.yaml`), with Debian's mainline
   kernel, its initramfs, and the mainline `meson-sm1-a95xf3-air.dtb` (internal
   PHY) from the same kernel package.
-- Boot requires holding the recovery/update button at every power-on
-  (CONFIRMED on the exact unit): a plain power-on boots stock Android from
-  eMMC every time, with no persisted preference for SD. This project never
-  writes the box's saved U-Boot environment to change that (see the rule
-  below and `contracts/boot-bundle.md`), so this is expected, permanent
-  behavior, not a defect. The IR remote can power the appliance off but not
-  back on, for the same reason (the box's own PMIC/bootloader, not this OS).
+- Boot requires holding the recovery/update button once (CONFIRMED on the
+  exact unit): a plain power-on otherwise boots stock Android from eMMC,
+  since a fresh unit has no persisted preference for SD, same as a fresh
+  CoreELEC card on this box. The first (button-forced) run of the vendor
+  entry script deliberately persists the box's saved U-Boot environment once
+  — one guarded, idempotent `saveenv`, capturing the original bootcmd as a
+  fallback — so every later power-on checks the SD card automatically, no
+  button needed, exactly matching how CoreELEC's own `aml_autoscript` makes
+  itself the default on this unit. This is the *only* eMMC write anywhere in
+  this project, and it is deliberate, not accidental (see the rule below and
+  `contracts/boot-bundle.md`). The IR remote can power the appliance off but
+  not back on, for a different reason (the box's own PMIC/bootloader, before
+  any of this OS's code runs).
 - Boot: the box's vendor U-Boot runs an SD entry script (`aml_autoscript`,
   `cfgload` or `s905_autoscript`), which chain-loads a pinned mainline U-Boot
   (`u-boot.ext`, RAM-only environment), which runs `boot.scr` → `booti`.
@@ -37,8 +43,11 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
   hardware-fact evidence only; nothing from it is copied into the image.
 - Full image builds run in GitHub Actions only; local full image builds are not
   permitted. `tests/static/run-static.sh` is the single static gate.
-- Never overwrite eMMC and never write the saved U-Boot environment. Use 3.3 V
-  TTL UART only; never connect UART VCC/5 V or RS-232 voltage.
+- Never overwrite eMMC's data partitions (Android, or anything else on it).
+  The saved U-Boot environment is written in exactly one place (the vendor
+  entry script's guarded, idempotent, persist-once `saveenv`, above) and
+  nowhere else; do not add another. Use 3.3 V TTL UART only; never connect
+  UART VCC/5 V or RS-232 voltage.
 - Do not add unrelated appliance targets or host-specific build paths to this
   branch.
 

@@ -7,15 +7,22 @@ mainline U-Boot in `layers/layer2-image/config/u-boot/`, and the target's
 
 ## Boot chain
 
-1. The box's vendor U-Boot (2015.01, on eMMC) is used as-is. The image never
-   writes a bootloader, sectors 1..8191, eMMC, or the saved U-Boot environment.
+1. The box's vendor U-Boot (2015.01, on eMMC) is used as-is: the image never
+   writes a bootloader or any eMMC data partition. The one deliberate
+   exception, covered on its own below, is a single, guarded write to the
+   vendor U-Boot's own saved environment (not a partition, not Android, not a
+   bootloader binary) the first time an entry script runs.
 2. Vendor U-Boot runs one entry script from FAT partition 1. Three names are
    shipped with the same content, for the three ways it looks at the SD card:
-   `aml_autoscript` (its own recovery/reset-button path), `cfgload` (an
-   environment rewritten by CoreELEC, as on the reference unit) and
-   `s905_autoscript` (an Armbian-style environment). The script records
-   `ashipaos-stage1-vendor.txt`, loads `u-boot.ext` to `0x01000000` and `go`es
-   there.
+   `aml_autoscript` (its own recovery/reset-button path), `cfgload` (the name
+   a persisted `bootcmd` on this exact unit invokes, matching CoreELEC's own
+   convention) and `s905_autoscript` (an Armbian-style environment). The
+   script records `ashipa_stage` and attempts `ashipaos-stage1-vendor.txt`
+   (the vendor U-Boot's `fatwrite` does not actually work on this unit, so
+   this record is not expected to land — `ashipaos-stage2-u-boot.txt`, from
+   mainline U-Boot, is the first stage log that reliably appears), persists
+   automatic SD boot once (below), loads `u-boot.ext` to `0x01000000` and
+   `go`es there.
 3. `u-boot.ext` is mainline U-Boot built in CI from a pinned commit and tree
    (`build-u-boot.sh`) for `meson-sm1-a95xf3-air`. Its environment lives in RAM
    only (`ENV_IS_NOWHERE`), and DFU, USB gadget and mass-storage support are
@@ -50,21 +57,46 @@ and are never paired with the mainline kernel. FAT names are lower case where
 vendor U-Boot reads them, because it lower-cases the requested name before
 comparing it with long file names.
 
-## Recovery button required on every power-on (CONFIRMED, hardware limitation)
+## Recovery button: once, not every boot (CONFIRMED on the exact unit)
 
-The vendor U-Boot on this exact unit only probes the SD card's entry scripts
-(step 2 above) when the box's recovery/update button is held at power-on. A
-plain power-on boots the stock Android boot animation and starts Android
-from eMMC instead, every time — there is no persisted preference that makes
-SD the default, and this project deliberately never creates one: doing so
-means writing the box's saved U-Boot environment on eMMC, which is
-prohibited (AGENTS.md, and never done anywhere in
-`layers/layer2-image/scripts/build-image.sh`). This is a fact of the unit's
-own vendor firmware, not a bug in the boot chain above, and holding the
-recovery button is required on every single boot, not just the first.
-Likewise the IR remote's power key can turn a running appliance off (Linux
-answers it) but cannot turn the box back on from a full power-off: that is
-the box's own PMIC/bootloader's decision, before any code in this image runs.
+The vendor U-Boot on this unit only probes the SD card's entry scripts
+(step 2 above) when the box's recovery/update button is held — a plain
+power-on with no persisted preference for SD boots the stock Android
+animation from eMMC instead. This is exactly the state of a *fresh* CoreELEC
+card on the same box, confirmed by the owner: CoreELEC also needs the button
+on its first boot. What makes every boot after that automatic, for
+CoreELEC, is that its `aml_autoscript` calls `saveenv` on that first run,
+permanently rewriting the vendor's persisted `bootcmd` to check the SD card
+on every later power-on with no button. AshipaOS's entry script does the
+same thing, on purpose, guarded so it can only ever do it once
+(`vendor_entry_script()` in `layers/layer2-image/scripts/build-image.sh`):
+
+- Guarded by a marker variable (`ashipa_boot_persisted`) checked before doing
+  anything: a boot that finds it already set changes nothing and calls
+  `saveenv` zero times. This is the only escape hatch this project needs
+  from "never write eMMC" (AGENTS.md), used exactly once, ever, per unit.
+- The *original* `bootcmd` (whatever the box shipped with, or whatever a
+  previous CoreELEC/other install left behind) is captured into
+  `ashipa_fallback_bootcmd` before it is replaced, and the new persisted
+  `bootcmd` tries `aml_autoscript` from the SD card first, falling back to
+  running the captured original if that fails for any reason (card missing,
+  card unreadable, file absent). Removing the SD card still boots stock
+  Android normally.
+- The recovery button remains a full override regardless of what is
+  persisted: it forces the vendor's own SD/USB-media check independently of
+  `bootcmd`'s content, so it is always the way back in if the persisted
+  `bootcmd` is ever wrong, corrupted, or simply not what a future unit's
+  vendor firmware expects.
+- Verified (not just asserted) in `layers/layer2-image/tests/image-content-tests.sh`
+  against the real generated boot files, and the persist/idempotent/fallback
+  logic itself was executed in a real, pinned-commit U-Boot sandbox build
+  (persist-once, no-op on a second run, and falls through to the captured
+  fallback when the SD path fails) before being shipped.
+
+Separately, the IR remote's power key can turn a running appliance off
+(Linux answers it) but cannot turn the box back on from a full power-off:
+that is the box's own PMIC/bootloader's decision, before any code in this
+image runs, and is not something this mechanism changes.
 
 ## Status
 

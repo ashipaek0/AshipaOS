@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Layer 2 STATIC: configuration validates and the builder can never write to a
-# device, eMMC, or the U-Boot environment.
+# device or eMMC data partition. The one deliberate exception is the vendor
+# entry script's single, guarded `saveenv` (contracts/boot-bundle.md): it
+# persists automatic SD boot once, matching CoreELEC's own proven approach on
+# this exact unit, and is checked for real (not just absence) below.
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 LAYER="$ROOT/layers/layer2-image"
@@ -9,7 +12,10 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 bash -n "$SCRIPT"
 bash "$SCRIPT" --validate >/dev/null 2>&1 || fail "image-config.yaml does not validate"
-! grep -Eq 'of=/dev/|saveenv|mmc write|losetup|guestfish' "$SCRIPT" || fail "builder writes devices, eMMC or the U-Boot environment"
+! grep -Eq 'of=/dev/|mmc write|losetup|guestfish' "$SCRIPT" || fail "builder writes devices or eMMC data partitions"
+[[ "$(grep -cE '^\s*saveenv\s*$' "$SCRIPT")" -eq 1 ]] || fail "saveenv must be called exactly once in the builder (the one guarded persist-once write)"
+grep -q 'ashipa_boot_persisted' "$SCRIPT" || fail "the saveenv call must be guarded by a persist-once marker"
+grep -q 'setenv ashipa_fallback_bootcmd' "$SCRIPT" || fail "the original bootcmd must be captured as a fallback before it is overwritten"
 python3 - "$LAYER/files/a95x-f3-air" <<'PY'
 import hashlib, json, pathlib, sys
 d = pathlib.Path(sys.argv[1])

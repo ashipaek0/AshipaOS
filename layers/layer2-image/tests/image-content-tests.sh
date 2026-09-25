@@ -70,14 +70,32 @@ for script in ("aml_autoscript", "cfgload", "s905_autoscript", "boot.scr"):
     if struct.unpack(">I", data[:4])[0] != 0x27051956:
         raise SystemExit(f"{script} is not a U-Boot script image")
     text = data[64:].decode(errors="replace")
-    if re.search(r"saveenv|env save|mmc write|store |ums |fastboot", text):
-        raise SystemExit(f"{script} must never write eMMC or the saved environment")
+    # No script may write actual eMMC data partitions, ever.
+    if re.search(r"mmc write|store |ums |fastboot", text):
+        raise SystemExit(f"{script} must never write eMMC data partitions")
+    if script == "boot.scr":
+        # Mainline U-Boot stays fully RAM-only: no persisted state at all
+        # (CONFIG_ENV_IS_NOWHERE, verified in static-tests.sh).
+        if re.search(r"saveenv|env save", text):
+            raise SystemExit("boot.scr must never write the saved U-Boot environment")
+    elif "saveenv" in text:
+        # The one deliberate exception (contracts/boot-bundle.md): persist
+        # automatic SD boot once, guarded so it can only ever fire once and
+        # only after capturing the original bootcmd as a fallback.
+        if 'if test "${ashipa_boot_persisted}" != "1"; then' not in text:
+            raise SystemExit(f"{script} calls saveenv without the persist-once guard")
+        if text.count("saveenv") != 1:
+            raise SystemExit(f"{script} must call saveenv at most once")
+        if "setenv ashipa_fallback_bootcmd" not in text:
+            raise SystemExit(f"{script} must capture the original bootcmd as a fallback first")
     if re.search(r"fatwrite mmc (?!0:1 )(?!\$\{ashipa_part\} )", text):
         raise SystemExit(f"{script} writes somewhere other than the SD card's boot partition")
 for script in ("aml_autoscript", "cfgload", "s905_autoscript"):
     text = (d / script).read_bytes()[64:].decode(errors="replace")
     if "fatload mmc 0:1 0x01000000 u-boot.ext; then go 0x01000000" not in text:
         raise SystemExit(f"{script} does not chain-load u-boot.ext")
+    if "saveenv" not in text:
+        raise SystemExit(f"{script} does not persist automatic SD boot (the recovery button would be needed forever)")
 uboot = (d / "u-boot.ext").read_bytes()
 if b"ashipaos-a95x-f3-air" not in uboot or b"amlogic/meson-sm1-a95xf3-air.dtb" not in uboot:
     raise SystemExit("u-boot.ext is not the AshipaOS A95X mainline U-Boot")

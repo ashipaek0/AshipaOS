@@ -8,18 +8,22 @@ removable SD by the box's stock vendor U-Boot, which chain-loads a pinned mainli
 SD card. CoreELEC provenance under `build/coreelec/` is the
 evidence-backed baseline for the target.
 
-**"Boots straight into" starts once the SD card is checked at all.** On the
-exact unit, the stock vendor U-Boot only probes the SD card's entry scripts
-when the box's recovery/update button is held at power-on; a plain power-on
-otherwise boots stock Android from eMMC every time, with no user-visible
-choice offered. Making the SD card the default without the button would mean
-writing the box's saved U-Boot environment on eMMC, which
-`layers/layer2-image/scripts/build-image.sh` and this project's safety rules
-never do (see AGENTS.md and `contracts/boot-bundle.md`) — so this is a
-per-boot hardware fact of the unit, not a defect this image works around.
+**"Boots straight into" starts once the SD card is checked at all, which
+needs the recovery/update button exactly once.** On a fresh unit, the stock
+vendor U-Boot only probes the SD card's entry scripts when the button is
+held at power-on; a plain power-on otherwise boots stock Android from eMMC.
+The first (button-forced) run persists automatic SD boot -- one guarded,
+idempotent write to the vendor U-Boot's own saved environment
+(`vendor_entry_script()` in `layers/layer2-image/scripts/build-image.sh`),
+falling back to the box's original bootcmd if the SD card is ever missing --
+so every boot after that is a plain power-on. This mirrors CoreELEC's own
+`aml_autoscript`, confirmed to work the same way on this exact unit
+(`contracts/boot-bundle.md`); it is the one deliberate exception to this
+project's "never write eMMC" rule (AGENTS.md), not a violation of it.
 Likewise the IR remote's power key can turn the box off (Linux is running and
 answers it) but cannot turn it back on: waking from a full power-off is the
-box's own PMIC/bootloader concern, before any of this image's code runs.
+box's own PMIC/bootloader concern, before any of this image's code runs, and
+is unrelated to the persisted bootcmd above.
 
 ## Pins
 
