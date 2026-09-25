@@ -10,6 +10,13 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
   (`layers/layer1-rootfs/config/rootfs-config.yaml`), with Debian's mainline
   kernel, its initramfs, and the mainline `meson-sm1-a95xf3-air.dtb` (internal
   PHY) from the same kernel package.
+- Boot requires holding the recovery/update button at every power-on
+  (CONFIRMED on the exact unit): a plain power-on boots stock Android from
+  eMMC every time, with no persisted preference for SD. This project never
+  writes the box's saved U-Boot environment to change that (see the rule
+  below and `contracts/boot-bundle.md`), so this is expected, permanent
+  behavior, not a defect. The IR remote can power the appliance off but not
+  back on, for the same reason (the box's own PMIC/bootloader, not this OS).
 - Boot: the box's vendor U-Boot runs an SD entry script (`aml_autoscript`,
   `cfgload` or `s905_autoscript`), which chain-loads a pinned mainline U-Boot
   (`u-boot.ext`, RAM-only environment), which runs `boot.scr` → `booti`.

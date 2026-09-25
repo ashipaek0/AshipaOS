@@ -8,6 +8,19 @@ removable SD by the box's stock vendor U-Boot, which chain-loads a pinned mainli
 SD card. CoreELEC provenance under `build/coreelec/` is the
 evidence-backed baseline for the target.
 
+**"Boots straight into" starts once the SD card is checked at all.** On the
+exact unit, the stock vendor U-Boot only probes the SD card's entry scripts
+when the box's recovery/update button is held at power-on; a plain power-on
+otherwise boots stock Android from eMMC every time, with no user-visible
+choice offered. Making the SD card the default without the button would mean
+writing the box's saved U-Boot environment on eMMC, which
+`layers/layer2-image/scripts/build-image.sh` and this project's safety rules
+never do (see AGENTS.md and `contracts/boot-bundle.md`) — so this is a
+per-boot hardware fact of the unit, not a defect this image works around.
+Likewise the IR remote's power key can turn the box off (Linux is running and
+answers it) but cannot turn it back on: waking from a full power-off is the
+box's own PMIC/bootloader concern, before any of this image's code runs.
+
 ## Pins
 
 | Input | Pin |
@@ -35,7 +48,9 @@ failure with a bounded limit; the getty on tty1 is masked. cage delivers
 keyboard, mouse and remote input through libinput. On first start the launcher
 seeds `/storage/jellyfin-mpv-shim/conf.json` (fullscreen library browser, no
 idle quit, no GitHub update checks) and `mpv.conf` (Wayland output,
-`hwdec=auto-safe`); later edits persist. `ASHIPAOS_BOOT_SUCCESS=1` on the UART
+`hwdec=v4l2m2m-copy,auto-safe` for the SoC's own decoder,
+`/etc/asound.conf` routing ALSA past dmix); later edits persist.
+`ASHIPAOS_BOOT_SUCCESS=1` on the UART
 means the shim and the boot-status endpoint are still running 20 s after start.
 
 To refresh the Python lock, run

@@ -9,6 +9,14 @@ Target: `a95x-f3-air` · Architecture: `arm64` · Media: removable SD only.
 Full builds run in GitHub Actions only. Never overwrite eMMC. Use a 3.3 V TTL
 UART only: never connect UART VCC/5 V, never use RS-232 levels.
 
+**Hold the recovery/update button at every power-on.** On the exact unit, a
+plain power-on always boots stock Android from eMMC; only holding the
+button makes the vendor U-Boot check the SD card at all. This project never
+works around it by writing the box's saved U-Boot environment on eMMC (see
+`contracts/boot-bundle.md`), so this is required every time, not just once.
+The remote's power key can turn a running appliance off but cannot turn the
+box back on — that is the box's own hardware, not this image.
+
 ## Pipeline (`.github/workflows/build-images.yml`)
 
 | Step | Script | Output |

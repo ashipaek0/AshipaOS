@@ -50,6 +50,22 @@ and are never paired with the mainline kernel. FAT names are lower case where
 vendor U-Boot reads them, because it lower-cases the requested name before
 comparing it with long file names.
 
+## Recovery button required on every power-on (CONFIRMED, hardware limitation)
+
+The vendor U-Boot on this exact unit only probes the SD card's entry scripts
+(step 2 above) when the box's recovery/update button is held at power-on. A
+plain power-on boots the stock Android boot animation and starts Android
+from eMMC instead, every time — there is no persisted preference that makes
+SD the default, and this project deliberately never creates one: doing so
+means writing the box's saved U-Boot environment on eMMC, which is
+prohibited (AGENTS.md, and never done anywhere in
+`layers/layer2-image/scripts/build-image.sh`). This is a fact of the unit's
+own vendor firmware, not a bug in the boot chain above, and holding the
+recovery button is required on every single boot, not just the first.
+Likewise the IR remote's power key can turn a running appliance off (Linux
+answers it) but cannot turn the box back on from a full power-off: that is
+the box's own PMIC/bootloader's decision, before any code in this image runs.
+
 ## Status
 
 `mainline_boot` is `CONFIRMED` to Linux userspace on the exact unit (see
