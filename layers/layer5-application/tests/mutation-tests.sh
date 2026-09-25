@@ -3,7 +3,11 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 LAUNCHER="$ROOT/layers/layer5-application/files/usr/libexec/ashipaos-jellyfin-mpv-shim"
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+# The fixture bundle is chowned to root (and briefly to another non-caller
+# uid) below to prove the launcher's ownership checks are real; plain rm as
+# the invoking user cannot remove those paths back out, so cleanup needs the
+# same sudo elevation used to create them.
+trap 'sudo rm -rf "$TMP"' EXIT
 
 # Execute the target guard against a real invalid invocation.
 rootfs="$TMP/rootfs.tar.gz"
