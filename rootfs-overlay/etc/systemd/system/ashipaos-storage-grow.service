@@ -7,7 +7,19 @@
 # rootfs-overlay/usr/libexec/ashipaos-storage-grow and contracts/storage.md.
 [Unit]
 Description=AshipaOS: grow the STORAGE partition to fill the SD card
+# DefaultDependencies=no + Before=local-fs.target is the standard pattern for
+# a service that must run before local mounts (storage.mount is a
+# local-fs.target member, pulled in ahead of it by its fstab line): without
+# this, the implicit After=sysinit.target every ordinary service gets creates
+# a real ordering cycle (sysinit.target -> local-fs.target -> storage.mount
+# -> this service -> sysinit.target), and systemd resolves it by dropping
+# local-fs.target from the boot transaction entirely -- STORAGE, and every
+# app that needs it, silently never starts
+# (evidence/amlogic/a95x-f3-air/boot-2026-09-25c/).
+DefaultDependencies=no
 After=local-fs-pre.target
+Before=local-fs.target
+Conflicts=shutdown.target
 RequiresMountsFor=/boot/firmware
 
 [Service]

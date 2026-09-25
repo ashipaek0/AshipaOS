@@ -20,6 +20,7 @@ gates=(
   tests/e2e/test-boot-status.sh
   tests/e2e/test-boot-success.sh
   tests/e2e/test-storage-grow.sh
+  tests/e2e/test-systemd-ordering.sh
   tests/static/test-coreelec-pin.sh
   tests/static/test-coreelec-contract.sh
   tests/static/test-coreelec-ce2a.sh

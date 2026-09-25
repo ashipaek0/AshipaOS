@@ -60,6 +60,16 @@ grep -q 'removable' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || 
 grep -q -- '--no-tell-kernel' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must not force a whole-disk kernel partition-table reread"
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-storage-grow.service" ]] || fail "storage-grow service unit is missing"
 [[ -f "$ROOT/rootfs-overlay/usr/lib/tmpfiles.d/ashipaos-storage.conf" ]] || fail "the /storage tmpfiles.d rule is missing"
+# Without DefaultDependencies=no + Before=local-fs.target, this ordinary
+# service's implicit After=sysinit.target forms a real cycle with
+# local-fs.target (a storage.mount member pulled in ahead of it by its own
+# fstab line) -- systemd resolves it by dropping local-fs.target from the
+# boot transaction, so STORAGE silently never mounts on any boot
+# (evidence/amlogic/a95x-f3-air/boot-2026-09-25c/; proven for real, not just
+# grepped, by tests/e2e/test-systemd-ordering.sh).
+STORAGE_GROW_SERVICE="$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-storage-grow.service"
+grep -qx 'DefaultDependencies=no' "$STORAGE_GROW_SERVICE" || fail "storage-grow.service must set DefaultDependencies=no (see the ordering-cycle comment in the unit)"
+grep -qx 'Before=local-fs.target' "$STORAGE_GROW_SERVICE" || fail "storage-grow.service must run before local-fs.target"
 # Audio: dmix failed to open its slave on the exact unit (silent playback
 # every time); /etc/asound.conf routes mpv straight to hw:0,0 instead.
 grep -q 'etc/asound.conf' "$SCRIPT" || fail "asound.conf must be installed into the rootfs"
