@@ -26,6 +26,8 @@ packages:
   # rtw_8822cs, firmware rtw88/rtw8822c_fw.bin); iwd joins the network
   # imported from wifi.txt on the boot partition; networkd runs DHCP.
   wifi: [firmware-realtek, wireless-regdb, iwd]
+  # IR remote: the stock A95X keymap is loaded onto the meson-ir receiver.
+  remote: [ir-keytable]
   # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv,
   # rendering through DRM/GBM/EGL (Mesa panfrost + meson display driver).
   application_runtime: [python3, libmpv2, libgl1-mesa-dri, libegl-mesa0, libgbm1, fonts-dejavu-core]

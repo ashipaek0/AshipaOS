@@ -216,6 +216,11 @@ configure_system() {
         "$ROOTFS/etc/systemd/system/ashipaos-wifi-import.service"
     install -D -m 0644 "$OVERLAY_DIR/usr/share/ashipaos/wifi.txt" "$ROOTFS/usr/share/ashipaos/wifi.txt"
     in_rootfs systemctl enable iwd.service ashipaos-wifi-import.service
+    # IR remote: ir-keytable's udev rule loads this map when meson-ir registers.
+    install -D -m 0644 "$OVERLAY_DIR/etc/rc_keymaps/a95x-f3-air.toml" "$ROOTFS/etc/rc_keymaps/a95x-f3-air.toml"
+    [[ -f "$ROOTFS/etc/rc_maps.cfg" ]] || error "ir-keytable did not install /etc/rc_maps.cfg"
+    sed -i '1i # AshipaOS: the A95X F3 Air IR remote on the SoC receiver.\nmeson-ir * a95x-f3-air.toml' \
+        "$ROOTFS/etc/rc_maps.cfg"
     in_rootfs systemctl enable systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
     # The appliance must boot with or without a network: nothing may wait for
     # one, so network-online.target is reached at once.

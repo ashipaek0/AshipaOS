@@ -21,6 +21,7 @@ tmp="$report.partial"
     journalctl -b -u ashipaos-jellyfin-mpv-shim.service --no-pager -o short-monotonic -n 600
     echo; echo "== jellyfin mpv shim config =="; ls -la /storage/jellyfin-mpv-shim 2>&1
     echo; echo "== clock =="; timedatectl 2>&1
+    echo; echo "== IR remote =="; ir-keytable 2>&1 | head -n 20
     echo; echo "== display/input/audio devices =="; ls -l /dev/dri /dev/input /dev/snd 2>&1
     echo; echo "== network =="; ip -brief address 2>&1; networkctl --no-pager 2>&1
     echo; echo "== wi-fi =="

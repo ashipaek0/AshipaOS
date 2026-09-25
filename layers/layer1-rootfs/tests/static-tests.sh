@@ -32,7 +32,7 @@ for key in ("mirror", "security_mirror"):
 assert debian["keyring"] == "/usr/share/keyrings/debian-archive-keyring.gpg"
 assert "python3-mpv" not in packages
 assert config["debian"]["suite"] == "trixie", "libmpv must be >= 0.38 (Jellyfin MPV Shim 3.0)"
-assert {"firmware-realtek", "wireless-regdb", "iwd", "cage", "seatd"} <= set(packages)
+assert {"firmware-realtek", "wireless-regdb", "iwd", "cage", "seatd", "ir-keytable"} <= set(packages)
 assert len(packages) == len(set(packages))
 PY
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/network/20-wired.network" ]] || fail "network overlay is missing"

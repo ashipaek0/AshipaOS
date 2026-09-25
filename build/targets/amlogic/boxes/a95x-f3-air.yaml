@@ -10,7 +10,7 @@ status:
   device_tree: CONFIRMED
   wifi: PROVISIONAL
   bluetooth: UNKNOWN
-  ir: UNKNOWN
+  ir: PROVISIONAL
   hardware_decode: UNKNOWN
 
 soc:
@@ -135,9 +135,15 @@ ram:
       source: owner report; usable memory in the CoreELEC dtb above
 
 ir:
-  receiver: null
-  status: UNKNOWN
-  evidence: []
+  receiver: meson-ir (NEC)
+  remote: cyxtech-remote-a95x, custom code 0xdf00 (stock firmware meson1.dtb)
+  keymap: rootfs-overlay/etc/rc_keymaps/a95x-f3-air.toml
+  # Receiver bound on the unit; key presses from the stock remote not yet tested.
+  status: PROVISIONAL
+  evidence:
+    - class: HARDWARE
+      runner: human
+      source: evidence/amlogic/a95x-f3-air/boot-2026-09-25/ (meson-ir receiver initialized)
 
 cec:
   status: UNKNOWN

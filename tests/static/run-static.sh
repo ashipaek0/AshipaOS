@@ -16,6 +16,7 @@ gates=(
   tests/static/test-rootfs-ownership.sh
   tests/static/test-signing-safety.sh
   tests/static/test-boot-status.sh
+  tests/static/test-ir-keymap.sh
   tests/e2e/test-boot-status.sh
   tests/static/test-coreelec-pin.sh
   tests/static/test-coreelec-contract.sh
