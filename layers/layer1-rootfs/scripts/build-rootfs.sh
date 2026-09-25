@@ -221,10 +221,22 @@ configure_system() {
     [[ -f "$ROOTFS/etc/rc_maps.cfg" ]] || error "ir-keytable did not install /etc/rc_maps.cfg"
     sed -i '1i # AshipaOS: the A95X F3 Air IR remote on the SoC receiver.\nmeson-ir * a95x-f3-air.toml' \
         "$ROOTFS/etc/rc_maps.cfg"
+    # Diagnostics only (read-only, no writes): logs every decoded press to
+    # the journal, since which physical button produced which key is not
+    # otherwise recoverable from the app's own logs. See
+    # evidence/amlogic/a95x-f3-air/boot-2026-09-25b/.
+    install -D -m 0644 "$OVERLAY_DIR/etc/systemd/system/ashipaos-ir-log.service" \
+        "$ROOTFS/etc/systemd/system/ashipaos-ir-log.service"
+    in_rootfs systemctl enable ashipaos-ir-log.service
     in_rootfs systemctl enable systemd-networkd.service systemd-resolved.service systemd-timesyncd.service
     # The appliance must boot with or without a network: nothing may wait for
     # one, so network-online.target is reached at once.
     ln -sfn /dev/null "$ROOTFS/etc/systemd/system/systemd-networkd-wait-online.service"
+
+    # Audio: route mpv straight to the HDMI PCM through `plug`, bypassing
+    # dmix, which failed to open its slave on the exact unit (silent
+    # playback every time); see rootfs-overlay/etc/asound.conf.
+    install -D -m 0644 "$OVERLAY_DIR/etc/asound.conf" "$ROOTFS/etc/asound.conf"
 
     # STORAGE partition (settings/app state, survives an OS update): grown to
     # fill the SD card on first boot, before it is ever mounted; see

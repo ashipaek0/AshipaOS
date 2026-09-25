@@ -9,9 +9,17 @@ whole disk's table while boot/root partitions are in use. The ext4 filesystem
 itself is grown afterwards by systemd-growfs (fstab's x-systemd.growfs on the
 STORAGE line), ordered after this service by x-systemd.requires.
 
-Safety: only ever touches the disk holding the AshipaOS boot partition, and
-only after confirming from /sys/block that it is removable. Never eMMC.
-See contracts/storage.md.
+Safety: only ever touches the disk holding the AshipaOS boot partition, never
+the box's eMMC (refused by its exact device name, confirmed on the exact
+unit), and only once that disk's partition table matches the A95X 4-partition
+layout exactly. /sys/block's "removable" attribute is NOT trusted as a gate:
+on this unit's SD slot it reads 0 even for the real, booted-from SD card
+(evidence/amlogic/a95x-f3-air/boot-2026-09-25b/, ashipaos-storage-grow
+refusing to touch mmcblk0 -- the disk this same boot's root filesystem is
+mounted from), so treating it as authoritative would permanently disable
+growth on the exact hardware this is for. It is still logged, in case a
+future unit's SD controller reports it correctly and a real eMMC-mixup ever
+shows up as removable=0 too. See contracts/storage.md.
 """
 import json
 import os
@@ -50,14 +58,19 @@ def resolve_disk():
     return disk
 
 
-def require_removable(disk: str) -> None:
-    # Belt and braces: the exact eMMC device name observed on this hardware,
-    # even though the removable check below is the general, authoritative one.
+def require_not_emmc(disk: str) -> None:
+    # The authoritative check: the exact eMMC device name observed on this
+    # hardware. /sys/block/<disk>/removable is NOT used as a gate -- on this
+    # unit it reads 0 for the SD slot too (see the module docstring) -- but
+    # is still logged as a diagnostic in case a mismatch is ever worth
+    # noticing.
     if disk == "mmcblk1":
         raise SystemExit(f"refusing to touch {disk}: this is the box's eMMC, never removable SD")
     removable = SYSBLOCK_ROOT / disk / "removable"
-    if not removable.is_file() or removable.read_text().strip() != "1":
-        raise SystemExit(f"refusing to touch {disk}: not reported as a removable disk")
+    flag = removable.read_text().strip() if removable.is_file() else "<missing>"
+    if flag != "1":
+        print(f"ashipaos-storage-grow: {disk}/removable reads {flag!r} (not 1); "
+              "proceeding anyway, see the module docstring", file=sys.stderr)
 
 
 def disk_size_sectors(disk: str) -> int:
@@ -68,7 +81,7 @@ def main() -> int:
     if MARKER.exists():
         return 0
     disk = resolve_disk()
-    require_removable(disk)
+    require_not_emmc(disk)
     device = os.environ.get("ASHIPAOS_STORAGE_GROW_DEVICE", f"/dev/{disk}")
 
     table = json.loads(run("sfdisk", "-J", device))["partitiontable"]

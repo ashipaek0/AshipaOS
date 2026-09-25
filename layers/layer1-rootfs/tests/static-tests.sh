@@ -35,6 +35,9 @@ assert config["debian"]["suite"] == "trixie", "libmpv must be >= 0.38 (Jellyfin 
 assert {"firmware-realtek", "wireless-regdb", "iwd", "cage", "seatd", "ir-keytable"} <= set(packages)
 # STORAGE partition growth (contracts/storage.md) needs sfdisk/partx and resize2fs.
 assert {"util-linux", "e2fsprogs"} <= set(packages)
+# aplay/amixer for the boot report's audio diagnostics (dmix failed on the
+# exact unit; see rootfs-overlay/etc/asound.conf).
+assert "alsa-utils" in packages
 assert len(packages) == len(set(packages))
 PY
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/network/20-wired.network" ]] || fail "network overlay is missing"
@@ -50,10 +53,25 @@ grep -q 'ashipaos-storage-grow.service' "$SCRIPT" || fail "the storage-grow serv
 grep -q 'ashipaos-storage.conf' "$SCRIPT" || fail "the /storage tmpfiles.d rule must be installed into the rootfs"
 [[ -x "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" ]] || fail "storage-grow script is missing or not executable"
 grep -q 'mmcblk1' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must explicitly refuse the box's eMMC (mmcblk1)"
-grep -q 'removable' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must require the target disk be reported removable"
+# removable=0 is real on this hardware's own SD slot (see the script's
+# docstring), so it is logged as a diagnostic, not enforced as a gate; the
+# eMMC name check just above is the actual safety boundary.
+grep -q 'removable' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must at least log the disk's removable flag"
 grep -q -- '--no-tell-kernel' "$ROOT/rootfs-overlay/usr/libexec/ashipaos-storage-grow" || fail "storage-grow must not force a whole-disk kernel partition-table reread"
 [[ -f "$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-storage-grow.service" ]] || fail "storage-grow service unit is missing"
 [[ -f "$ROOT/rootfs-overlay/usr/lib/tmpfiles.d/ashipaos-storage.conf" ]] || fail "the /storage tmpfiles.d rule is missing"
+# Audio: dmix failed to open its slave on the exact unit (silent playback
+# every time); /etc/asound.conf routes mpv straight to hw:0,0 instead.
+grep -q 'etc/asound.conf' "$SCRIPT" || fail "asound.conf must be installed into the rootfs"
+[[ -f "$ROOT/rootfs-overlay/etc/asound.conf" ]] || fail "asound.conf is missing"
+grep -q 'type plug' "$ROOT/rootfs-overlay/etc/asound.conf" || fail "asound.conf must route through plug, not dmix"
+
+# IR diagnostics: read-only, no writes, no network -- see the service file.
+grep -q 'ashipaos-ir-log.service' "$SCRIPT" || fail "the IR diagnostics service must be installed and enabled"
+[[ -f "$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-ir-log.service" ]] || fail "ashipaos-ir-log.service is missing"
+! grep -Eq 'mmcblk|/dev/mmc|curl |wget ' "$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-ir-log.service" ||
+    fail "ashipaos-ir-log.service must stay read-only and offline"
+
 grep -q ': >"$ROOTFS/etc/machine-id"' "$SCRIPT" || fail "rootfs must not ship a fixed machine-id"
 grep -q -- '--keyring="$DEBIAN_KEYRING" --force-check-gpg' "$SCRIPT" || fail "debootstrap must verify Release signatures"
 ! grep -Eq 'DEBIAN_(MIRROR|SUITE)=.*\$\{DEBIAN_' "$SCRIPT" || fail "Debian sources must not be overridable from the environment"

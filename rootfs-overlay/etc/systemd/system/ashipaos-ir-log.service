@@ -1,0 +1,26 @@
+# Logs every decoded IR remote press (raw scancode -> Linux keycode) to the
+# journal, so the next boot report can show exactly which physical button
+# produced which key -- read-only, no writes, no network. Exists because the
+# reported "Back button doesn't work" and "D-pad scrubs the video instead of
+# raising the UI" symptoms need this correlation to diagnose further: mpv's
+# own log only shows the key NAME it received (e.g. "GO_BACK"), not which
+# remote button was pressed to produce it.
+[Unit]
+Description=AshipaOS: log decoded IR remote presses for diagnostics
+
+[Service]
+Type=simple
+# No explicit device-unit dependency (fragile to get the escaped sysfs name
+# right): rc0 registers early, and a fixed retry picks it up the moment it
+# does, same as udev-triggered rules would.
+ExecStart=/usr/bin/ir-keytable -t -s rc0
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=0
+# Read-only tracing: no privileges beyond opening the rc device are needed.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

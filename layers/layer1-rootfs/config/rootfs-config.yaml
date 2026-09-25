@@ -33,7 +33,10 @@ packages:
   storage: [util-linux, e2fsprogs]
   # Jellyfin MPV Shim runs on the target interpreter and Debian's libmpv,
   # rendering through DRM/GBM/EGL (Mesa panfrost + meson display driver).
-  application_runtime: [python3, libmpv2, libgl1-mesa-dri, libegl-mesa0, libgbm1, fonts-dejavu-core]
+  # alsa-utils: aplay/amixer for the boot report's audio diagnostics
+  # (evidence/amlogic/a95x-f3-air/boot-2026-09-25b/: dmix failed on the exact
+  # unit, silent playback every time; /etc/asound.conf routes around it).
+  application_runtime: [python3, libmpv2, libgl1-mesa-dri, libegl-mesa0, libgbm1, fonts-dejavu-core, alsa-utils]
   # Kiosk compositor for the app (input via libinput) and its seat manager.
   kiosk: [cage, seatd]
 hostname: ashipaos
