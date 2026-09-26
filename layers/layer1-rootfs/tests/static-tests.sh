@@ -71,10 +71,18 @@ STORAGE_GROW_SERVICE="$ROOT/rootfs-overlay/etc/systemd/system/ashipaos-storage-g
 grep -qx 'DefaultDependencies=no' "$STORAGE_GROW_SERVICE" || fail "storage-grow.service must set DefaultDependencies=no (see the ordering-cycle comment in the unit)"
 grep -qx 'Before=local-fs.target' "$STORAGE_GROW_SERVICE" || fail "storage-grow.service must run before local-fs.target"
 # Audio: dmix failed to open its slave on the exact unit (silent playback
-# every time); /etc/asound.conf routes mpv straight to hw:0,0 instead.
+# every time); /etc/asound.conf routes mpv straight to the real HDMI card
+# instead. By name, not index: a numeric card index broke the moment a USB
+# device (the remote/keyboard dongle, which also enumerates as a fake audio
+# card) took index 0, pushing the real card to 1
+# (evidence/amlogic/a95x-f3-air/boot-2026-09-25c/).
+ASOUND_CONF="$ROOT/rootfs-overlay/etc/asound.conf"
 grep -q 'etc/asound.conf' "$SCRIPT" || fail "asound.conf must be installed into the rootfs"
-[[ -f "$ROOT/rootfs-overlay/etc/asound.conf" ]] || fail "asound.conf is missing"
-grep -q 'type plug' "$ROOT/rootfs-overlay/etc/asound.conf" || fail "asound.conf must route through plug, not dmix"
+[[ -f "$ASOUND_CONF" ]] || fail "asound.conf is missing"
+grep -q 'type plug' "$ASOUND_CONF" || fail "asound.conf must route through plug, not dmix"
+grep -q 'card A95XF3AIR' "$ASOUND_CONF" || fail "asound.conf must reference the HDMI card by name, not a fragile numeric index"
+! grep -Ev '^\s*#' "$ASOUND_CONF" | grep -Eq 'hw:0,0|^\s*card\s+0\s*$' ||
+    fail "asound.conf must not hardcode card 0 (that is the USB dongle on this unit, not HDMI)"
 
 # IR diagnostics: read-only, no writes, no network -- see the service file.
 grep -q 'ashipaos-ir-log.service' "$SCRIPT" || fail "the IR diagnostics service must be installed and enabled"

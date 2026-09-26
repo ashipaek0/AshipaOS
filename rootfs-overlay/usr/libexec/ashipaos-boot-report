@@ -25,9 +25,11 @@ tmp="$report.partial"
     echo; echo "== IR remote: decoded presses this boot (scancode -> keycode) =="
     journalctl -b -u ashipaos-ir-log.service --no-pager -n 200
     echo; echo "== display/input/audio devices =="; ls -l /dev/dri /dev/input /dev/snd 2>&1
-    echo; echo "== ALSA cards (/etc/asound.conf assumes card 0 is the HDMI output) =="
+    echo; echo "== ALSA cards (/etc/asound.conf routes to card A95XF3AIR by name) =="
     cat /proc/asound/cards 2>&1
     aplay -l 2>&1
+    echo; echo "== ALSA named devices (iec958/spdif here would mean the card exposes compressed passthrough) =="
+    aplay -L 2>&1
     echo; echo "== hardware video decode (v4l2m2m for mpv's hwdec) =="; ls -l /dev/video* 2>&1
     echo; echo "== network =="; ip -brief address 2>&1; networkctl --no-pager 2>&1
     echo; echo "== wi-fi =="
