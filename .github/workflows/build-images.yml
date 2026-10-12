@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - A95XF3-Air  # Development build from this branch; no release job.
+      - fix/a95x-ui-playback  # Validate the TV scaling/playback fixes before merging.
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -128,7 +129,7 @@ jobs:
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           # Explicit, visible opt-in for development runs only. Tags never get placeholders.
-          CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/A95XF3-Air') && '1' || (github.event_name == 'workflow_dispatch' && inputs.allow_unsigned && '1' || '0') }}
+          CI_ALLOW_PLACEHOLDER_SIGNATURES: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/A95XF3-Air' || github.ref == 'refs/heads/fix/a95x-ui-playback')) && '1' || (github.event_name == 'workflow_dispatch' && inputs.allow_unsigned && '1' || '0') }}
         run: bash scripts/ci-sign-artefacts.sh output/images output/sbom.json
 
       - name: Upload release artefacts

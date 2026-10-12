@@ -25,13 +25,6 @@ IFS=: read -r _ _ ashipa_uid ashipa_gid _ < <(getent passwd ashipa) || error "th
 
 [[ -d "$CONFIG" ]] || install -d -m 0700 "$CONFIG" || error "cannot create configuration directory"
 owned_mode "$CONFIG" "$ashipa_uid" "$ashipa_gid" 700 || error "configuration ownership or mode is invalid"
-# First boot: seed the appliance defaults (fullscreen browser, DRM output).
-# Existing files are never overwritten, so settings changed in the UI persist.
-for default in conf.json mpv.conf; do
-    if [[ -f "$DEFAULTS/$default" && ! -e "$CONFIG/$default" ]]; then
-        install -m 0600 "$DEFAULTS/$default" "$CONFIG/$default" || error "cannot seed $default"
-    fi
-done
 
 manifest="$BUNDLE/manifest.json"
 owned_mode "$BUNDLE" 0 0 755 || error "bundle directory ownership or mode is invalid"
@@ -60,4 +53,6 @@ expected_hash="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))
 actual_hash="$(sha256sum "$BUNDLE/bin/$EXPECTED_NAME" | awk '{print $1}')"
 [[ "$actual_hash" == "$expected_hash" ]] || error "bundle executable does not match its manifest hash"
 
-exec "$BUNDLE/bin/$EXPECTED_NAME" "$@"
+# Seed new installs and migrate only byte-identical old appliance defaults.
+# This happens after bundle validation, before the app reads its settings.
+exec python3 "$DEFAULTS/configure.py" "$CONFIG" "$BUNDLE/bin/$EXPECTED_NAME" "$@"

@@ -39,6 +39,10 @@ boots straight into Jellyfin MPV Shim, fullscreen on HDMI.
   Wayland kiosk compositor on `seatd`, which delivers keyboard/mouse/remote
   input. Wi-Fi is a Realtek RTL8822CS (`firmware-realtek`), configured from
   `wifi.txt` on the boot partition.
+- Layer 5 applies a reviewed TV-scaling patch after verifying the original
+  wheel against its pinned source. Exact preimage/result hashes and installed
+  patch provenance are mandatory; see `layers/layer5-application/patches/`.
+  `playback.txt` on A95XBOOT supplies scale/software-decode recovery overrides.
 - CoreELEC: `build/coreelec/` pins and inspects the stock CoreELEC baseline as
   hardware-fact evidence only; nothing from it is copied into the image.
 - Full image builds run in GitHub Actions only; local full image builds are not

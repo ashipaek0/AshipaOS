@@ -44,6 +44,7 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps(manifest) + "\n")
 PY
 printf '{"enable_gui": true}' >"$defaults/conf.json"
 printf 'vo=gpu\n' >"$defaults/mpv.conf"
+cp "$ROOT/layers/layer5-application/files/usr/share/ashipaos/jellyfin-mpv-shim/configure.py" "$defaults/configure.py"
 # Set every mode as the invoking user, THEN hand ownership to root: once
 # chowned, this user can no longer chmod these paths directly (matching the
 # real, root-only bundle build-application.sh produces), so mode must be
