@@ -12,6 +12,7 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 [[ -x "$SCRIPT" && -x "$TOOL" && -x "$LAUNCHER" ]] || fail "layer 5 scripts must be executable"
 bash -n "$SCRIPT" "$LAUNCHER"
 python3 -B -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$TOOL"
+python3 -B "$LAYER/tests/test-appliance.py"
 
 # The committed lock must pass the same validation CI applies before download.
 python3 -B - "$TOOL" "$LOCK" <<'PY'
@@ -74,6 +75,8 @@ assert conf["enable_gui"] and conf["browser_fullscreen"] and conf["fullscreen"] 
 assert conf["check_updates"] is False and conf["notify_updates"] is False, "an appliance must not poll GitHub"
 mpv = dict(l.split("=", 1) for l in (defaults / "mpv.conf").read_text().split("\n") if l and not l.startswith("#"))
 assert mpv["vo"] == "gpu" and mpv["gpu-context"] == "wayland"
+assert mpv["audio-spdif"] == "", "passthrough requires explicit receiver configuration"
+assert 0 < int(mpv["input-ar-rate"]) <= 10
 assert not {"idle", "force-window", "fullscreen"} & set(mpv), "mpv.conf must not override shim-managed options"
 PY
 grep -q 'multi-user.target.wants/$SERVICE' "$SCRIPT" || fail "build-application.sh must enable the shim service"

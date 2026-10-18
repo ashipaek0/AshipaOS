@@ -1,0 +1,9 @@
+# Edit on the A95XBOOT partition, then reboot. This file contains no secrets.
+# auto uses a TV-sized UI: 720p=1x, 1080p=1.5x, 4K=3x (unless the UI has
+# an explicit Interface Scale setting). A number overrides that setting.
+UI_SCALE=auto
+# If playback is black or frozen, try software to isolate decoder problems.
+# Software decode is not guaranteed to handle high-bitrate or 4K media;
+# use the player's transcode retry / server transcoding for those files.
+# auto keeps the existing mpv.conf decoder selection; it is not a new probe.
+VIDEO_DECODE=auto

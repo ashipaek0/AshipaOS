@@ -48,6 +48,7 @@ tar -C "$ROOTFS" --numeric-owner --xattrs --acls -xpzf "$INPUT"
 mkdir -p "$BUNDLE/bin"
 python3 "$BUNDLE_TOOL" --lock "$LOCK" install \
     --resolution "$RESOLUTION" --artifacts-dir "$ARTIFACTS" --site "$BUNDLE/site-packages"
+install -m 0644 "$BUNDLE/site-packages/ashipaos-patches.json" "$BUNDLE/appliance-patches.json"
 install -m 0644 "$ARTIFACTS/source.tar.gz" "$BUNDLE/source.tar.gz"
 install -m 0644 "$LOCK" "$BUNDLE/dependencies.lock.json"
 install -m 0644 "$RESOLUTION" "$BUNDLE/dependency-resolution.json"
@@ -71,6 +72,8 @@ sbom = {
     "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
     "metadata": {"component": {"type": "application", "name": name, "version": version,
                                "purl": f"pkg:github/jellyfin/jellyfin-mpv-shim@{lock['source']['commit']}",
+                               "properties": [{"name": "ashipaos:appliance-patches",
+                                               "value": (bundle / "appliance-patches.json").read_text()}],
                                "hashes": [{"alg": "SHA-256", "content": lock["source"]["sha256"]}]}},
     "components": [{"type": "library", "name": a["name"], "version": a["version"],
                     "purl": f"pkg:pypi/{a['name'].lower()}@{a['version']}",
@@ -101,7 +104,7 @@ install -D -m 0755 -o 0 -g 0 "$LAUNCHER" "$ROOTFS/usr/libexec/ashipaos-jellyfin-
 # seeded into /storage by the launcher.
 FILES="$LAYER_DIR/files"
 install -D -m 0644 -o 0 -g 0 "$FILES/etc/systemd/system/$SERVICE" "$ROOTFS/etc/systemd/system/$SERVICE"
-for default in conf.json mpv.conf; do
+for default in conf.json mpv.conf configure.py playback.txt; do
     install -D -m 0644 -o 0 -g 0 "$FILES/usr/share/ashipaos/$APP_NAME/$default" \
         "$ROOTFS/usr/share/ashipaos/$APP_NAME/$default"
 done

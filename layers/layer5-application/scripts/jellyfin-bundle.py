@@ -271,8 +271,35 @@ def install_closure(lock: dict[str, Any], artifacts_dir: pathlib.Path,
         raise ValueError(f"application wheel missing or hash mismatch: {app.name}")
     verify_wheel_matches_source(app, source_archive)
     install_wheel(app, site)
+    apply_appliance_patches(site)
     if not (site / "jellyfin_mpv_shim" / "default_shader_pack" / "pack.json").is_file():
         raise ValueError("installed application lacks the default shader pack")
+
+
+def apply_appliance_patches(site: pathlib.Path) -> None:
+    """Apply reviewed appliance changes only after upstream hash verification.
+
+    Both preimage and result are pinned; upstream upgrades must explicitly
+    rebase each change. Keep an audit record alongside the installed package.
+    """
+    records = []
+    for patch in (LAYER_DIR / "patches" / "tv-scale.json",):
+        change = json.loads(patch.read_text(encoding="utf-8"))
+        target = site / change["path"]
+        if not target.resolve().is_relative_to(site.resolve()):
+            raise ValueError("appliance patch escapes site-packages")
+        if sha256(target) != change["before_sha256"]:
+            raise ValueError(f"appliance patch preimage mismatch: {patch.name}")
+        source = target.read_text(encoding="utf-8")
+        if source.count(change["old"]) != 1:
+            raise ValueError(f"appliance patch context mismatch: {patch.name}")
+        result = source.replace(change["old"], change["new"]).encode("utf-8")
+        if hashlib.sha256(result).hexdigest() != change["after_sha256"]:
+            raise ValueError(f"appliance patch result mismatch: {patch.name}")
+        target.write_bytes(result)
+        records.append({"patch": patch.name, "patch_sha256": sha256(patch),
+                        **{k: change[k] for k in ("path", "before_sha256", "after_sha256")}})
+    (site / "ashipaos-patches.json").write_text(json.dumps(records, indent=2) + "\n")
 
 
 def verify_wheel_matches_source(wheel: pathlib.Path, source_archive: pathlib.Path) -> None:

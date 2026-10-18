@@ -41,6 +41,39 @@ demand; `allow_unsigned` permits placeholder signatures for development runs.
 
 See `ashipaos-build-guide.md` and `contracts/`.
 
+## TV interface and playback recovery
+
+Automatic interface scale now fits a TV-sized logical canvas: 1x at 720p,
+1.5x at 1080p and 3x at 4K. An explicit **Interface Scale** setting takes
+precedence. Restart the app after changing HDMI resolution. Remote key repeat
+defaults are slower to reduce accidental navigation overshoot.
+
+If the UI is still too small, edit `playback.txt` on the SD card's `A95XBOOT`
+partition and reboot. For example:
+
+```ini
+UI_SCALE=2
+VIDEO_DECODE=software
+```
+
+`UI_SCALE` accepts `auto` or 0.5–4. `VIDEO_DECODE=software` disables hardware
+decoding for diagnosis of black/frozen playback; `auto` retains `mpv.conf`'s
+decoder choice. These overrides do not rewrite the player's settings. On older
+cards, create the file after installing an image with this launcher.
+
+Test a modest 720p H.264/AAC file first. If software decoding works but `auto`
+freezes, the hardware decode path needs investigation. Software decoding cannot
+be assumed to handle 4K/HEVC/AV1 on the S905X3; use Jellyfin transcoding or the
+player's transcode retry. If both modes fail, retain the boot report and check
+the server's playback logs before changing decoders again. Hardware playback
+and HDMI output still require validation on the actual box.
+
+Audio defaults to decoded PCM. Enable passthrough only with a tested AVR and
+an appropriate ALSA device. On upgrades, the exact previously shipped stock
+`mpv.conf` is backed up as `mpv.conf.pre-tv-fix` and migrated. Customized files
+and `conf.json` are preserved; for those, remove unconditional `audio-spdif`
+manually if the connected TV does not support it. Credentials are not touched.
+
 ## Wi-Fi
 
 Before the first boot (or any time later), open the SD card's `A95XBOOT`

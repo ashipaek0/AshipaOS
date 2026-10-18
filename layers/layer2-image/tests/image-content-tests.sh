@@ -51,7 +51,7 @@ fat="$IMAGE@@$((8192 * 512))"
 DTB_NAME=meson-sm1-a95xf3-air.dtb
 DTB_BASE="${DTB_NAME%.dtb}"
 listing="$(mdir -b -i "$fat" ::)"
-for f in aml_autoscript cfgload s905_autoscript u-boot.ext boot.scr ashipaos.id active-root.txt manifest.json wifi.txt \
+for f in aml_autoscript cfgload s905_autoscript u-boot.ext boot.scr ashipaos.id active-root.txt manifest.json wifi.txt playback.txt \
          Image-a initrd.img-a "$DTB_BASE-a.dtb"; do
     grep -Fxq "::/$f" <<<"$listing" || fail "boot partition is missing $f (lower-case name required)"
     mcopy -n -i "$fat" "::$f" "$TMP/$f"
@@ -144,6 +144,7 @@ grep -q 'x-systemd.growfs' <<<"$fstab" || fail "STORAGE mount must grow the file
 grep -q 'x-systemd.requires=ashipaos-storage-grow.service' <<<"$fstab" || fail "STORAGE mount must be ordered after ashipaos-storage-grow.service"
 for f in /usr/libexec/ashipaos-jellyfin-mpv-shim \
          /usr/lib/ashipaos/apps/jellyfin-mpv-shim/manifest.json \
+         /usr/lib/ashipaos/apps/jellyfin-mpv-shim/appliance-patches.json \
          /usr/lib/ashipaos/apps/jellyfin-mpv-shim/bin/jellyfin-mpv-shim \
          /usr/lib/tmpfiles.d/ashipaos-jellyfin-mpv-shim.conf \
          /usr/libexec/ashipaos-boot-status-handler \
@@ -166,6 +167,8 @@ done
 # The image boots into Jellyfin MPV Shim: unit present and enabled, tty1 getty masked.
 for f in /etc/systemd/system/ashipaos-jellyfin-mpv-shim.service \
          /usr/share/ashipaos/jellyfin-mpv-shim/conf.json \
+         /usr/share/ashipaos/jellyfin-mpv-shim/configure.py \
+         /usr/share/ashipaos/jellyfin-mpv-shim/playback.txt \
          /usr/share/ashipaos/jellyfin-mpv-shim/mpv.conf; do
     debugfs -R "stat $f" "$root_fs" 2>/dev/null | grep -q 'Type: regular' || fail "root filesystem is missing $f"
 done
